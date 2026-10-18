@@ -93,17 +93,15 @@ export function AppProvider({ children }) {
   // FUNCTIONS
   // -----------------------------------------
 
+  // Friendly game mode: a pseudo is the login. Existing votes are kept.
+  // Anyone knowing a pseudo can impersonate it: acceptable only for a trusted group.
   const addPlayer = async (pseudo, uid) => {
-    if (!pseudo || !uid) throw new Error("Identifiant manquant");
+    if (!pseudo || !uid) throw new Error("Pseudo manquant");
     const playerRef = ref(database, `rooms/miss2027/players/${pseudo}`);
     const result = await runTransaction(playerRef, (current) => {
-      if (current === null) return { uid, connected: true, lastSeen: Date.now() };
-      // Refuse to overwrite another person's pseudo, preserving any previous votes.
-      return;
+      if (current !== null) return; // Never overwrite earlier votes or identity on login.
+      return { uid, connected: true, lastSeen: Date.now() };
     }, { applyLocally: false });
-    if (!result.committed && result.snapshot.val()?.uid !== uid) {
-      throw new Error("Ce pseudo est déjà utilisé. Choisis-en un autre.");
-    }
     return result.snapshot.val();
   };
 

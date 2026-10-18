@@ -15,6 +15,7 @@ export function AppProvider({ children }) {
   });
 
   const [votesOpen, setVotesOpen] = useState(false);
+  const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [tour, setTour] = useState(1);
   const [finaleStarted, setFinaleStarted] = useState(false);
 
@@ -38,6 +39,7 @@ export function AppProvider({ children }) {
           players: {},
           adminSelections: { tour1: [], tour2: [], tour3: [] },
           votesOpen: false,
+          connectionsOpen: false,
           tour: 1,
           finaleStarted: false,
           gameId: newGameId,
@@ -72,17 +74,20 @@ export function AppProvider({ children }) {
   // -----------------------------------------
   useEffect(() => {
     const votesRef = ref(database, "rooms/miss2027/votesOpen");
+    const connectionsRef = ref(database, "rooms/miss2027/connectionsOpen");
     const tourRef = ref(database, "rooms/miss2027/tour");
     const finaleRef = ref(database, "rooms/miss2027/finaleStarted");
     const gameIdRef = ref(database, "rooms/miss2027/gameId");
 
     const unsubV = onValue(votesRef, (snap) => setVotesOpen(Boolean(snap.val())));
+    const unsubC = onValue(connectionsRef, (snap) => setConnectionsOpen(snap.val() === true));
     const unsubT = onValue(tourRef, (snap) => setTour(snap.val() || 1));
     const unsubF = onValue(finaleRef, (snap) => setFinaleStarted(Boolean(snap.val())));
     const unsubG = onValue(gameIdRef, (snap) => setGameId(snap.val() || "loading"));
 
     return () => {
       unsubV();
+      unsubC();
       unsubT();
       unsubF();
       unsubG();
@@ -118,7 +123,6 @@ export function AppProvider({ children }) {
 
   // RESET TOTAL
   const resetGame = () => {
-    if (!window.confirm("Réinitialiser toute la partie ?")) return;
 
     const newGameId = Date.now().toString();
 
@@ -139,6 +143,7 @@ export function AppProvider({ children }) {
 
   const updateTour = (num) => set(ref(database, "rooms/miss2027/tour"), num);
   const updateVotesOpen = (state) => set(ref(database, "rooms/miss2027/votesOpen"), state);
+  const updateConnectionsOpen = (state) => set(ref(database, "rooms/miss2027/connectionsOpen"), state);
   const updateFinaleStarted = (state) => set(ref(database, "rooms/miss2027/finaleStarted"), state);
 
   // -----------------------------------------
@@ -150,6 +155,7 @@ export function AppProvider({ children }) {
         players,
         adminSelections,
         votesOpen,
+        connectionsOpen,
         tour,
         finaleStarted,
         gameId,
@@ -159,6 +165,7 @@ export function AppProvider({ children }) {
         updateAdminSelections,
         updateTour,
         updateVotesOpen,
+        updateConnectionsOpen,
         updateFinaleStarted,
         resetGame,
       }}

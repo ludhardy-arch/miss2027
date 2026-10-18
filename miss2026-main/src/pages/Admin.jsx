@@ -148,7 +148,7 @@ export default function Admin({ user, setUser }) {
   const usedRanks = Object.values(ranking).filter(Boolean);
 
   return (
-    <div style={{ padding: 20, maxWidth: 1200, margin: "0 auto" }}>
+    <div className="tv-page tv-admin-page">
       <style>{votePulseKeyframes}</style>
 
       {finaleStarted && (
@@ -159,8 +159,9 @@ export default function Admin({ user, setUser }) {
         />
       )}
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <h1 style={{ margin: "12px 0" }}>ADMIN — {user.pseudo}</h1>
+      <header className="tv-show-header"><span className="tv-kicker">✦ MISS FRANCE 2027 ✦</span><span className="tv-live-pill">● RÉGIE DU DIRECT</span><h1>TABLEAU DE BORD</h1><p>Pilotez la soirée en temps réel</p></header>
+      <div className="tv-admin-topbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <h2 style={{ margin: "12px 0" }}>ADMIN — {user.pseudo}</h2>
         <button onClick={handleLogout} disabled={loggingOut} style={{ padding: "9px 14px", borderRadius: 9, background: "#32323c", color: "white", border: "1px solid #777", cursor: "pointer" }}>
           {loggingOut ? "Déconnexion…" : "Se déconnecter"}
         </button>

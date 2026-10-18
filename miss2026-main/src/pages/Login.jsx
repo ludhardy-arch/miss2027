@@ -85,7 +85,7 @@ export default function Login({ setUser }) {
         🚀 Participer au concours
       </button>
       <button onClick={loginAdmin} disabled={pending} style={{ padding: 12, width: "100%", cursor: "pointer" }}>
-        Se connecter avec Google — Administration
+        Admin
       </button>
       {error && <p role="alert" style={{ color: "#b00020" }}>{error}</p>}
       {adminUid && <p>Ton UID Firebase : <code>{adminUid}</code> — à renseigner dans Render et dans les règles Firebase.</p>}

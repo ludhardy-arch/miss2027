@@ -63,12 +63,21 @@ export default function Login({ setUser }) {
         <div style={{ width: 76, height: 1, margin: "20px auto", background: "linear-gradient(90deg,transparent,#e9c487,transparent)" }} />
         <p style={{ margin: "0 auto", maxWidth: 330, fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic", fontSize: "clamp(21px, 5.5vw, 27px)", lineHeight: 1.35, color: "#fff9ee" }}>Qui aura le <span style={{ color: "#f2c784" }}>meilleur pronostic ?</span></p>
       </header>
-      <p style={{ background: "rgba(255,255,255,0.85)", color: "#333", padding: 15, borderRadius: 10, lineHeight: 1.45 }}>
-        🟣 Premier tour : sélectionner 12 Miss.<br />
-        🔵 Deuxième tour : sélectionner 5 Miss.<br />
-        🟡 Troisième tour : classer les 5 finalistes.<br />
-        Attends l'ouverture des votes à chaque tour.
-      </p>
+      <section aria-label="Comment jouer" style={{ background: "linear-gradient(160deg, #231131, #18112d)", border: "1px solid #bc79be", color: "white", borderRadius: 22, padding: "18px 12px", marginBottom: 20, boxShadow: "0 10px 28px rgba(37,12,56,.23)" }}>
+        <div style={{ color: "#f7acd7", letterSpacing: ".12em", fontWeight: 800, fontSize: 13, marginBottom: 6 }}>✦ ✨ COMMENT JOUER ✨ ✦</div>
+        <h2 style={{ color: "#fff1f9", fontSize: 24, margin: "7px 0 18px" }}>À vous de jouer !</h2>
+        {[
+          { n: "01", text: "Premier tour : sélectionner 12 Miss.", background: "#4e1d57", border: "#e77dc6", accent: "#ffc0e8" },
+          { n: "02", text: "Deuxième tour : sélectionner 5 Miss.", background: "#27265b", border: "#a09cff", accent: "#c9bfff" },
+          { n: "03", text: "Troisième tour : classer les 5 finalistes.", background: "#163c4f", border: "#68cfd9", accent: "#a2f4f2" }
+        ].map(item => (
+          <div key={item.n} style={{ display: "flex", alignItems: "center", textAlign: "left", gap: 12, padding: 12, marginBottom: 10, background: item.background, border: `1px solid ${item.border}`, borderRadius: 14 }}>
+            <span style={{ flexShrink: 0, width: 43, height: 43, borderRadius: 10, background: "rgba(255,255,255,.12)", color: item.accent, display: "grid", placeItems: "center", fontSize: 18, fontWeight: 800 }}>{item.n}</span>
+            <span style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.5 }}>{item.text}</span>
+          </div>
+        ))}
+        <p style={{ color: "#ffd49c", margin: "17px 7px 5px", fontSize: 14 }}>✨ Attends l'ouverture des votes à chaque tour.</p>
+      </section>
       <p role="status" style={{ padding: 12, borderRadius: 10, background: connectionsOpen ? "#176b43" : "#74323e", color: "white", fontWeight: "bold" }}>{connectionsOpen ? "✅ Connexions ouvertes" : "⏳ Connexions fermées — attends l’ouverture par l’admin"}</p>
       <input disabled={!connectionsOpen || pending} placeholder="Ton pseudo" value={pseudo} onChange={(e) => setPseudo(e.target.value)}
         style={{ padding: 10, width: "100%", boxSizing: "border-box", marginBottom: 12 }} />

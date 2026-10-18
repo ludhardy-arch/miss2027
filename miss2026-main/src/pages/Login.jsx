@@ -5,7 +5,7 @@ import { auth } from "../firebase";
 import { GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut } from "firebase/auth";
 
 export default function Login({ setUser }) {
-  const { addPlayer } = useContext(AppContext);
+  const { addPlayer, connectionsOpen } = useContext(AppContext);
   const [pseudo, setPseudo] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -13,6 +13,7 @@ export default function Login({ setUser }) {
   const navigate = useNavigate();
 
   async function loginPlayer() {
+    if (!connectionsOpen) { setError("Les connexions sont fermées. Attends que l’administrateur les ouvre."); return; }
     const p = pseudo.trim().replace(/\s+/g, " ");
     if (!/^[a-zA-ZÀ-ÖØ-öø-ÿ0-9_ -]{2,24}$/.test(p)) {
       setError("Choisis un pseudo de 2 à 24 caractères : lettres (accents acceptés), chiffres, espaces, _ ou -.");
@@ -23,6 +24,8 @@ export default function Login({ setUser }) {
       // Anonymous Firebase identity, rather than a shared password in source code.
       const credential = await signInAnonymously(auth);
       // The database security rules must bind the pseudo to this UID.
+      // Check the current opening state again after Firebase authentication.
+      if (!connectionsOpen) throw new Error("Les connexions sont fermées.");
       await addPlayer(p, credential.user.uid);
       const userObj = { pseudo: p, role: "player", uid: credential.user.uid };
       setUser(userObj);
@@ -61,11 +64,10 @@ export default function Login({ setUser }) {
         🟡 Troisième tour : classer les 5 finalistes.<br />
         Attends l'ouverture des votes à chaque tour.
       </p>
-      <p>🍺 Site sponsorisé par la bière <b>Malounette</b></p>
-      <img src="/images/malounette.jpeg" alt="Malounette" style={{ width: "100%", maxWidth: 350, borderRadius: 12, marginBottom: 25 }} />
-      <input placeholder="Ton pseudo" value={pseudo} onChange={(e) => setPseudo(e.target.value)}
+      <p role="status" style={{ padding: 12, borderRadius: 10, background: connectionsOpen ? "#176b43" : "#74323e", color: "white", fontWeight: "bold" }}>{connectionsOpen ? "✅ Connexions ouvertes" : "⏳ Connexions fermées — attends l’ouverture par l’admin"}</p>
+      <input disabled={!connectionsOpen || pending} placeholder="Ton pseudo" value={pseudo} onChange={(e) => setPseudo(e.target.value)}
         style={{ padding: 10, width: "100%", boxSizing: "border-box", marginBottom: 12 }} />
-      <button onClick={loginPlayer} disabled={pending} style={{ padding: 12, width: "100%", background: "#ff0088", color: "white", border: 0, cursor: "pointer", marginBottom: 18 }}>
+      <button onClick={loginPlayer} disabled={pending || !connectionsOpen} style={{ padding: 12, width: "100%", background: "#ff0088", color: "white", border: 0, cursor: "pointer", marginBottom: 18 }}>
         🚀 Participer au concours
       </button>
       <button onClick={loginAdmin} disabled={pending} style={{ padding: 12, width: "100%", cursor: "pointer" }}>

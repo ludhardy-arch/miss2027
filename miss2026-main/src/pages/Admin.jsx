@@ -23,6 +23,8 @@ export default function Admin({ user }) {
   const safely = async (task) => { try { await task(); } catch (err) { reportActionError(err); } };
   const {
     votesOpen,
+    connectionsOpen,
+    updateConnectionsOpen,
     updateVotesOpen,
     tour,
     updateTour,
@@ -35,6 +37,8 @@ export default function Admin({ user }) {
   } = useContext(AppContext);
 
   const [selection, setSelection] = useState([]);
+  const [showDangerZone, setShowDangerZone] = useState(false);
+  const [resetConfirmation, setResetConfirmation] = useState("");
   const [ranking, setRanking] = useState({});
 
   useEffect(() => {
@@ -165,16 +169,13 @@ export default function Admin({ user }) {
           justifyContent: "center",
         }}
       >
+        <button onClick={() => safely(() => updateConnectionsOpen(!connectionsOpen))} style={{ background: connectionsOpen ? "#933d42" : "#17794d", color: "white", padding: "10px 16px" }}>
+          {connectionsOpen ? "🔒 Fermer les connexions" : "🔓 Ouvrir les connexions"}
+        </button>
         <button onClick={() => safely(() => updateVotesOpen(!votesOpen))}>
           {votesOpen ? "Fermer les votes" : "Ouvrir les votes"}
         </button>
 
-        <button
-          onClick={resetGame}
-          style={{ background: "crimson", color: "white" }}
-        >
-          RESET
-        </button>
 
         {tour === 3 && (
           <button
@@ -188,6 +189,19 @@ export default function Admin({ user }) {
           </button>
         )}
       </div>
+
+      <details style={{ margin: "28px auto 16px", maxWidth: 500, padding: 12, border: "1px solid #754343", borderRadius: 10 }} open={showDangerZone} onToggle={event => setShowDangerZone(event.currentTarget.open)}>
+        <summary style={{ cursor: "pointer", color: "#e6a2a2", fontWeight: "bold" }}>⚠️ Zone sensible — Réinitialiser la partie</summary>
+        <p style={{ fontSize: 14 }}>Cette action efface tous les joueurs, votes et résultats du jeu. Elle est irréversible.</p>
+        <label htmlFor="reset-confirm">Écris <strong>RESET</strong> pour confirmer :</label>
+        <input id="reset-confirm" value={resetConfirmation} onChange={event => setResetConfirmation(event.target.value)} autoComplete="off" style={{ display: "block", width: "100%", margin: "10px 0", padding: 10, boxSizing: "border-box" }} />
+        <button disabled={resetConfirmation !== "RESET"} onClick={() => {
+          if (!window.confirm("Dernière confirmation : effacer définitivement toute la partie ?")) return;
+          safely(async () => { await resetGame(); setResetConfirmation(""); setShowDangerZone(false); });
+        }} style={{ background: "#8b1e2b", color: "white", padding: 10 }}>
+          Supprimer la partie et recommencer
+        </button>
+      </details>
 
       {/* Joueurs */}
       <div

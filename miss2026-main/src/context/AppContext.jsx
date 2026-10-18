@@ -2,7 +2,7 @@
 
 import React, { createContext, useEffect, useState } from "react";
 import { database } from "../firebase";
-import { ref, onValue, set, update, remove } from "firebase/database";
+import { ref, onValue, set, update, remove, runTransaction } from "firebase/database";
 
 export const AppContext = createContext();
 
@@ -93,14 +93,18 @@ export function AppProvider({ children }) {
   // FUNCTIONS
   // -----------------------------------------
 
-  const addPlayer = (pseudo, uid) => {
-    if (!pseudo) return;
-
-    return update(ref(database, `rooms/miss2027/players/${pseudo}`), {
-      uid,
-      connected: true,
-      lastSeen: Date.now(),
-    });
+  const addPlayer = async (pseudo, uid) => {
+    if (!pseudo || !uid) throw new Error("Identifiant manquant");
+    const playerRef = ref(database, `rooms/miss2027/players/${pseudo}`);
+    const result = await runTransaction(playerRef, (current) => {
+      if (current === null) return { uid, connected: true, lastSeen: Date.now() };
+      // Refuse to overwrite another person's pseudo, preserving any previous votes.
+      return;
+    }, { applyLocally: false });
+    if (!result.committed && result.snapshot.val()?.uid !== uid) {
+      throw new Error("Ce pseudo est déjà utilisé. Choisis-en un autre.");
+    }
+    return result.snapshot.val();
   };
 
   // ⭐⭐ FONCTION QUI MANQUAIT → ajoutée ⭐⭐
@@ -111,7 +115,7 @@ export function AppProvider({ children }) {
   };
 
   const updatePlayerVote = (pseudo, tourNum, selection) => {
-    set(ref(database, `rooms/miss2027/players/${pseudo}/tour${tourNum}`), selection);
+    return set(ref(database, `rooms/miss2027/players/${pseudo}/tour${tourNum}`), selection);
   };
 
   // RESET TOTAL

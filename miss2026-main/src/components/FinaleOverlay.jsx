@@ -81,12 +81,12 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
   const gold = { color: "#ffe0a0" };
 
   return (
-    <div className="finalshow" role="dialog" aria-modal="true" aria-label="Miss Prono 2027, cérémonie finale">
+    <div className="finalshow" role="dialog" aria-modal="true" aria-label="Miss France 2027, cérémonie finale">
       <div className="finalshow-glow" aria-hidden="true" />
       <div className="finalshow-stage" aria-hidden="true"><div className="finalshow-stage-ring" /></div>
       <header className="finalshow-header">
         <div style={{ fontSize: 27, lineHeight: 1, color: "#f0cf86" }} aria-hidden="true">♛</div>
-        <div style={{ ...smallCap, fontSize: 14, letterSpacing: ".14em" }}>MISS PRONO <span style={gold}>2027</span></div>
+        <div style={{ ...smallCap, fontSize: 14, letterSpacing: ".14em" }}>MISS FRANCE <span style={gold}>2027</span></div>
         <div style={{ ...smallCap, fontSize: 9, color: "#d9bfa0", letterSpacing: ".2em" }}>Le jeu des pronostics</div>
         {isAdmin && <button className="finalshow-quit" onClick={quit}>Quitter</button>}
       </header>
@@ -130,7 +130,7 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
 
           {scene === "winner" && winner && (
             <div className="finalshow-center">
-              <div style={smallCap}>Miss Prono 2027</div>
+              <div style={smallCap}>Miss France 2027</div>
               <div className="finalshow-ribbon">GRAND GAGNANT</div>
               <div className="finalshow-medallion finalshow-medallion-winner" aria-hidden="true">♛</div>
               <h1 className="finalshow-winner">{winner.pseudo}</h1>
@@ -160,7 +160,7 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
 
           {scene === "results" && (
             <div className="finalshow-results">
-              <div style={{ ...smallCap, textAlign: "center" }}>Miss Prono 2027</div>
+              <div style={{ ...smallCap, textAlign: "center" }}>Miss France 2027</div>
               <h2 style={{ ...headline, textAlign: "center", color: "#ffe1a0", fontSize: "clamp(29px,8vw,42px)", margin: "14px 0 26px" }}>Classement final</h2>
               <div className="finalshow-ranking">
                 {ranking.map(player => (

@@ -13,9 +13,9 @@ export default function Login({ setUser }) {
   const navigate = useNavigate();
 
   async function loginPlayer() {
-    const p = pseudo.trim();
-    if (!/^[a-zA-Z0-9_-]{2,24}$/.test(p)) {
-      setError("Choisis un pseudo de 2 à 24 caractères : lettres, chiffres, _ ou -.");
+    const p = pseudo.trim().replace(/\s+/g, " ");
+    if (!/^[a-zA-ZÀ-ÖØ-öø-ÿ0-9_ -]{2,24}$/.test(p)) {
+      setError("Choisis un pseudo de 2 à 24 caractères : lettres (accents acceptés), chiffres, espaces, _ ou -.");
       return;
     }
     setPending(true); setError("");

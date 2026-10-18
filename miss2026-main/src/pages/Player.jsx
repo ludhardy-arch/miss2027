@@ -34,7 +34,7 @@ export default function Player({ user, setUser }) {
     if (!window.confirm("Voulez-vous vraiment vous déconnecter ?")) return;
 
     // Keep anonymous Firebase identity so this browser can reclaim the pseudo.
-    localStorage.removeItem("miss_user");
+    sessionStorage.removeItem("miss_user");
     setUser(null);
     navigate("/login", { replace: true });
   };

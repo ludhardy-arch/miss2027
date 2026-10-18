@@ -16,6 +16,11 @@ const votePulseKeyframes = `
 `;
 
 export default function Admin({ user }) {
+  const reportActionError = (error) => {
+    console.error("Firebase admin action refused:", error);
+    alert("Action impossible : " + (error?.code || error?.message || "erreur inconnue") + ". Vérifie ta connexion Google et les règles Firebase.");
+  };
+  const safely = async (task) => { try { await task(); } catch (err) { reportActionError(err); } };
   const {
     votesOpen,
     updateVotesOpen,
@@ -85,8 +90,7 @@ export default function Admin({ user }) {
 
       if (!window.confirm(`Valider le tour ${tour} ?`)) return;
 
-      updateAdminSelections(tour, selection);
-      updateTour(tour + 1);
+      safely(async () => { await updateAdminSelections(tour, selection); await updateTour(tour + 1); });
       return;
     }
 
@@ -107,7 +111,7 @@ export default function Admin({ user }) {
       if (entry) ordered.push(Number(entry[0]));
     }
 
-    updateAdminSelections(3, ordered);
+    safely(() => updateAdminSelections(3, ordered));
   };
 
   const playerHasVoted = (p) => {
@@ -161,7 +165,7 @@ export default function Admin({ user }) {
           justifyContent: "center",
         }}
       >
-        <button onClick={() => updateVotesOpen(!votesOpen)}>
+        <button onClick={() => safely(() => updateVotesOpen(!votesOpen))}>
           {votesOpen ? "Fermer les votes" : "Ouvrir les votes"}
         </button>
 
@@ -174,7 +178,7 @@ export default function Admin({ user }) {
 
         {tour === 3 && (
           <button
-            onClick={() => updateFinaleStarted(true)}
+            onClick={() => safely(() => updateFinaleStarted(true))}
             style={{
               background: "linear-gradient(135deg, #ffd700, #ff00aa)",
               color: "white",

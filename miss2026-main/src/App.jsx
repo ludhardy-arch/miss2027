@@ -17,6 +17,8 @@ import Waiting from "./pages/Waiting";
 
 import { AppContext } from "./context/AppContext";
 import FinaleOverlay from "./components/FinaleOverlay";
+import { auth } from "./firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 export default function App() {
   return (
@@ -36,6 +38,19 @@ function RouterContent() {
     }
   });
 
+  const [authReady, setAuthReady] = useState(false);
+  useEffect(() => onAuthStateChanged(auth, firebaseUser => {
+    setUser(old => {
+      if (!firebaseUser || !old || old.uid !== firebaseUser.uid) return null;
+      if (old.role === "admin" && (
+        firebaseUser.isAnonymous || !import.meta.env.VITE_ADMIN_UID ||
+        firebaseUser.uid !== import.meta.env.VITE_ADMIN_UID
+      )) return null;
+      if (old.role === "player" && !firebaseUser.isAnonymous) return null;
+      return old;
+    });
+    setAuthReady(true);
+  }), []);
   const { finaleStarted, players, adminSelections } = useContext(AppContext);
   const navigate = useNavigate();
   const location = useLocation();
@@ -68,6 +83,8 @@ function RouterContent() {
 
   const shouldShowFinale =
     finaleStarted && user && location.pathname !== "/login";
+
+  if (!authReady) return <p>Connexion en cours…</p>;
 
   return (
     <>

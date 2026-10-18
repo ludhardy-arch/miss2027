@@ -31,7 +31,7 @@ export default function App() {
 function RouterContent() {
   const [user, setUser] = useState(() => {
     try {
-      const saved = localStorage.getItem("miss_user");
+      const saved = sessionStorage.getItem("miss_user");
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -56,13 +56,13 @@ function RouterContent() {
   const location = useLocation();
 
   useEffect(() => {
-    if (user) localStorage.setItem("miss_user", JSON.stringify(user));
-    else localStorage.removeItem("miss_user");
+    if (user) sessionStorage.setItem("miss_user", JSON.stringify(user));
+    else sessionStorage.removeItem("miss_user");
   }, [user]);
 
   useEffect(() => {
     if (!user) {
-      const saved = localStorage.getItem("miss_user");
+      const saved = sessionStorage.getItem("miss_user");
       if (saved) setUser(JSON.parse(saved));
     }
   }, []);

@@ -22,12 +22,12 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
     if (scene !== "intro") return;
     const timer = setTimeout(() => {
       if (introStep < 2) setIntroStep(value => value + 1);
-      else if (countdown > 0) setCountdown(value => value - 1);
+      else if (countdown > 1) setCountdown(value => value - 1);
       else {
         setRevealIndex(Math.min(4, ranking.length - 1));
         setScene(ranking.length > 2 ? "reveal" : ranking.length === 2 ? "duel" : "suspense");
       }
-    }, introStep < 2 ? 4000 : countdown > 0 ? 1000 : 1800);
+    }, introStep < 2 ? 4000 : 1000);
     return () => clearTimeout(timer);
   }, [scene, introStep, countdown, ranking.length]);
 
@@ -103,10 +103,28 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
         <div key={`${scene}-${scene === "reveal" ? revealIndex : introStep}`} className="finalshow-enter" style={baseCard}>
           {scene === "intro" && (
             <div className="finalshow-center">
-              <div style={smallCap}>La grande soirée</div>
-              <h1 style={{ ...headline, fontSize: "clamp(31px,9vw,58px)", margin: "20px 0", lineHeight: 1.2 }}>Miss France<br /><span style={gold}>est élue…</span></h1>
-              {introStep >= 1 && <p style={{ ...headline, fontSize: "clamp(23px,7vw,38px)", lineHeight: 1.35 }}>Mais pour nous,<br /><strong style={gold}>qui aura la couronne ?</strong></p>}
-              {introStep >= 2 && <div className="finalshow-count">{countdown > 0 ? countdown : "RÉSULTATS OFFICIELS !"}</div>}
+              {introStep === 0 && (
+                <>
+                  <div style={smallCap}>La grande soirée</div>
+                  <h1 style={{ ...headline, fontSize: "clamp(31px,9vw,58px)", margin: "20px 0", lineHeight: 1.2 }}>
+                    Miss France<br /><span style={gold}>est élue…</span>
+                  </h1>
+                </>
+              )}
+              {introStep === 1 && (
+                <>
+                  <div style={smallCap}>Le concours des pronostics</div>
+                  <h1 style={{ ...headline, fontSize: "clamp(27px,8vw,45px)", lineHeight: 1.3, margin: "24px 0" }}>
+                    Mais pour nous,<br /><strong style={gold}>qui aura la couronne ?</strong>
+                  </h1>
+                </>
+              )}
+              {introStep === 2 && (
+                <>
+                  <div style={smallCap}>Le suspense commence</div>
+                  <div className="finalshow-count">{countdown}</div>
+                </>
+              )}
             </div>
           )}
 

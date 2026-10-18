@@ -1,176 +1,78 @@
-// src/pages/Login.jsx
-
 import React, { useContext, useState } from "react";
 import { AppContext } from "../context/AppContext";
 import { useNavigate } from "react-router-dom";
+import { auth } from "../firebase";
+import { GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut } from "firebase/auth";
 
 export default function Login({ setUser }) {
-  const { addPlayer, resetPlayerVotes } = useContext(AppContext);
+  const { addPlayer } = useContext(AppContext);
   const [pseudo, setPseudo] = useState("");
-  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+  const [adminUid, setAdminUid] = useState("");
   const navigate = useNavigate();
 
-  const cleanLocalData = (pseudo) => {
-    localStorage.removeItem("miss_user");
-
-    localStorage.removeItem(`miss2026_selection_tour1_${pseudo}`);
-    localStorage.removeItem(`miss2026_selection_tour2_${pseudo}`);
-    localStorage.removeItem(`miss2026_ranking_tour3_${pseudo}`);
-  };
-
-  const handleLogin = () => {
-    if (!pseudo.trim()) return alert("Entrez un pseudo !");
+  async function loginPlayer() {
     const p = pseudo.trim();
-
-    // ADMIN
-    if (password === "1234") {
-      cleanLocalData(p);
-      const userObj = { pseudo: p, role: "admin" };
-      setUser(userObj);
-      localStorage.setItem("miss_user", JSON.stringify(userObj));
-      navigate("/admin");
+    if (!/^[a-zA-Z0-9_-]{2,24}$/.test(p)) {
+      setError("Choisis un pseudo de 2 à 24 caractères : lettres, chiffres, _ ou -.");
       return;
     }
-
-    // PLAYER
-    if (password === "ludo") {
-      resetPlayerVotes(p);
-      cleanLocalData(p);
-
-      addPlayer(p);
-
-      const userObj = { pseudo: p, role: "player" };
+    setPending(true); setError("");
+    try {
+      // Anonymous Firebase identity, rather than a shared password in source code.
+      const credential = await signInAnonymously(auth);
+      // The database security rules must bind the pseudo to this UID.
+      await addPlayer(p, credential.user.uid);
+      const userObj = { pseudo: p, role: "player", uid: credential.user.uid };
       setUser(userObj);
-      localStorage.setItem("miss_user", JSON.stringify(userObj));
       navigate("/player");
-      return;
-    }
+    } catch (err) {
+      setError("Impossible de rejoindre la partie : " + (err?.code || err?.message));
+    } finally { setPending(false); }
+  }
 
-    alert("Mot de passe incorrect !");
-  };
+  async function loginAdmin() {
+    setPending(true); setError(""); setAdminUid("");
+    try {
+      const credential = await signInWithPopup(auth, new GoogleAuthProvider());
+      const uid = credential.user.uid;
+      // This check only controls the interface. Firebase DB rules MUST enforce it server-side.
+      if (!import.meta.env.VITE_ADMIN_UID || uid !== import.meta.env.VITE_ADMIN_UID) {
+        setAdminUid(uid);
+        setError("Compte Google connecté, mais pas encore autorisé comme administrateur.");
+        return;
+      }
+      const userObj = { pseudo: credential.user.displayName || "Admin", role: "admin", uid };
+      setUser(userObj);
+      navigate("/admin");
+    } catch (err) {
+      setError("Connexion Google impossible : " + (err?.code || err?.message));
+    } finally { setPending(false); }
+  }
 
   return (
-    <div
-      style={{
-        padding: 40,
-        maxWidth: 500,
-        margin: "0 auto",
-        textAlign: "center",
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      <h1
-        style={{
-          fontSize: 36,
-          marginBottom: 10,
-          color: "#ff4da6",
-          textShadow: "0px 0px 8px rgba(255, 50, 150, 0.4)",
-          fontWeight: "bold",
-        }}
-      >
-        🎉 Bienvenue sur Miss2026 !!! 🎉
-      </h1>
-
-      <p style={{ fontSize: 20, fontWeight: "bold", marginBottom: 20 }}>
-        Qui aura le meilleur pronostic ?
+    <div style={{ padding: 40, maxWidth: 500, margin: "0 auto", textAlign: "center", fontFamily: "Arial, sans-serif" }}>
+      <h1 style={{ fontSize: 36, color: "#ff4da6", fontWeight: "bold" }}>🎉 Bienvenue sur Miss 2027 ! 🎉</h1>
+      <p style={{ fontSize: 20, fontWeight: "bold" }}>Qui aura le meilleur pronostic ?</p>
+      <p style={{ background: "rgba(255,255,255,0.85)", color: "#333", padding: 15, borderRadius: 10, lineHeight: 1.45 }}>
+        🟣 Premier tour : sélectionner 12 Miss.<br />
+        🔵 Deuxième tour : sélectionner 5 Miss.<br />
+        🟡 Troisième tour : classer les 5 finalistes.<br />
+        Attends l'ouverture des votes à chaque tour.
       </p>
-
-      {/* ⭐ INSTRUCTIONS MISES À JOUR (12 MISS AU TOUR 1) ⭐ */}
-      <p
-        style={{
-          fontSize: 16,
-          background: "rgba(255,255,255,0.85)",
-          padding: 15,
-          borderRadius: 10,
-          marginBottom: 25,
-          color: "#333",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-          lineHeight: "1.45",
-          fontWeight: 500,
-        }}
-      >
-        ⚠️ <b style={{ color: "#d20055" }}>Important :</b><br />
-        Bien attendre que <b>les votes soient ouverts</b> pour sélectionner vos miss.<br />
-        La fermeture des votes à chaque tour sera effectuée <b>en même temps qu'à la télé</b> 📺✨
-        <br /><br />
-
-        🟣 <b>Premier tour :</b> sélectionner <b>12 miss</b><br />
-        🔵 <b>Deuxième tour :</b> sélectionner <b>5 miss</b><br />
-        🟡 <b>Troisième tour :</b> classer <b>les 5 finalistes</b>
-        <br /><br />
-
-        Bonne chance à tous… et que le meilleur pronostiqueur gagne ! 👑
-      </p>
-
-      <p
-        style={{
-          fontSize: 18,
-          fontWeight: "bold",
-          marginBottom: 10,
-          color: "#444",
-        }}
-      >
-        🍺 Site sponsorisé par la bière{" "}
-        <span style={{ color: "#d23" }}>Malounette</span>
-      </p>
-
-      <img
-        src="/images/malounette.jpeg"
-        alt="Malounette"
-        style={{
-          width: "100%",
-          maxWidth: 350,
-          borderRadius: 12,
-          boxShadow: "0 4px 10px rgba(0,0,0,0.2)",
-          marginBottom: 25,
-        }}
-      />
-
-      <input
-        placeholder="Ton pseudo"
-        value={pseudo}
-        onChange={(e) => setPseudo(e.target.value)}
-        style={{
-          width: "100%",
-          padding: 10,
-          fontSize: 18,
-          marginBottom: 15,
-          borderRadius: 8,
-          border: "1px solid #ccc",
-        }}
-      />
-
-      <input
-        placeholder="Mot de passe"
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        style={{
-          width: "100%",
-          padding: 10,
-          fontSize: 18,
-          marginBottom: 20,
-          borderRadius: 8,
-          border: "1px solid #ccc",
-        }}
-      />
-
-      <button
-        onClick={handleLogin}
-        style={{
-          padding: "12px 25px",
-          fontSize: 20,
-          borderRadius: 10,
-          background: "#ff0088",
-          color: "white",
-          fontWeight: "bold",
-          cursor: "pointer",
-          border: "none",
-          width: "100%",
-        }}
-      >
-        🚀 C'est parti !!!
+      <p>🍺 Site sponsorisé par la bière <b>Malounette</b></p>
+      <img src="/images/malounette.jpeg" alt="Malounette" style={{ width: "100%", maxWidth: 350, borderRadius: 12, marginBottom: 25 }} />
+      <input placeholder="Ton pseudo" value={pseudo} onChange={(e) => setPseudo(e.target.value)}
+        style={{ padding: 10, width: "100%", boxSizing: "border-box", marginBottom: 12 }} />
+      <button onClick={loginPlayer} disabled={pending} style={{ padding: 12, width: "100%", background: "#ff0088", color: "white", border: 0, cursor: "pointer", marginBottom: 18 }}>
+        🚀 Participer au concours
       </button>
+      <button onClick={loginAdmin} disabled={pending} style={{ padding: 12, width: "100%", cursor: "pointer" }}>
+        Se connecter avec Google — Administration
+      </button>
+      {error && <p role="alert" style={{ color: "#b00020" }}>{error}</p>}
+      {adminUid && <p>Ton UID Firebase : <code>{adminUid}</code> — à renseigner dans Render et dans les règles Firebase.</p>}
     </div>
   );
 }

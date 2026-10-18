@@ -210,7 +210,7 @@ export default function ChatBubble({ user }) {
           </div>
 
           {chatError && <p role="alert" style={{ color: "#ffb3b3", padding: 8, margin: 0, fontSize: 12 }}>{chatError}</p>}
-          {/* Input */
+          {/* Input */}
           <div
             style={{
               display: "flex",

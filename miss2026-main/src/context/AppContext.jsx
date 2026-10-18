@@ -1,7 +1,8 @@
 // src/context/AppContext.jsx
 
 import React, { createContext, useEffect, useState } from "react";
-import { database } from "../firebase";
+import { auth, database } from "../firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { ref, onValue, set, update, remove, runTransaction } from "firebase/database";
 
 export const AppContext = createContext();
@@ -16,6 +17,8 @@ export function AppProvider({ children }) {
 
   const [votesOpen, setVotesOpen] = useState(false);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
+  const [connectionsLoaded, setConnectionsLoaded] = useState(false);
+  const [connectionsError, setConnectionsError] = useState("");
   const [tour, setTour] = useState(1);
   const [finaleStarted, setFinaleStarted] = useState(false);
 
@@ -49,49 +52,54 @@ export function AppProvider({ children }) {
     );
   }, []);
 
-  // -----------------------------------------
-  // SYNC PLAYERS
-  // -----------------------------------------
+  // Subscribe only after Firebase has authenticated this device. Firebase RTDB
+  // rules require auth != null, including for the connectionsOpen flag.
   useEffect(() => {
-    const playersRef = ref(database, "rooms/miss2027/players");
-    return onValue(playersRef, (snap) => {
-      setPlayers(snap.val() || {});
+    let stopRoomListeners = () => {};
+    const stopAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      stopRoomListeners();
+      stopRoomListeners = () => {};
+      setConnectionsLoaded(false);
+      setConnectionsError("");
+      if (!firebaseUser) return;
+
+      const subscriptions = [
+        onValue(ref(database, "rooms/miss2027/players"),
+          (snap) => setPlayers(snap.val() || {}),
+          (error) => console.error("Players sync:", error)),
+        onValue(ref(database, "rooms/miss2027/adminSelections"),
+          (snap) => setAdminSelections(snap.val() || { tour1: [], tour2: [], tour3: [] }),
+          (error) => console.error("Selections sync:", error)),
+        onValue(ref(database, "rooms/miss2027/votesOpen"),
+          (snap) => setVotesOpen(snap.val() === true),
+          (error) => console.error("Votes sync:", error)),
+        onValue(ref(database, "rooms/miss2027/connectionsOpen"),
+          (snap) => {
+            setConnectionsOpen(snap.val() === true);
+            setConnectionsLoaded(true);
+            setConnectionsError("");
+          },
+          (error) => {
+            setConnectionsLoaded(false);
+            setConnectionsError(error?.code || error?.message || "Connexion impossible");
+            console.error("Connections sync:", error);
+          }),
+        onValue(ref(database, "rooms/miss2027/tour"),
+          (snap) => setTour(snap.val() || 1),
+          (error) => console.error("Tour sync:", error)),
+        onValue(ref(database, "rooms/miss2027/finaleStarted"),
+          (snap) => setFinaleStarted(snap.val() === true),
+          (error) => console.error("Finale sync:", error)),
+        onValue(ref(database, "rooms/miss2027/gameId"),
+          (snap) => setGameId(snap.val() || "loading"),
+          (error) => console.error("Game ID sync:", error))
+      ];
+      stopRoomListeners = () => subscriptions.forEach(stop => stop());
+    }, (error) => {
+      setConnectionsError(error?.message || "Authentification indisponible");
+      setConnectionsLoaded(false);
     });
-  }, []);
-
-  // -----------------------------------------
-  // SYNC ADMIN SELECTIONS
-  // -----------------------------------------
-  useEffect(() => {
-    const adminRef = ref(database, "rooms/miss2027/adminSelections");
-    return onValue(adminRef, (snap) => {
-      setAdminSelections(snap.val() || { tour1: [], tour2: [], tour3: [] });
-    });
-  }, []);
-
-  // -----------------------------------------
-  // SYNC TOUR / VOTES / FINALE / GAMEID
-  // -----------------------------------------
-  useEffect(() => {
-    const votesRef = ref(database, "rooms/miss2027/votesOpen");
-    const connectionsRef = ref(database, "rooms/miss2027/connectionsOpen");
-    const tourRef = ref(database, "rooms/miss2027/tour");
-    const finaleRef = ref(database, "rooms/miss2027/finaleStarted");
-    const gameIdRef = ref(database, "rooms/miss2027/gameId");
-
-    const unsubV = onValue(votesRef, (snap) => setVotesOpen(Boolean(snap.val())));
-    const unsubC = onValue(connectionsRef, (snap) => setConnectionsOpen(snap.val() === true));
-    const unsubT = onValue(tourRef, (snap) => setTour(snap.val() || 1));
-    const unsubF = onValue(finaleRef, (snap) => setFinaleStarted(Boolean(snap.val())));
-    const unsubG = onValue(gameIdRef, (snap) => setGameId(snap.val() || "loading"));
-
-    return () => {
-      unsubV();
-      unsubC();
-      unsubT();
-      unsubF();
-      unsubG();
-    };
+    return () => { stopAuth(); stopRoomListeners(); };
   }, []);
 
   // -----------------------------------------
@@ -156,6 +164,8 @@ export function AppProvider({ children }) {
         adminSelections,
         votesOpen,
         connectionsOpen,
+        connectionsLoaded,
+        connectionsError,
         tour,
         finaleStarted,
         gameId,

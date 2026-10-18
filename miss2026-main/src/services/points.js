@@ -75,7 +75,8 @@ export function calculatePoints(playerVotes, adminSelections) {
 
     t3P.forEach((miss, index) => {
       const adminRank = t3A.indexOf(miss) + 1;
-      if (adminRank <= 0) return;
+      // Points only when the prediction matches the exact official position.
+      if (adminRank !== index + 1) return;
 
       const green = t1P.includes(miss) && t1A.includes(miss);
       const yellow =

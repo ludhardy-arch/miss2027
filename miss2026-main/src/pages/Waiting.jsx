@@ -7,10 +7,9 @@ import MalounetteAd from "../components/MalounetteAd";
 import ChatBubble from "../components/ChatBubble"; 
 import SelectionBubble from "../components/SelectionBubble"; // ⭐ AJOUT ICI ⭐
 
-export default function Waiting() {
-  const { tour, players } = useContext(AppContext);
+export default function Waiting({ user }) {
+  const { tour, players, votesOpen } = useContext(AppContext);
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem("miss_user"));
 
   useEffect(() => {
     if (!user) return;
@@ -44,6 +43,9 @@ export default function Waiting() {
 
   return (
     <div style={{ padding: 40, textAlign: "center" }}>
+      <div role="status" aria-live="polite" style={{ padding: 14, marginBottom: 20, borderRadius: 12, background: votesOpen ? "#147d36" : "#a22525", color: "white", fontWeight: "bold", fontSize: 20 }}>
+        {votesOpen ? "✅ LES VOTES SONT OUVERTS !" : "⛔ LES VOTES SONT FERMÉS"}
+      </div>
       <h1>{message}</h1>
 
       {/* Pub Malounette pendant l'attente */}

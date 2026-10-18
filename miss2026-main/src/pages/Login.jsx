@@ -5,7 +5,7 @@ import { auth } from "../firebase";
 import { GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 
 export default function Login({ setUser }) {
-  const { addPlayer, connectionsOpen, connectionsLoaded, connectionsError } = useContext(AppContext);
+  const { addPlayer, connectionsOpen, connectionsLoaded, connectionsError, gameId } = useContext(AppContext);
   const [pseudo, setPseudo] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -40,7 +40,7 @@ export default function Login({ setUser }) {
       // Check the current opening state again after Firebase authentication.
       if (!connectionsLoaded || !connectionsOpen) throw new Error("Les connexions sont fermées.");
       await addPlayer(p, credential.user.uid);
-      const userObj = { pseudo: p, role: "player", uid: credential.user.uid };
+      const userObj = { pseudo: p, role: "player", uid: credential.user.uid, gameId };
       setUser(userObj);
       navigate("/player");
     } catch (err) {

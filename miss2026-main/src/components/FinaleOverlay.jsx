@@ -14,7 +14,7 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
   const [scene, setScene] = useState("intro");
   const [introStep, setIntroStep] = useState(0);
   const [countdown, setCountdown] = useState(5);
-  const [revealIndex, setRevealIndex] = useState(ranking.length - 1);
+  const [revealIndex, setRevealIndex] = useState(Math.min(4, ranking.length - 1));
   const [nameVisible, setNameVisible] = useState(false);
 
   // Existing intro rhythm: 4 s, 4 s, countdown, then announcements.
@@ -24,24 +24,30 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
       if (introStep < 2) setIntroStep(value => value + 1);
       else if (countdown > 0) setCountdown(value => value - 1);
       else {
-        setRevealIndex(ranking.length - 1);
-        setScene(ranking.length > 1 ? "reveal" : "suspense");
+        setRevealIndex(Math.min(4, ranking.length - 1));
+        setScene(ranking.length > 2 ? "reveal" : ranking.length === 2 ? "duel" : "suspense");
       }
     }, introStep < 2 ? 4000 : countdown > 0 ? 1000 : 1800);
     return () => clearTimeout(timer);
   }, [scene, introStep, countdown, ranking.length]);
 
-  // Everyone except the winner is revealed from last place to second place.
+  // Only places 5, 4 and 3 are revealed individually.
   useEffect(() => {
     if (scene !== "reveal") return;
     setNameVisible(false);
     const show = setTimeout(() => setNameVisible(true), 2200);
     const next = setTimeout(() => {
-      if (revealIndex > 1) setRevealIndex(index => index - 1);
-      else setScene("suspense");
+      if (revealIndex > 2) setRevealIndex(index => index - 1);
+      else setScene("duel");
     }, 5500);
     return () => { clearTimeout(show); clearTimeout(next); };
   }, [scene, revealIndex]);
+
+  useEffect(() => {
+    if (scene !== "duel") return;
+    const timer = setTimeout(() => setScene("suspense"), 5800);
+    return () => clearTimeout(timer);
+  }, [scene]);
 
   useEffect(() => {
     if (scene !== "suspense") return;
@@ -74,6 +80,8 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
 
   const winner = ranking[0];
   const revealed = ranking[revealIndex];
+  // Alphabetical display keeps the duel neutral: neither side identifies the winner.
+  const finalists = ranking.slice(0, 2).sort((a, b) => a.pseudo.localeCompare(b.pseudo, "fr"));
   const ordinal = rank => rank === 1 ? "1re" : `${rank}e`;
   const baseCard = { width: "100%", maxWidth: 460, margin: "auto", position: "relative", zIndex: 1 };
   const smallCap = { fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: "#e5c287", fontFamily: "Arial, sans-serif", fontWeight: 700 };
@@ -117,16 +125,36 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
             </div>
           )}
 
+          {scene === "duel" && (
+            <div className="finalshow-center">
+              <div style={smallCap}>Miss France 2027</div>
+              <h1 style={{ ...headline, color: "#ffe0a0", fontSize: "clamp(30px,8vw,47px)", margin: "19px 0 12px" }}>LE DUEL FINAL</h1>
+              <p style={{ color: "#dfcbaa", fontSize: 14, margin: "0 0 30px" }}>Ils sont encore deux… Qui remportera le titre ?</p>
+              <div className="finalshow-duel">
+                {finalists.map(player => <div className="finalshow-finalist" key={player.pseudo}>
+                  <span className="finalshow-finalist-crown" aria-hidden="true">♛</span>
+                  <strong>{player.pseudo}</strong>
+                  <span>FINALISTE</span>
+                </div>)}
+              </div>
+            </div>
+          )}
+
           {scene === "suspense" && (
             <div className="finalshow-center">
               <div style={smallCap}>Le moment tant attendu</div>
-              <h1 style={{ ...headline, margin: "32px 0", fontSize: "clamp(31px,9vw,52px)", lineHeight: 1.2 }}>
-                ET LE <span style={gold}>MEILLEUR</span><br />
-                <span style={gold}>PRONOSTIQUEUR</span><br />
-                DE MISS FRANCE <span style={gold}>2027</span><br />
-                EST…
+              <h1 style={{ ...headline, fontSize: "clamp(23px,6.7vw,39px)", lineHeight: 1.24, margin: "18px 0 12px" }}>
+                ET LE <span style={gold}>MEILLEUR PRONOSTIQUEUR</span><br />
+                DE MISS FRANCE <span style={gold}>2027</span> EST…
               </h1>
-              <p className="finalshow-name-enter" style={{ ...headline, fontSize: "clamp(25px,7vw,40px)", color: "#f3e4ce", animationDelay: "1.8s" }}>ET RESTERA…</p>
+              <p className="finalshow-name-enter" style={{ ...headline, fontSize: "clamp(23px,6.5vw,34px)", color: "#ffe0a0", margin: "0 0 28px", animationDelay: "1.8s" }}>ET RESTERA…</p>
+              <div className="finalshow-duel">
+                {finalists.map(player => <div className="finalshow-finalist" key={player.pseudo}>
+                  <span className="finalshow-finalist-crown" aria-hidden="true">♛</span>
+                  <strong>{player.pseudo}</strong>
+                  <span>FINALISTE</span>
+                </div>)}
+              </div>
               <div className="finalshow-shimmer" aria-hidden="true" />
             </div>
           )}
@@ -199,6 +227,11 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
         .finalshow-points { display:inline-block; border:1px solid #c49456; background:rgba(7,7,12,.75); border-radius:40px; padding:9px 22px; font-size:clamp(16px,4.8vw,21px); }
         .finalshow-count { font:700 clamp(51px,19vw,105px) Georgia,serif; color:#ffe0a0; margin-top:34px; text-shadow:0 0 45px rgba(251,192,94,.45); }
         .finalshow-shimmer { height:2px; width:180px; margin:60px auto 0; background:linear-gradient(to right,transparent,#ffe2ac,transparent); box-shadow:0 0 28px #edbf77; animation:winnerPulse 2s ease-in-out infinite; }
+        .finalshow-duel { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; width:100%; margin:0 auto; }
+        .finalshow-finalist { display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:0; min-height:190px; padding:19px 8px; border:1px solid #c6a06b; border-radius:16px; background:radial-gradient(circle at 50% 10%,rgba(225,166,94,.19),transparent 65%),#231923; box-shadow:inset 0 0 20px rgba(225,166,94,.08),0 6px 25px rgba(0,0,0,.3); }
+        .finalshow-finalist-crown { font-size:40px; color:#e0b979; line-height:1; margin-bottom:15px; }
+        .finalshow-finalist strong { font:500 clamp(19px,5.5vw,29px) Georgia,serif; color:#fff1d5; overflow-wrap:anywhere; }
+        .finalshow-finalist span:last-child { font:700 10px Arial,sans-serif; letter-spacing:.18em; color:#e8c68c; margin-top:17px; }
         .finalshow-podium { display:flex; align-items:flex-end; gap:7px; width:100%; min-height:230px; }
         .finalshow-podium-person { flex:1; min-width:0; text-align:center; }
         .finalshow-podium-name { font:500 clamp(13px,4vw,20px) Georgia,serif; color:#ffe0a0; overflow-wrap:anywhere; margin-bottom:6px; }

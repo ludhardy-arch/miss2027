@@ -51,7 +51,7 @@ function RouterContent() {
     });
     setAuthReady(true);
   }), []);
-  const { finaleStarted, players, adminSelections } = useContext(AppContext);
+  const { finaleStarted, players, adminSelections, gameId } = useContext(AppContext);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -80,6 +80,22 @@ function RouterContent() {
       return;
     }
   }, [user]);
+
+  // A new game ID means the administrator reset the contest. Every player,
+  // including on another phone, must leave the old session and start fresh.
+  useEffect(() => {
+    if (!user || user.role !== "player" || !gameId || gameId === "loading") return;
+    if (!user.gameId) {
+      setUser(old => old?.role === "player" && !old.gameId ? { ...old, gameId } : old);
+      return;
+    }
+    if (String(user.gameId) !== String(gameId)) {
+      Object.keys(localStorage).filter(key => key.startsWith("miss2027_selection_") || key.startsWith("miss2027_ranking_")).forEach(key => localStorage.removeItem(key));
+      sessionStorage.removeItem("miss_user");
+      setUser(null);
+      navigate("/login", { replace: true });
+    }
+  }, [user, gameId, navigate]);
 
   const shouldShowFinale =
     finaleStarted && user && location.pathname !== "/login";

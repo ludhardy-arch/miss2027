@@ -3,8 +3,6 @@
 import React, { useContext, useState, useEffect } from "react";
 import { AppContext } from "../context/AppContext";
 import { useNavigate } from "react-router-dom";
-import { auth } from "../firebase";
-import { signOut } from "firebase/auth";
 
 import Leaderboard from "../components/Leaderboard";
 import ChatBubble from "../components/ChatBubble";
@@ -20,7 +18,7 @@ const votePulseKeyframes = `
 }
 `;
 
-export default function Player({ user }) {
+export default function Player({ user, setUser }) {
   const {
     tour,
     votesOpen,
@@ -35,9 +33,9 @@ export default function Player({ user }) {
   const handleLogout = async () => {
     if (!window.confirm("Voulez-vous vraiment vous déconnecter ?")) return;
 
-    // Disconnect without deleting the player's votes or account.
-    await signOut(auth);
+    // Keep anonymous Firebase identity so this browser can reclaim the pseudo.
     localStorage.removeItem("miss_user");
+    setUser(null);
     navigate("/login", { replace: true });
   };
 

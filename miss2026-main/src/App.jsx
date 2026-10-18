@@ -116,7 +116,7 @@ function RouterContent() {
           path="/player"
           element={
             user?.role === "player" ? (
-              <Player user={user} />
+              <Player user={user} setUser={setUser} />
             ) : (
               <Navigate to="/login" replace />
             )

@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
+import { initializeAuth, browserSessionPersistence, browserPopupRedirectResolver } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD14OqrBD-hEGyNQNOoSar_xTiwpWzlr8Y",
@@ -13,3 +14,10 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const database = getDatabase(app);
+// Independent Firebase session in each browser tab. It survives a refresh,
+// but is not shared as a permanent login between tabs.
+export const auth = initializeAuth(app, {
+  persistence: browserSessionPersistence,
+  popupRedirectResolver: browserPopupRedirectResolver,
+});
+

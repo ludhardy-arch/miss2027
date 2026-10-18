@@ -6,6 +6,9 @@ import Leaderboard from "../components/Leaderboard";
 import FinaleOverlay from "../components/FinaleOverlay";
 import ChatBubble from "../components/ChatBubble";
 import { CANDIDATES } from "../data/candidates";
+import { auth } from "../firebase";
+import { signOut } from "firebase/auth";
+import { useNavigate } from "react-router-dom";
 
 const votePulseKeyframes = `
 @keyframes votePulse {
@@ -15,9 +18,31 @@ const votePulseKeyframes = `
 }
 `;
 
-export default function Admin({ user }) {
+export default function Admin({ user, setUser }) {
+  const navigate = useNavigate();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await signOut(auth);
+      sessionStorage.removeItem("miss_user");
+      setUser(null);
+      navigate("/login", { replace: true });
+    } catch (error) {
+      alert("Déconnexion impossible : " + (error?.message || "erreur inconnue"));
+      setLoggingOut(false);
+    }
+  };
+  const reportActionError = (error) => {
+    console.error("Firebase admin action refused:", error);
+    alert("Action impossible : " + (error?.code || error?.message || "erreur inconnue") + ". Vérifie ta connexion Google et les règles Firebase.");
+  };
+  const safely = async (task) => { try { await task(); } catch (err) { reportActionError(err); } };
   const {
     votesOpen,
+    connectionsOpen,
+    updateConnectionsOpen,
     updateVotesOpen,
     tour,
     updateTour,
@@ -30,6 +55,8 @@ export default function Admin({ user }) {
   } = useContext(AppContext);
 
   const [selection, setSelection] = useState([]);
+  const [showDangerZone, setShowDangerZone] = useState(false);
+  const [resetConfirmation, setResetConfirmation] = useState("");
   const [ranking, setRanking] = useState({});
 
   useEffect(() => {
@@ -85,8 +112,7 @@ export default function Admin({ user }) {
 
       if (!window.confirm(`Valider le tour ${tour} ?`)) return;
 
-      updateAdminSelections(tour, selection);
-      updateTour(tour + 1);
+      safely(async () => { await updateAdminSelections(tour, selection); await updateTour(tour + 1); });
       return;
     }
 
@@ -107,7 +133,7 @@ export default function Admin({ user }) {
       if (entry) ordered.push(Number(entry[0]));
     }
 
-    updateAdminSelections(3, ordered);
+    safely(() => updateAdminSelections(3, ordered));
   };
 
   const playerHasVoted = (p) => {
@@ -133,7 +159,12 @@ export default function Admin({ user }) {
         />
       )}
 
-      <h1>ADMIN — {user.pseudo}</h1>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <h1 style={{ margin: "12px 0" }}>ADMIN — {user.pseudo}</h1>
+        <button onClick={handleLogout} disabled={loggingOut} style={{ padding: "9px 14px", borderRadius: 9, background: "#32323c", color: "white", border: "1px solid #777", cursor: "pointer" }}>
+          {loggingOut ? "Déconnexion…" : "Se déconnecter"}
+        </button>
+      </div>
 
       {votesOpen && (
         <div
@@ -161,20 +192,17 @@ export default function Admin({ user }) {
           justifyContent: "center",
         }}
       >
-        <button onClick={() => updateVotesOpen(!votesOpen)}>
+        <button onClick={() => safely(() => updateConnectionsOpen(!connectionsOpen))} style={{ background: connectionsOpen ? "#933d42" : "#17794d", color: "white", padding: "10px 16px" }}>
+          {connectionsOpen ? "🔒 Fermer les connexions" : "🔓 Ouvrir les connexions"}
+        </button>
+        <button onClick={() => safely(() => updateVotesOpen(!votesOpen))}>
           {votesOpen ? "Fermer les votes" : "Ouvrir les votes"}
         </button>
 
-        <button
-          onClick={resetGame}
-          style={{ background: "crimson", color: "white" }}
-        >
-          RESET
-        </button>
 
         {tour === 3 && (
           <button
-            onClick={() => updateFinaleStarted(true)}
+            onClick={() => safely(() => updateFinaleStarted(true))}
             style={{
               background: "linear-gradient(135deg, #ffd700, #ff00aa)",
               color: "white",
@@ -184,6 +212,19 @@ export default function Admin({ user }) {
           </button>
         )}
       </div>
+
+      <details style={{ margin: "28px auto 16px", maxWidth: 500, padding: 12, border: "1px solid #754343", borderRadius: 10 }} open={showDangerZone} onToggle={event => setShowDangerZone(event.currentTarget.open)}>
+        <summary style={{ cursor: "pointer", color: "#e6a2a2", fontWeight: "bold" }}>⚠️ Zone sensible — Réinitialiser la partie</summary>
+        <p style={{ fontSize: 14 }}>Cette action efface tous les joueurs, votes et résultats du jeu. Elle est irréversible.</p>
+        <label htmlFor="reset-confirm">Écris <strong>RESET</strong> pour confirmer :</label>
+        <input id="reset-confirm" value={resetConfirmation} onChange={event => setResetConfirmation(event.target.value)} autoComplete="off" style={{ display: "block", width: "100%", margin: "10px 0", padding: 10, boxSizing: "border-box" }} />
+        <button disabled={resetConfirmation !== "RESET"} onClick={() => {
+          if (!window.confirm("Dernière confirmation : effacer définitivement toute la partie ?")) return;
+          safely(async () => { await resetGame(); setResetConfirmation(""); setShowDangerZone(false); });
+        }} style={{ background: "#8b1e2b", color: "white", padding: 10 }}>
+          Supprimer la partie et recommencer
+        </button>
+      </details>
 
       {/* Joueurs */}
       <div

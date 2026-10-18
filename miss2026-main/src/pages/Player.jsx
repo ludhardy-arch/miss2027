@@ -3,8 +3,6 @@
 import React, { useContext, useState, useEffect } from "react";
 import { AppContext } from "../context/AppContext";
 import { useNavigate } from "react-router-dom";
-import { database } from "../firebase";
-import { ref, remove } from "firebase/database";
 
 import Leaderboard from "../components/Leaderboard";
 import ChatBubble from "../components/ChatBubble";
@@ -20,15 +18,14 @@ const votePulseKeyframes = `
 }
 `;
 
-export default function Player({ user }) {
+export default function Player({ user, setUser }) {
   const {
     tour,
     votesOpen,
     adminSelections,
     updatePlayerVote,
-    addPlayer,
     players,
-    resetPlayerVotes,
+    gameId,
   } = useContext(AppContext);
 
   const navigate = useNavigate();
@@ -37,33 +34,9 @@ export default function Player({ user }) {
   const handleLogout = async () => {
     if (!window.confirm("Voulez-vous vraiment vous déconnecter ?")) return;
 
-    const pseudo = user.pseudo;
-
-    // 1️⃣ Reset votes Firebase
-    resetPlayerVotes(pseudo);
-
-    // 2️⃣ Supprimer complètement le joueur dans Firebase
-    await remove(ref(database, `rooms/miss2026/players/${pseudo}`));
-
-    // 3️⃣ Supprimer TOUT le localStorage lié à ce joueur
-    Object.keys(localStorage).forEach((key) => {
-      if (
-        key.startsWith("miss2026_selection_tour") &&
-        key.endsWith(`_${pseudo}`)
-      ) {
-        localStorage.removeItem(key);
-      }
-      if (
-        key.startsWith("miss2026_ranking_tour") &&
-        key.endsWith(`_${pseudo}`)
-      ) {
-        localStorage.removeItem(key);
-      }
-    });
-
-    localStorage.removeItem("miss_user");
-
-    // 4️⃣ Redirection Login
+    // Keep anonymous Firebase identity so this browser can reclaim the pseudo.
+    sessionStorage.removeItem("miss_user");
+    setUser(null);
     navigate("/login", { replace: true });
   };
 
@@ -80,10 +53,6 @@ export default function Player({ user }) {
     setShowVoteBanner(true);
   }, [tour]);
 
-  // Enregistrer le joueur en base (connected)
-  useEffect(() => {
-    addPlayer(user.pseudo);
-  }, [user.pseudo]);
 
   const playerData = players[user.pseudo] || {};
   const currentKey = `tour${tour}`;
@@ -117,34 +86,34 @@ export default function Player({ user }) {
 
     const key =
       tour === 3
-        ? `miss2026_ranking_tour3_${user.pseudo}`
-        : `miss2026_selection_tour${tour}_${user.pseudo}`;
+        ? `miss2027_${gameId}_ranking_tour3_${user.pseudo}`
+        : `miss2027_${gameId}_selection_tour${tour}_${user.pseudo}`;
 
     const saved = localStorage.getItem(key);
 
     if (tour === 3) setRanking(saved ? JSON.parse(saved) : {});
     else setSelection(saved ? JSON.parse(saved) : []);
-  }, [tour, hasVotedThisTour, user.pseudo]);
+  }, [tour, hasVotedThisTour, user.pseudo, gameId]);
 
   // Sauvegarde locale live
   useEffect(() => {
     if (hasVotedThisTour || tour === 3) return;
 
     localStorage.setItem(
-      `miss2026_selection_tour${tour}_${user.pseudo}`,
+      `miss2027_selection_tour${tour}_${user.pseudo}`,
       JSON.stringify(selection)
     );
-  }, [selection, tour, hasVotedThisTour, user.pseudo]);
+  }, [selection, tour, hasVotedThisTour, user.pseudo, gameId]);
 
   // Sauvegarde classement finale
   useEffect(() => {
     if (hasVotedThisTour || tour !== 3) return;
 
     localStorage.setItem(
-      `miss2026_ranking_tour3_${user.pseudo}`,
+      `miss2027_ranking_tour3_${user.pseudo}`,
       JSON.stringify(ranking)
     );
-  }, [ranking, tour, hasVotedThisTour, user.pseudo]);
+  }, [ranking, tour, hasVotedThisTour, user.pseudo, gameId]);
 
   // Sélection pour tour 1 & 2
   const handleClickMiss = (id) => {
@@ -159,7 +128,7 @@ export default function Player({ user }) {
     ["Miss France", "1ère dauphine", "2ème dauphine", "3ème dauphine", "4ème dauphine"][rank - 1];
 
   // Validation du vote
-  const handleValidate = () => {
+  const handleValidate = async () => {
     if (!votesOpen) return alert("Les votes ne sont pas ouverts.");
 
     if (tour === 1 || tour === 2) {
@@ -168,8 +137,12 @@ export default function Player({ user }) {
 
       if (!window.confirm("Envoyer ton vote ?")) return;
 
-      updatePlayerVote(user.pseudo, tour, selection);
-      navigate("/waiting");
+      try {
+        await updatePlayerVote(user.pseudo, tour, selection);
+        navigate("/waiting");
+      } catch (error) {
+        alert("Vote non enregistré. Réessaie ou contacte l’administrateur.");
+      }
       return;
     }
 
@@ -194,8 +167,12 @@ export default function Player({ user }) {
       if (entry) ordered.push(Number(entry[0]));
     }
 
-    updatePlayerVote(user.pseudo, 3, ordered);
-    navigate("/waiting");
+    try {
+      await updatePlayerVote(user.pseudo, 3, ordered);
+      navigate("/waiting");
+    } catch (error) {
+      alert("Vote non enregistré. Réessaie ou contacte l’administrateur.");
+    }
   };
 
   // Couleurs cartes

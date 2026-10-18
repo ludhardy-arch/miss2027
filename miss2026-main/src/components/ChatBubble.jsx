@@ -6,6 +6,8 @@ export default function ChatBubble({ user }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
+  const [chatError, setChatError] = useState("");
+  const [sending, setSending] = useState(false);
   const [unread, setUnread] = useState(0);
 
   const messagesEndRef = useRef(null);
@@ -15,7 +17,7 @@ export default function ChatBubble({ user }) {
 
   // Charger messages Firebase
   useEffect(() => {
-    const chatRef = ref(database, "rooms/miss2026/chat");
+    const chatRef = ref(database, "rooms/miss2027/chat");
 
     const unsubscribe = onValue(chatRef, (snap) => {
       const data = snap.val() || {};
@@ -44,6 +46,8 @@ export default function ChatBubble({ user }) {
       }
 
       lastMessageRef.current = last;
+    }, (error) => {
+      setChatError("Lecture du chat refusée : " + error.code);
     });
 
     return () => unsubscribe();
@@ -57,17 +61,27 @@ export default function ChatBubble({ user }) {
   }, [messages, open]);
 
   // Envoi message
-  const sendMessage = () => {
-    if (!text.trim()) return;
-
-    const chatRef = ref(database, "rooms/miss2026/chat");
-    push(chatRef, {
-      author: user.pseudo,
-      text,
-      date: Date.now(),
-    });
-
-    setText("");
+  const sendMessage = async () => {
+    const message = text.trim();
+    if (!message || sending) return;
+    if (message.length > 500) {
+      setChatError("Message trop long (500 caractères maximum).");
+      return;
+    }
+    setSending(true);
+    setChatError("");
+    try {
+      await push(ref(database, "rooms/miss2027/chat"), {
+        author: user.pseudo,
+        text: message,
+        date: Date.now(),
+      });
+      setText("");
+    } catch (error) {
+      setChatError("Message non envoyé : " + (error?.code || error?.message));
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -144,7 +158,7 @@ export default function ChatBubble({ user }) {
               fontWeight: "bold",
             }}
           >
-            💬 Chat Miss2026
+            💬 Chat Miss2027
           </div>
 
           {/* Messages */}
@@ -195,6 +209,7 @@ export default function ChatBubble({ user }) {
             <div ref={messagesEndRef}></div>
           </div>
 
+          {chatError && <p role="alert" style={{ color: "#ffb3b3", padding: 8, margin: 0, fontSize: 12 }}>{chatError}</p>}
           {/* Input */}
           <div
             style={{
@@ -218,6 +233,7 @@ export default function ChatBubble({ user }) {
             />
             <button
               onClick={sendMessage}
+              disabled={sending}
               style={{
                 marginLeft: 6,
                 background: "#ff4da6",

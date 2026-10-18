@@ -17,6 +17,8 @@ import Waiting from "./pages/Waiting";
 
 import { AppContext } from "./context/AppContext";
 import FinaleOverlay from "./components/FinaleOverlay";
+import { auth } from "./firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 export default function App() {
   return (
@@ -29,25 +31,38 @@ export default function App() {
 function RouterContent() {
   const [user, setUser] = useState(() => {
     try {
-      const saved = localStorage.getItem("miss_user");
+      const saved = sessionStorage.getItem("miss_user");
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
   });
 
-  const { finaleStarted, players, adminSelections } = useContext(AppContext);
+  const [authReady, setAuthReady] = useState(false);
+  useEffect(() => onAuthStateChanged(auth, firebaseUser => {
+    setUser(old => {
+      if (!firebaseUser || !old || old.uid !== firebaseUser.uid) return null;
+      if (old.role === "admin" && (
+        firebaseUser.isAnonymous || !import.meta.env.VITE_ADMIN_UID ||
+        firebaseUser.uid !== import.meta.env.VITE_ADMIN_UID
+      )) return null;
+      if (old.role === "player" && !firebaseUser.isAnonymous) return null;
+      return old;
+    });
+    setAuthReady(true);
+  }), []);
+  const { finaleStarted, players, adminSelections, gameId } = useContext(AppContext);
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    if (user) localStorage.setItem("miss_user", JSON.stringify(user));
-    else localStorage.removeItem("miss_user");
+    if (user) sessionStorage.setItem("miss_user", JSON.stringify(user));
+    else sessionStorage.removeItem("miss_user");
   }, [user]);
 
   useEffect(() => {
     if (!user) {
-      const saved = localStorage.getItem("miss_user");
+      const saved = sessionStorage.getItem("miss_user");
       if (saved) setUser(JSON.parse(saved));
     }
   }, []);
@@ -66,8 +81,26 @@ function RouterContent() {
     }
   }, [user]);
 
+  // A new game ID means the administrator reset the contest. Every player,
+  // including on another phone, must leave the old session and start fresh.
+  useEffect(() => {
+    if (!user || user.role !== "player" || !gameId || gameId === "loading") return;
+    if (!user.gameId) {
+      setUser(old => old?.role === "player" && !old.gameId ? { ...old, gameId } : old);
+      return;
+    }
+    if (String(user.gameId) !== String(gameId)) {
+      Object.keys(localStorage).filter(key => /^miss2027_(?:selection_|ranking_|[^_]+_(?:selection_|ranking_))/.test(key)).forEach(key => localStorage.removeItem(key));
+      sessionStorage.removeItem("miss_user");
+      setUser(null);
+      navigate("/login", { replace: true });
+    }
+  }, [user, gameId, navigate]);
+
   const shouldShowFinale =
     finaleStarted && user && location.pathname !== "/login";
+
+  if (!authReady) return <p>Connexion en cours…</p>;
 
   return (
     <>
@@ -88,7 +121,7 @@ function RouterContent() {
           path="/admin"
           element={
             user?.role === "admin" ? (
-              <Admin user={user} />
+              <Admin user={user} setUser={setUser} />
             ) : (
               <Navigate to="/login" replace />
             )
@@ -99,7 +132,7 @@ function RouterContent() {
           path="/player"
           element={
             user?.role === "player" ? (
-              <Player user={user} />
+              <Player user={user} setUser={setUser} />
             ) : (
               <Navigate to="/login" replace />
             )

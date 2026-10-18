@@ -1,0 +1,63 @@
+// src/pages/Waiting.jsx
+
+import React, { useContext, useEffect } from "react";
+import { AppContext } from "../context/AppContext";
+import { useNavigate } from "react-router-dom";
+import MalounetteAd from "../components/MalounetteAd";
+import ChatBubble from "../components/ChatBubble"; 
+import SelectionBubble from "../components/SelectionBubble"; // ⭐ AJOUT ICI ⭐
+
+export default function Waiting() {
+  const { tour, players } = useContext(AppContext);
+  const navigate = useNavigate();
+  const user = JSON.parse(localStorage.getItem("miss_user"));
+
+  useEffect(() => {
+    if (!user) return;
+
+    const player = players[user.pseudo];
+
+    // Si le joueur n'existe pas encore en base → on attend sync
+    if (!player) return;
+
+    const hasVotedThisTour =
+      Array.isArray(player[`tour${tour}`]) &&
+      player[`tour${tour}`].length > 0;
+
+    // SI le joueur n'a PAS voté ce tour → retour à l'écran Player
+    if (!hasVotedThisTour) {
+      navigate("/player");
+    }
+  }, [tour, players, navigate, user]);
+
+  const message =
+    tour === 3
+      ? "Attention !!! Qui va gagner ???"
+      : "Patientez le temps que Ludo valide les votes.";
+
+  // ⭐ Récupération de la sélection du joueur
+  const playerData = players[user?.pseudo] || {};
+  const selection =
+    Array.isArray(playerData[`tour${tour}`])
+      ? playerData[`tour${tour}`]
+      : [];
+
+  return (
+    <div style={{ padding: 40, textAlign: "center" }}>
+      <h1>{message}</h1>
+
+      {/* Pub Malounette pendant l'attente */}
+      <MalounetteAd />
+
+      {/* ⭐ CHAT BUBBLE A DROITE ⭐ */}
+      <ChatBubble user={user} />
+
+      {/* ⭐⭐ BULLE BLEUE A GAUCHE (LISTE DES MISS) ⭐⭐ */}
+      <SelectionBubble 
+        user={user} 
+        tour={tour} 
+        selection={selection} 
+      />
+    </div>
+  );
+}

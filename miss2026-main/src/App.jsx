@@ -90,7 +90,7 @@ function RouterContent() {
       return;
     }
     if (String(user.gameId) !== String(gameId)) {
-      Object.keys(localStorage).filter(key => key.startsWith("miss2027_selection_") || key.startsWith("miss2027_ranking_")).forEach(key => localStorage.removeItem(key));
+      Object.keys(localStorage).filter(key => /^miss2027_(?:selection_|ranking_|[^_]+_(?:selection_|ranking_))/.test(key)).forEach(key => localStorage.removeItem(key));
       sessionStorage.removeItem("miss_user");
       setUser(null);
       navigate("/login", { replace: true });

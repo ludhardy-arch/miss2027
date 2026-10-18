@@ -134,10 +134,11 @@ export function AppProvider({ children }) {
 
     const newGameId = Date.now().toString();
 
-    set(ref(database, "rooms/miss2027"), {
+    return set(ref(database, "rooms/miss2027"), {
       players: {},
       adminSelections: { tour1: [], tour2: [], tour3: [] },
       votesOpen: false,
+      connectionsOpen: false,
       tour: 1,
       finaleStarted: false,
       gameId: newGameId,

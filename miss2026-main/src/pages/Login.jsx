@@ -5,14 +5,11 @@ import { auth } from "../firebase";
 import { GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 
 export default function Login({ setUser }) {
-  const { addPlayer, connectionsOpen, connectionsLoaded, connectionsError, gameId, publicUsed, goldUsed } = useContext(AppContext);
+  const { addPlayer, connectionsOpen, connectionsLoaded, connectionsError, gameId } = useContext(AppContext);
   const [pseudo, setPseudo] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [adminUid, setAdminUid] = useState("");
-  const [goldCode, setGoldCode] = useState("");
-  const goldRequired = publicUsed >= 60;
-  const full = goldRequired && goldUsed >= 20;
   const navigate = useNavigate();
 
   // Authenticate first-time visitors before reading the admin-controlled entry flag.
@@ -29,7 +26,6 @@ export default function Login({ setUser }) {
   }, []);
 
   async function loginPlayer() {
-    if (full) { setError("Toutes les places sont prises."); return; }
     if (!connectionsLoaded || !connectionsOpen) { setError("Les connexions sont fermées. Attends que l’administrateur les ouvre."); return; }
     const p = pseudo.trim().replace(/\s+/g, " ");
     if (!/^[a-zA-ZÀ-ÖØ-öø-ÿ0-9_ -]{2,24}$/.test(p)) {
@@ -43,7 +39,7 @@ export default function Login({ setUser }) {
       // The database security rules must bind the pseudo to this UID.
       // Check the current opening state again after Firebase authentication.
       if (!connectionsLoaded || !connectionsOpen) throw new Error("Les connexions sont fermées.");
-      await addPlayer(p, credential.user.uid, goldCode);
+      await addPlayer(p, credential.user.uid);
       const userObj = { pseudo: p, role: "player", uid: credential.user.uid, gameId };
       setUser(userObj);
       navigate("/player");
@@ -100,18 +96,9 @@ export default function Login({ setUser }) {
           : !connectionsLoaded ? "⏳ Connexion au serveur en cours…"
           : connectionsOpen ? "✅ Connexions ouvertes" : "⏳ Connexions fermées — attends l’ouverture par l’admin"}
       </p>
-      <p style={{ fontSize: 13, color: "#555" }}>Places publiques : {publicUsed}/60 · GOLD : {goldUsed}/20</p>
-      {goldRequired && (
-        <section style={{ marginBottom: 14, padding: 14, border: "1px solid #c9a051", background: "#fff8e8", borderRadius: 12 }}>
-          <strong>👑 Connexion GOLD</strong>
-          <p>{full ? "Toutes les places sont occupées." : "Les 60 places publiques sont prises. Code réservé aux invités."}</p>
-          {!full && <input type="password" value={goldCode} onChange={event => setGoldCode(event.target.value)}
-            placeholder="Code GOLD" autoComplete="off" style={{ width: "100%", boxSizing: "border-box", padding: 10 }} />}
-        </section>
-      )}
-      <input disabled={full || !connectionsLoaded || !connectionsOpen || pending} placeholder="Ton pseudo" value={pseudo} onChange={(e) => setPseudo(e.target.value)}
+      <input disabled={!connectionsLoaded || !connectionsOpen || pending} placeholder="Ton pseudo" value={pseudo} onChange={(e) => setPseudo(e.target.value)}
         style={{ padding: 10, width: "100%", boxSizing: "border-box", marginBottom: 12 }} />
-      <button onClick={loginPlayer} disabled={pending || full || !connectionsLoaded || !connectionsOpen} style={{ padding: 12, width: "100%", background: "#ff0088", color: "white", border: 0, cursor: "pointer", marginBottom: 18 }}>
+      <button onClick={loginPlayer} disabled={pending || !connectionsLoaded || !connectionsOpen} style={{ padding: 12, width: "100%", background: "#ff0088", color: "white", border: 0, cursor: "pointer", marginBottom: 18 }}>
         🚀 Participer au concours
       </button>
       <button onClick={loginAdmin} disabled={pending} style={{ padding: 12, width: "100%", cursor: "pointer" }}>

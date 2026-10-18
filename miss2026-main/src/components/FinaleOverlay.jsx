@@ -121,9 +121,12 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
             <div className="finalshow-center">
               <div style={smallCap}>Le moment tant attendu</div>
               <h1 style={{ ...headline, margin: "32px 0", fontSize: "clamp(31px,9vw,52px)", lineHeight: 1.2 }}>
-                ET LE<br /><span style={gold}>GRAND GAGNANT</span><br /><span style={gold}>2027</span>
+                ET LE <span style={gold}>MEILLEUR</span><br />
+                <span style={gold}>PRONOSTIQUEUR</span><br />
+                DE MISS FRANCE <span style={gold}>2027</span><br />
+                EST…
               </h1>
-              <p style={{ ...headline, fontSize: "clamp(25px,7vw,40px)", color: "#f3e4ce" }}>EST ET RESTERA…</p>
+              <p className="finalshow-name-enter" style={{ ...headline, fontSize: "clamp(25px,7vw,40px)", color: "#f3e4ce", animationDelay: "1.8s" }}>ET RESTERA…</p>
               <div className="finalshow-shimmer" aria-hidden="true" />
             </div>
           )}

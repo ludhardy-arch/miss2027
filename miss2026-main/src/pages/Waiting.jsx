@@ -13,7 +13,7 @@ export default function Waiting({ user }) {
     if (!user) return;
     const player = players[user.pseudo];
     if (!player) return;
-    const voted = Array.isArray(player[`tour${tour}`) && player[`tour${tour}`].length > 0;
+    const voted = Array.isArray(player[`tour${tour}`]) && player[`tour${tour}`].length > 0;
     if (!voted) navigate("/player");
   }, [tour, players, navigate, user?.pseudo]);
 

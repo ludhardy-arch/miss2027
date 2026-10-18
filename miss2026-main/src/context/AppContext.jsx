@@ -21,7 +21,7 @@ export function AppProvider({ children }) {
   // utilisé pour la reconnexion automatique
   const [gameId, setGameId] = useState("loading");
 
-  const roomRef = ref(database, "rooms/miss2026");
+  const roomRef = ref(database, "rooms/miss2027");
 
   // -----------------------------------------
   // INIT ROOM (si vide)
@@ -51,7 +51,7 @@ export function AppProvider({ children }) {
   // SYNC PLAYERS
   // -----------------------------------------
   useEffect(() => {
-    const playersRef = ref(database, "rooms/miss2026/players");
+    const playersRef = ref(database, "rooms/miss2027/players");
     return onValue(playersRef, (snap) => {
       setPlayers(snap.val() || {});
     });
@@ -61,7 +61,7 @@ export function AppProvider({ children }) {
   // SYNC ADMIN SELECTIONS
   // -----------------------------------------
   useEffect(() => {
-    const adminRef = ref(database, "rooms/miss2026/adminSelections");
+    const adminRef = ref(database, "rooms/miss2027/adminSelections");
     return onValue(adminRef, (snap) => {
       setAdminSelections(snap.val() || { tour1: [], tour2: [], tour3: [] });
     });
@@ -71,10 +71,10 @@ export function AppProvider({ children }) {
   // SYNC TOUR / VOTES / FINALE / GAMEID
   // -----------------------------------------
   useEffect(() => {
-    const votesRef = ref(database, "rooms/miss2026/votesOpen");
-    const tourRef = ref(database, "rooms/miss2026/tour");
-    const finaleRef = ref(database, "rooms/miss2026/finaleStarted");
-    const gameIdRef = ref(database, "rooms/miss2026/gameId");
+    const votesRef = ref(database, "rooms/miss2027/votesOpen");
+    const tourRef = ref(database, "rooms/miss2027/tour");
+    const finaleRef = ref(database, "rooms/miss2027/finaleStarted");
+    const gameIdRef = ref(database, "rooms/miss2027/gameId");
 
     const unsubV = onValue(votesRef, (snap) => setVotesOpen(Boolean(snap.val())));
     const unsubT = onValue(tourRef, (snap) => setTour(snap.val() || 1));
@@ -93,10 +93,11 @@ export function AppProvider({ children }) {
   // FUNCTIONS
   // -----------------------------------------
 
-  const addPlayer = (pseudo) => {
+  const addPlayer = (pseudo, uid) => {
     if (!pseudo) return;
 
-    update(ref(database, `rooms/miss2026/players/${pseudo}`), {
+    return update(ref(database, `rooms/miss2027/players/${pseudo}`), {
+      uid,
       connected: true,
       lastSeen: Date.now(),
     });
@@ -104,13 +105,13 @@ export function AppProvider({ children }) {
 
   // ⭐⭐ FONCTION QUI MANQUAIT → ajoutée ⭐⭐
   const resetPlayerVotes = (pseudo) => {
-    remove(ref(database, `rooms/miss2026/players/${pseudo}/tour1`));
-    remove(ref(database, `rooms/miss2026/players/${pseudo}/tour2`));
-    remove(ref(database, `rooms/miss2026/players/${pseudo}/tour3`));
+    remove(ref(database, `rooms/miss2027/players/${pseudo}/tour1`));
+    remove(ref(database, `rooms/miss2027/players/${pseudo}/tour2`));
+    remove(ref(database, `rooms/miss2027/players/${pseudo}/tour3`));
   };
 
   const updatePlayerVote = (pseudo, tourNum, selection) => {
-    set(ref(database, `rooms/miss2026/players/${pseudo}/tour${tourNum}`), selection);
+    set(ref(database, `rooms/miss2027/players/${pseudo}/tour${tourNum}`), selection);
   };
 
   // RESET TOTAL
@@ -119,7 +120,7 @@ export function AppProvider({ children }) {
 
     const newGameId = Date.now().toString();
 
-    set(ref(database, "rooms/miss2026"), {
+    set(ref(database, "rooms/miss2027"), {
       players: {},
       adminSelections: { tour1: [], tour2: [], tour3: [] },
       votesOpen: false,
@@ -130,13 +131,13 @@ export function AppProvider({ children }) {
   };
 
   const updateAdminSelections = (num, list) =>
-    update(ref(database, "rooms/miss2026/adminSelections"), {
+    update(ref(database, "rooms/miss2027/adminSelections"), {
       [`tour${num}`]: list,
     });
 
-  const updateTour = (num) => set(ref(database, "rooms/miss2026/tour"), num);
-  const updateVotesOpen = (state) => set(ref(database, "rooms/miss2026/votesOpen"), state);
-  const updateFinaleStarted = (state) => set(ref(database, "rooms/miss2026/finaleStarted"), state);
+  const updateTour = (num) => set(ref(database, "rooms/miss2027/tour"), num);
+  const updateVotesOpen = (state) => set(ref(database, "rooms/miss2027/votesOpen"), state);
+  const updateFinaleStarted = (state) => set(ref(database, "rooms/miss2027/finaleStarted"), state);
 
   // -----------------------------------------
   // PROVIDER

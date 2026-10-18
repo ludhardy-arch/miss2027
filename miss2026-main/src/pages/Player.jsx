@@ -213,7 +213,7 @@ export default function Player({ user, setUser }) {
   // =====================================================================================
 
   return (
-    <div style={{ padding: 20, maxWidth: 1200, margin: "0 auto" }}>
+    <div className="tv-page tv-vote-page">
       <style>{votePulseKeyframes}</style>
 
       {/* ⭐ Bannière votes ouverts */}
@@ -256,8 +256,7 @@ export default function Player({ user, setUser }) {
         </div>
       )}
 
-      <h1>Bienvenue {user.pseudo}</h1>
-      <p style={{ textAlign: "center" }}>{subtitle}</p>
+      <header className="tv-show-header"><span className="tv-kicker">✦ MISS FRANCE 2027 · LE GRAND SHOW ✦</span><span className="tv-live-pill">● PRONOSTICS EN DIRECT</span><h1>À VOUS DE JOUER</h1><p>Bienvenue <strong>{user.pseudo}</strong></p><div className="tv-tour-tag">{subtitle}</div></header>
 
       {/* ⭐ Bannière votes fermés */}
       {!votesOpen && (
@@ -293,7 +292,7 @@ export default function Player({ user, setUser }) {
           boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
         }}
       >
-        <h3>Légende :</h3>
+        <h3>◈ LE CODE COULEUR DU JEU</h3>
 
         <LegendItem colorClass="border-blue" text="Sélection en cours" />
         <LegendItem colorClass="border-green" text="Bonne au tour 1" />
@@ -301,6 +300,7 @@ export default function Player({ user, setUser }) {
         <LegendItem colorClass="border-grey" text="Jamais sélectionnée" />
       </div>
 
+      <div className="tv-section-heading"><span>LES CANDIDATES</span><strong>{tour === 1 ? `${selection.length} / 12` : tour === 2 ? `${selection.length} / 5` : "CLASSEMENT FINAL"}</strong></div>
       {/* ⭐ Tours 1 & 2 */}
       {tour !== 3 && (
         <div className="grid">
@@ -398,7 +398,7 @@ export default function Player({ user, setUser }) {
       )}
 
       {/* ⭐ Bouton validation */}
-      <div style={{ textAlign: "center", marginTop: 20 }}>
+      <div className="tv-submit" style={{ textAlign: "center", marginTop: 20 }}>
         <button
           onClick={handleValidate}
           disabled={!votesOpen || hasVotedThisTour}

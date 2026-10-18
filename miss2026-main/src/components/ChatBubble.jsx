@@ -1,5 +1,6 @@
  import React, { useState, useEffect, useRef } from "react";
 import { database } from "../firebase";
+import { ROOM_PATH } from "../room";
 import { ref, push, onValue } from "firebase/database";
 
 export default function ChatBubble({ user }) {
@@ -17,7 +18,7 @@ export default function ChatBubble({ user }) {
 
   // Charger messages Firebase
   useEffect(() => {
-    const chatRef = ref(database, "rooms/miss2027/chat");
+    const chatRef = ref(database, `${ROOM_PATH}/chat`);
 
     const unsubscribe = onValue(chatRef, (snap) => {
       const data = snap.val() || {};
@@ -71,7 +72,7 @@ export default function ChatBubble({ user }) {
     setSending(true);
     setChatError("");
     try {
-      await push(ref(database, "rooms/miss2027/chat"), {
+      await push(ref(database, `${ROOM_PATH}/chat`), {
         author: user.pseudo,
         text: message,
         date: Date.now(),

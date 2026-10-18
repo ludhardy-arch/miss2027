@@ -6,6 +6,9 @@ import Leaderboard from "../components/Leaderboard";
 import FinaleOverlay from "../components/FinaleOverlay";
 import ChatBubble from "../components/ChatBubble";
 import { CANDIDATES } from "../data/candidates";
+import { auth } from "../firebase";
+import { signOut } from "firebase/auth";
+import { useNavigate } from "react-router-dom";
 
 const votePulseKeyframes = `
 @keyframes votePulse {
@@ -15,7 +18,22 @@ const votePulseKeyframes = `
 }
 `;
 
-export default function Admin({ user }) {
+export default function Admin({ user, setUser }) {
+  const navigate = useNavigate();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await signOut(auth);
+      sessionStorage.removeItem("miss_user");
+      setUser(null);
+      navigate("/login", { replace: true });
+    } catch (error) {
+      alert("Déconnexion impossible : " + (error?.message || "erreur inconnue"));
+      setLoggingOut(false);
+    }
+  };
   const reportActionError = (error) => {
     console.error("Firebase admin action refused:", error);
     alert("Action impossible : " + (error?.code || error?.message || "erreur inconnue") + ". Vérifie ta connexion Google et les règles Firebase.");
@@ -141,7 +159,12 @@ export default function Admin({ user }) {
         />
       )}
 
-      <h1>ADMIN — {user.pseudo}</h1>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <h1 style={{ margin: "12px 0" }}>ADMIN — {user.pseudo}</h1>
+        <button onClick={handleLogout} disabled={loggingOut} style={{ padding: "9px 14px", borderRadius: 9, background: "#32323c", color: "white", border: "1px solid #777", cursor: "pointer" }}>
+          {loggingOut ? "Déconnexion…" : "Se déconnecter"}
+        </button>
+      </div>
 
       {votesOpen && (
         <div

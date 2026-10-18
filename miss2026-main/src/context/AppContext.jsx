@@ -2,6 +2,7 @@
 
 import React, { createContext, useEffect, useState } from "react";
 import { auth, database } from "../firebase";
+import { ROOM_PATH, PUBLIC_LIMIT, GOLD_LIMIT } from "../room";
 import { onAuthStateChanged } from "firebase/auth";
 import { ref, onValue, set, update, remove, runTransaction } from "firebase/database";
 
@@ -25,7 +26,7 @@ export function AppProvider({ children }) {
   // utilisé pour la reconnexion automatique
   const [gameId, setGameId] = useState("loading");
 
-  const roomRef = ref(database, "rooms/miss2027");
+  const roomRef = ref(database, ROOM_PATH);
 
   // -----------------------------------------
   // INIT ROOM (si vide)
@@ -64,16 +65,16 @@ export function AppProvider({ children }) {
       if (!firebaseUser) return;
 
       const subscriptions = [
-        onValue(ref(database, "rooms/miss2027/players"),
+        onValue(ref(database, `${ROOM_PATH}/players`),
           (snap) => setPlayers(snap.val() || {}),
           (error) => console.error("Players sync:", error)),
-        onValue(ref(database, "rooms/miss2027/adminSelections"),
+        onValue(ref(database, `${ROOM_PATH}/adminSelections`),
           (snap) => setAdminSelections(snap.val() || { tour1: [], tour2: [], tour3: [] }),
           (error) => console.error("Selections sync:", error)),
-        onValue(ref(database, "rooms/miss2027/votesOpen"),
+        onValue(ref(database, `${ROOM_PATH}/votesOpen`),
           (snap) => setVotesOpen(snap.val() === true),
           (error) => console.error("Votes sync:", error)),
-        onValue(ref(database, "rooms/miss2027/connectionsOpen"),
+        onValue(ref(database, `${ROOM_PATH}/connectionsOpen`),
           (snap) => {
             setConnectionsOpen(snap.val() === true);
             setConnectionsLoaded(true);
@@ -84,13 +85,13 @@ export function AppProvider({ children }) {
             setConnectionsError(error?.code || error?.message || "Connexion impossible");
             console.error("Connections sync:", error);
           }),
-        onValue(ref(database, "rooms/miss2027/tour"),
+        onValue(ref(database, `${ROOM_PATH}/tour`),
           (snap) => setTour(snap.val() || 1),
           (error) => console.error("Tour sync:", error)),
-        onValue(ref(database, "rooms/miss2027/finaleStarted"),
+        onValue(ref(database, `${ROOM_PATH}/finaleStarted`),
           (snap) => setFinaleStarted(snap.val() === true),
           (error) => console.error("Finale sync:", error)),
-        onValue(ref(database, "rooms/miss2027/gameId"),
+        onValue(ref(database, `${ROOM_PATH}/gameId`),
           (snap) => setGameId(snap.val() || "loading"),
           (error) => console.error("Game ID sync:", error))
       ];
@@ -108,25 +109,49 @@ export function AppProvider({ children }) {
 
   // Friendly game mode: a pseudo is the login. Existing votes are kept.
   // Anyone knowing a pseudo can impersonate it: acceptable only for a trusted group.
-  const addPlayer = async (pseudo, uid) => {
+  // Atomic registration on the entire player collection. Test Firebase rules
+  // must explicitly permit this transaction; otherwise access is denied safely.
+  const addPlayer = async (pseudo, uid, goldCode = "") => {
     if (!pseudo || !uid) throw new Error("Pseudo manquant");
-    const playerRef = ref(database, `rooms/miss2027/players/${pseudo}`);
-    const result = await runTransaction(playerRef, (current) => {
-      if (current !== null) return; // Never overwrite earlier votes or identity on login.
-      return { uid, connected: true, lastSeen: Date.now() };
+    let rejection = "";
+    const result = await runTransaction(ref(database, `${ROOM_PATH}/players`), (current) => {
+      const all = current || {};
+      const existing = all[pseudo];
+      if (existing) {
+        rejection = existing.uid === uid ? "" : "Ce pseudo est déjà utilisé.";
+        return existing.uid === uid ? all : undefined;
+      }
+      if (Object.values(all).some(player => player?.uid === uid)) {
+        rejection = "Ce compte possède déjà un pseudo.";
+        return;
+      }
+      const publicUsed = Object.values(all).filter(player => player?.access !== "gold").length;
+      const goldUsed = Object.values(all).filter(player => player?.access === "gold").length;
+      const goldMode = publicUsed >= PUBLIC_LIMIT;
+      if (goldMode && goldCode.trim().toLowerCase() !== "gral") {
+        rejection = "Les places publiques sont complètes. Code GOLD requis.";
+        return;
+      }
+      if (goldMode && goldUsed >= GOLD_LIMIT) {
+        rejection = "Toutes les places sont prises.";
+        return;
+      }
+      all[pseudo] = { uid, connected: true, lastSeen: Date.now(), access: goldMode ? "gold" : "public" };
+      return all;
     }, { applyLocally: false });
-    return result.snapshot.val();
+    if (!result.committed) throw new Error(rejection || "Inscription non confirmée.");
+    return result.snapshot.val()?.[pseudo];
   };
 
   // ⭐⭐ FONCTION QUI MANQUAIT → ajoutée ⭐⭐
   const resetPlayerVotes = (pseudo) => {
-    remove(ref(database, `rooms/miss2027/players/${pseudo}/tour1`));
-    remove(ref(database, `rooms/miss2027/players/${pseudo}/tour2`));
-    remove(ref(database, `rooms/miss2027/players/${pseudo}/tour3`));
+    remove(ref(database, `${ROOM_PATH}/players/${pseudo}/tour1`));
+    remove(ref(database, `${ROOM_PATH}/players/${pseudo}/tour2`));
+    remove(ref(database, `${ROOM_PATH}/players/${pseudo}/tour3`));
   };
 
   const updatePlayerVote = (pseudo, tourNum, selection) => {
-    return set(ref(database, `rooms/miss2027/players/${pseudo}/tour${tourNum}`), selection);
+    return set(ref(database, `${ROOM_PATH}/players/${pseudo}/tour${tourNum}`), selection);
   };
 
   // RESET TOTAL
@@ -134,7 +159,7 @@ export function AppProvider({ children }) {
 
     const newGameId = Date.now().toString();
 
-    return set(ref(database, "rooms/miss2027"), {
+    return set(ref(database, ROOM_PATH), {
       players: {},
       adminSelections: { tour1: [], tour2: [], tour3: [] },
       votesOpen: false,
@@ -146,14 +171,14 @@ export function AppProvider({ children }) {
   };
 
   const updateAdminSelections = (num, list) =>
-    update(ref(database, "rooms/miss2027/adminSelections"), {
+    update(ref(database, `${ROOM_PATH}/adminSelections`), {
       [`tour${num}`]: list,
     });
 
-  const updateTour = (num) => set(ref(database, "rooms/miss2027/tour"), num);
-  const updateVotesOpen = (state) => set(ref(database, "rooms/miss2027/votesOpen"), state);
-  const updateConnectionsOpen = (state) => set(ref(database, "rooms/miss2027/connectionsOpen"), state);
-  const updateFinaleStarted = (state) => set(ref(database, "rooms/miss2027/finaleStarted"), state);
+  const updateTour = (num) => set(ref(database, `${ROOM_PATH}/tour`), num);
+  const updateVotesOpen = (state) => set(ref(database, `${ROOM_PATH}/votesOpen`), state);
+  const updateConnectionsOpen = (state) => set(ref(database, `${ROOM_PATH}/connectionsOpen`), state);
+  const updateFinaleStarted = (state) => set(ref(database, `${ROOM_PATH}/finaleStarted`), state);
 
   // -----------------------------------------
   // PROVIDER
@@ -162,6 +187,8 @@ export function AppProvider({ children }) {
     <AppContext.Provider
       value={{
         players,
+        publicUsed: Object.values(players).filter(player => player?.access !== "gold").length,
+        goldUsed: Object.values(players).filter(player => player?.access === "gold").length,
         adminSelections,
         votesOpen,
         connectionsOpen,

@@ -68,15 +68,15 @@ export default function Login({ setUser }) {
   }
 
   return (
-    <div style={{ padding: 40, maxWidth: 500, margin: "0 auto", textAlign: "center", fontFamily: "Arial, sans-serif" }}>
-      <header style={{ position: "relative", overflow: "hidden", padding: "34px 15px 30px", margin: "-12px -15px 24px", borderRadius: 22, background: "radial-gradient(ellipse at 50% -20%, rgba(248,205,132,.28), transparent 65%), linear-gradient(145deg,#18121b 0%,#0b0c14 100%)", border: "1px solid rgba(232,192,123,.45)", boxShadow: "0 14px 36px rgba(0,0,0,.24)", color: "#fff7e8" }}>
+    <div className="tv-login-shell">
+      <header className="tv-hero" style={{ position: "relative", overflow: "hidden", padding: "34px 15px 30px", margin: "-12px -15px 24px", borderRadius: 22, background: "radial-gradient(ellipse at 50% -20%, rgba(248,205,132,.28), transparent 65%), linear-gradient(145deg,#18121b 0%,#0b0c14 100%)", border: "1px solid rgba(232,192,123,.45)", boxShadow: "0 14px 36px rgba(0,0,0,.24)", color: "#fff7e8" }}>
         <div aria-hidden="true" style={{ fontSize: 40, color: "#e8c68c", lineHeight: 1, marginBottom: 12 }}>♛</div>
         <div style={{ color: "#e8c68c", fontSize: 11, fontWeight: 700, letterSpacing: "0.32em", textTransform: "uppercase" }}>Le concours de pronostics</div>
         <h1 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: "clamp(34px, 9vw, 49px)", fontWeight: 500, lineHeight: 1.08, letterSpacing: "-.02em", margin: "14px 0 0", color: "#f9e4be", textShadow: "0 2px 22px rgba(238,187,100,.25)" }}>MISS FRANCE <span style={{ display: "block", fontSize: "1.25em", letterSpacing: ".05em" }}>2027</span></h1>
         <div style={{ width: 76, height: 1, margin: "20px auto", background: "linear-gradient(90deg,transparent,#e9c487,transparent)" }} />
         <p style={{ margin: "0 auto", maxWidth: 330, fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic", fontSize: "clamp(21px, 5.5vw, 27px)", lineHeight: 1.35, color: "#fff9ee" }}>Qui aura le <span style={{ color: "#f2c784" }}>meilleur pronostic ?</span></p>
       </header>
-      <section aria-label="Comment jouer" style={{ background: "linear-gradient(160deg, #231131, #18112d)", border: "1px solid #bc79be", color: "white", borderRadius: 22, padding: "18px 12px", marginBottom: 20, boxShadow: "0 10px 28px rgba(37,12,56,.23)" }}>
+      <section className="tv-howto" aria-label="Comment jouer" style={{ background: "linear-gradient(160deg, #231131, #18112d)", border: "1px solid #bc79be", color: "white", borderRadius: 22, padding: "18px 12px", marginBottom: 20, boxShadow: "0 10px 28px rgba(37,12,56,.23)" }}>
         <div style={{ color: "#f7acd7", letterSpacing: ".12em", fontWeight: 800, fontSize: 13, marginBottom: 6 }}>✦ ✨ COMMENT JOUER ✨ ✦</div>
         <h2 style={{ color: "#fff1f9", fontSize: 24, margin: "7px 0 18px" }}>À vous de jouer !</h2>
         {[
@@ -91,7 +91,7 @@ export default function Login({ setUser }) {
         ))}
         <p style={{ color: "#ffd49c", margin: "17px 7px 5px", fontSize: 14 }}>✨ Attends l'ouverture des votes à chaque tour.</p>
       </section>
-      <p role="status" style={{ padding: 12, borderRadius: 10, background: connectionsError ? "#93511b" : !connectionsLoaded ? "#56516f" : connectionsOpen ? "#176b43" : "#74323e", color: "white", fontWeight: "bold" }}>
+      <div className="tv-entry"><div className="tv-entry-eyebrow">✦ ACCÈS AU DIRECT ✦</div><h2>ENTREZ EN SCÈNE</h2><p role="status" style={{ padding: 12, borderRadius: 10, background: connectionsError ? "#93511b" : !connectionsLoaded ? "#56516f" : connectionsOpen ? "#176b43" : "#74323e", color: "white", fontWeight: "bold" }}>
         {connectionsError ? "⚠️ Impossible de vérifier les connexions : " + connectionsError
           : !connectionsLoaded ? "⏳ Connexion au serveur en cours…"
           : connectionsOpen ? "✅ Connexions ouvertes" : "⏳ Connexions fermées — attends l’ouverture par l’admin"}
@@ -106,6 +106,7 @@ export default function Login({ setUser }) {
       </button>
       {error && <p role="alert" style={{ color: "#b00020" }}>{error}</p>}
       {adminUid && <p>Ton UID Firebase : <code>{adminUid}</code> — à renseigner dans Render et dans les règles Firebase.</p>}
+      </div>
     </div>
   );
 }

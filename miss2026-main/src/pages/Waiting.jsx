@@ -80,15 +80,9 @@ export default function Waiting({ user }) {
           </p>
         ) : (
           <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 16 }}>
-            {ranking.map((miss, index) => {
-              const position = ranking.findIndex(item => item.votes === miss.votes) + 1;
+            {ranking.map((miss) => {
               return (
                 <li key={miss.id} style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0, transition: "all .35s ease" }}>
-                  <div style={{
-                    width: 34, height: 34, flexShrink: 0, borderRadius: 9,
-                    display: "grid", placeItems: "center", fontSize: 14, fontWeight: 800,
-                    background: position === 1 ? "#80632a" : position === 2 ? "#45556a" : position === 3 ? "#755043" : "#263349"
-                  }}>{position}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
                       <strong style={{ fontSize: 14, overflowWrap: "anywhere", textTransform: "capitalize" }}>

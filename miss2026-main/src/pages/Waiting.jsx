@@ -3,7 +3,6 @@
 import React, { useContext, useEffect } from "react";
 import { AppContext } from "../context/AppContext";
 import { useNavigate } from "react-router-dom";
-import MalounetteAd from "../components/MalounetteAd";
 import ChatBubble from "../components/ChatBubble"; 
 import SelectionBubble from "../components/SelectionBubble"; // ⭐ AJOUT ICI ⭐
 
@@ -28,6 +27,12 @@ export default function Waiting({ user }) {
       navigate("/player");
     }
   }, [tour, players, navigate, user]);
+
+  const totalPlayers = Object.keys(players).length;
+  const validatedVotes = Object.values(players).filter((player) =>
+    Array.isArray(player?.[`tour${tour}`]) && player[`tour${tour}`].length > 0
+  ).length;
+  const percentage = totalPlayers > 0 ? Math.round((validatedVotes / totalPlayers) * 100) : 0;
 
   const message =
     tour === 3

@@ -25,6 +25,7 @@ export default function Player({ user, setUser }) {
     adminSelections,
     updatePlayerVote,
     players,
+    gameId,
   } = useContext(AppContext);
 
   const navigate = useNavigate();
@@ -85,14 +86,14 @@ export default function Player({ user, setUser }) {
 
     const key =
       tour === 3
-        ? `miss2027_ranking_tour3_${user.pseudo}`
-        : `miss2027_selection_tour${tour}_${user.pseudo}`;
+        ? `miss2027_${gameId}_ranking_tour3_${user.pseudo}`
+        : `miss2027_${gameId}_selection_tour${tour}_${user.pseudo}`;
 
     const saved = localStorage.getItem(key);
 
     if (tour === 3) setRanking(saved ? JSON.parse(saved) : {});
     else setSelection(saved ? JSON.parse(saved) : []);
-  }, [tour, hasVotedThisTour, user.pseudo]);
+  }, [tour, hasVotedThisTour, user.pseudo, gameId]);
 
   // Sauvegarde locale live
   useEffect(() => {
@@ -102,7 +103,7 @@ export default function Player({ user, setUser }) {
       `miss2027_selection_tour${tour}_${user.pseudo}`,
       JSON.stringify(selection)
     );
-  }, [selection, tour, hasVotedThisTour, user.pseudo]);
+  }, [selection, tour, hasVotedThisTour, user.pseudo, gameId]);
 
   // Sauvegarde classement finale
   useEffect(() => {
@@ -112,7 +113,7 @@ export default function Player({ user, setUser }) {
       `miss2027_ranking_tour3_${user.pseudo}`,
       JSON.stringify(ranking)
     );
-  }, [ranking, tour, hasVotedThisTour, user.pseudo]);
+  }, [ranking, tour, hasVotedThisTour, user.pseudo, gameId]);
 
   // Sélection pour tour 1 & 2
   const handleClickMiss = (id) => {

@@ -18,15 +18,15 @@ export default function Leaderboard() {
   }, [players, adminSelections]);
 
   return (
-    <div style={{ marginTop: 30 }}>
-      <h2>Classement</h2>
+    <section className="tv-leaderboard">
+      <div className="tv-kicker">✦ TABLEAU DES SCORES ✦</div><h2>LE CLASSEMENT</h2><p className="tv-lead-subtitle">Qui décrochera la couronne ?</p>
       <ol>
-        {ranking.map(p => (
-          <li key={p.pseudo}>
-            {p.pseudo} — <b>{p.points} pts</b>
+        {ranking.map((p, index) => (
+          <li className={`tv-rank-row ${index < 3 ? "tv-top-rank" : ""}`} key={p.pseudo}><span className="tv-rank-num">{index === 0 ? "👑" : String(index + 1).padStart(2, "0")}</span><span className="tv-rank-player">
+            {p.pseudo}</span><b className="tv-rank-score">{p.points} pts</b>
           </li>
         ))}
       </ol>
-    </div>
+    </section>
   );
 }

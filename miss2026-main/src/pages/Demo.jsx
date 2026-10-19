@@ -68,7 +68,12 @@ export default function Demo() {
       <section className="demo-intro">
         <div className="demo-eyebrow">TOUR {phase} · DÉMONSTRATION</div>
         <h2>{phase === 1 ? "Choisissez vos 12 Miss" : phase === 2 ? "Qui sera dans le top 5 ?" : "Classez les cinq finalistes"}</h2>
-        <p>{phase === 1 ? "Sélectionnez 12 candidates parmi les 30. Les douze qualifiées fictives seront ensuite révélées." : phase === 2 ? "Les 12 qualifiées sont connues. Retrouvez les 5 finalistes : vert = bien sélectionnée au premier tour." : "Touchez une candidate puis choisissez sa place dans votre pronostic. La finale sera ensuite dévoilée."}</p>
+        <p>{phase === 1 ? "Sélectionnez 12 candidates parmi les 30. Les douze qualifiées fictives seront ensuite révélées." : phase === 2 ? "Parmi les 12 Miss qualifiées, choisissez vos 5 favorites pour la finale." : "Les 5 finalistes sont dévoilées ! À vous de prédire leur classement final."}</p>
+        {phase === 2 && <p className="demo-round-legend"><span className="demo-legend-swatch" style={{borderColor:"#12e994"}} /> Vous aviez déjà sélectionné cette Miss au premier tour.</p>}
+        {phase === 3 && <div className="demo-round-legends">
+          <p className="demo-round-legend"><span className="demo-legend-swatch" style={{borderColor:"#12e994"}} /> Vous avez sélectionné cette Miss aux deux premiers tours.</p>
+          <p className="demo-round-legend"><span className="demo-legend-swatch" style={{borderColor:"#ffcf34"}} /> Vous avez sélectionné cette Miss uniquement au deuxième tour.</p>
+        </div>}
         <div className="demo-counter">{phase === 3 ? ranking.filter(Boolean).length : selected.length} / {maximum} {phase === 3 ? "places attribuées" : "sélectionnées"}</div>
       </section>
       {phase === 2 && <div className="demo-reveal">✦ RÉSULTATS FICTIFS DU 1er TOUR ✦<p>{selected1.filter(id=>QUALIFIED.includes(id)).length} bonne(s) réponse(s) sur 12 — {selected1.filter(id=>QUALIFIED.includes(id)).length*15} points.</p></div>}

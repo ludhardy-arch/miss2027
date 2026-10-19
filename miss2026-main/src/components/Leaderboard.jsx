@@ -4,18 +4,18 @@ import React, { useContext, useMemo } from "react";
 import { AppContext } from "../context/AppContext";
 import { calculatePoints } from "../services/points";
 
-export default function Leaderboard({ showPoints = false }) {
+export default function Leaderboard({ showPoints = false, demoPlayers = null, demoSelections = null }) {
   const { players, adminSelections } = useContext(AppContext);
 
   // 🔥 recalcul automatique dès que les votes ou les sélections admin changent
   const ranking = useMemo(() => {
-    return Object.entries(players)
+    return Object.entries(demoPlayers || players)
       .map(([pseudo, votes]) => ({
         pseudo,
-        points: calculatePoints(votes, adminSelections),
+        points: calculatePoints(votes, demoSelections || adminSelections),
       }))
       .sort((a, b) => b.points - a.points);
-  }, [players, adminSelections]);
+  }, [players, adminSelections, demoPlayers, demoSelections]);
 
   return (
     <section className="tv-leaderboard tv-scoreboard-v3">

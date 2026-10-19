@@ -77,7 +77,6 @@ export default function Login({ setUser }) {
       </header>
       <section className="tv-howto tv-howto-v3" aria-label="Comment jouer" style={{ background: "linear-gradient(160deg, #231131, #18112d)", border: "1px solid #bc79be", color: "white", borderRadius: 22, padding: "18px 12px", marginBottom: 20, boxShadow: "0 10px 28px rgba(37,12,56,.23)" }}>
         <div style={{ color: "#f7acd7", letterSpacing: ".12em", fontWeight: 800, fontSize: 13, marginBottom: 6 }}>✦ ✨ COMMENT JOUER ✨ ✦</div>
-        <h2 style={{ color: "#fff1f9", fontSize: 24, margin: "7px 0 18px" }}>À vous de jouer !</h2>
         {[
           { n: "01", text: "Premier tour : sélectionner 12 Miss.", background: "#4e1d57", border: "#e77dc6", accent: "#ffc0e8" },
           { n: "02", text: "Deuxième tour : sélectionner 5 Miss.", background: "#27265b", border: "#a09cff", accent: "#c9bfff" },

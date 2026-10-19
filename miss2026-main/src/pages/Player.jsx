@@ -213,7 +213,7 @@ export default function Player({ user, setUser }) {
   // =====================================================================================
 
   return (
-    <div className="tv-page tv-vote-page">
+    <div className="tv-page tv-vote-page tv-show-v3">
       <style>{votePulseKeyframes}</style>
 
       {/* ⭐ Bannière votes ouverts */}
@@ -300,14 +300,14 @@ export default function Player({ user, setUser }) {
         <LegendItem colorClass="border-grey" text="Jamais sélectionnée" />
       </div>
 
-      <div className="tv-section-heading"><span>LES CANDIDATES</span><strong>{tour === 1 ? `${selection.length} / 12` : tour === 2 ? `${selection.length} / 5` : "CLASSEMENT FINAL"}</strong></div>
+      <div className="tv-section-heading"><span>✦ LE CASTING · LES CANDIDATES</span><strong>{tour === 1 ? `${selection.length} / 12` : tour === 2 ? `${selection.length} / 5` : "CLASSEMENT FINAL"}</strong></div>
       {/* ⭐ Tours 1 & 2 */}
       {tour !== 3 && (
         <div className="grid">
           {candidates.map((miss) => (
             <div
               key={miss.id}
-              className={`miss-card ${getBorderClass(miss.id)}`}
+              className={`miss-card tv-contestant ${getBorderClass(miss.id)}`}
               onClick={() => handleClickMiss(miss.id)}
               style={{
                 cursor:
@@ -326,7 +326,7 @@ export default function Player({ user, setUser }) {
                   marginBottom: 4,
                 }}
               />
-              <div>{miss.label}</div>
+              <div className="tv-contestant-label"><span>{miss.label}</span><span aria-hidden="true">✦</span></div>
             </div>
           ))}
         </div>
@@ -354,7 +354,7 @@ export default function Player({ user, setUser }) {
                   marginBottom: 8,
                 }}
               />
-              <div style={{ marginBottom: 8 }}>{miss.label}</div>
+              <div className="tv-contestant-label" style={{ marginBottom: 8 }}>{miss.label}</div>
 
               <select
                 value={ranking[miss.id] || ""}

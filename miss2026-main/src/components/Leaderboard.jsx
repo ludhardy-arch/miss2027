@@ -18,7 +18,7 @@ export default function Leaderboard() {
   }, [players, adminSelections]);
 
   return (
-    <section className="tv-leaderboard">
+    <section className="tv-leaderboard tv-scoreboard-v3">
       <div className="tv-kicker">✦ TABLEAU DES SCORES ✦</div><h2>LE CLASSEMENT</h2><p className="tv-lead-subtitle">Qui décrochera la couronne ?</p>
       <ol>
         {ranking.map((p, index) => (

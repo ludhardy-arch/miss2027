@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
-import { getDatabase } from "firebase/database";
-import { initializeAuth, browserSessionPersistence, browserPopupRedirectResolver } from "firebase/auth";
+import { getDatabase, connectDatabaseEmulator } from "firebase/database";
+import { initializeAuth, connectAuthEmulator, browserSessionPersistence, browserPopupRedirectResolver } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD14OqrBD-hEGyNQNOoSar_xTiwpWzlr8Y",
@@ -21,3 +21,9 @@ export const auth = initializeAuth(app, {
   popupRedirectResolver: browserPopupRedirectResolver,
 });
 
+
+/* Local-only load test. Disabled in Render production and TEST builds. */
+if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === "true") {
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  connectDatabaseEmulator(database, "127.0.0.1", 9000);
+}

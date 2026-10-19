@@ -60,7 +60,7 @@ export default function Demo() {
     <header className="demo-head">
       <div className="demo-eyebrow">✦ MISS FRANCE 2027 ✦</div>
       <h1>MODE DÉCOUVERTE</h1>
-      <p>Une mini-partie interactive, avec résultats fictifs. Aucune inscription, aucun vote réel.</p>
+      <p>Ce sont les photos des Miss 2026, celles des Miss 2027 ne sont pas encore publiées.</p>
       <div className="demo-topactions"><button type="button" onClick={() => navigate("/login")}>← Retour à l'accueil</button></div>
 
     </header>

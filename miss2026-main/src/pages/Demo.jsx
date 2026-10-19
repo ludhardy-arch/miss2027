@@ -28,6 +28,10 @@ export default function Demo() {
   const [ranking, setRanking] = useState([]);
   const [scene, setScene] = useState(0);
   const [showScores, setShowScores] = useState(false);
+  const [selectionOpen, setSelectionOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatText, setChatText] = useState("");
+  const [chatMessages, setChatMessages] = useState([{ author: "Camille", text: "Bienvenue dans la démo ! 👑" }, { author: "Sophie", text: "À vous de choisir vos Miss !" }]);
   const cards = phase === 1 ? CANDIDATES : phase === 2 ? QUALIFIED.map(contestant).filter(Boolean) : FINALISTS.map(contestant).filter(Boolean);
   const selected = phase === 1 ? selected1 : selected2;
   const maximum = phase === 1 ? 12 : 5;
@@ -45,7 +49,7 @@ export default function Demo() {
   const leaderboard = useMemo(() => [self, ...DEMO_PLAYERS]
     .map(p => ({ pseudo: p.pseudo, score: calculatePoints(p, admin) }))
     .sort((a,b) => b.score-a.score || a.pseudo.localeCompare(b.pseudo,"fr")), [selected1, selected2, ranking]);
-  const restart = () => { setPhase(1); setSelected1([]); setSelected2([]); setRanking([]); setScene(0); setShowScores(false); };
+  const restart = () => { setPhase(1); setSelected1([]); setSelected2([]); setRanking([]); setScene(0); setShowScores(false); setSelectionOpen(false); setChatOpen(false); };
   const isGreen = id => selected1.includes(id) && QUALIFIED.includes(id);
   const isYellow = id => selected2.includes(id) && FINALISTS.includes(id) && !isGreen(id);
   return <main className="demo-page tv-show-v3">
@@ -54,7 +58,7 @@ export default function Demo() {
       <h1>MODE DÉCOUVERTE</h1>
       <p>Une mini-partie interactive, avec résultats fictifs. Aucune inscription, aucun vote réel.</p>
       <div className="demo-topactions"><button type="button" onClick={() => navigate("/login")}>← Retour à l'accueil</button><button type="button" onClick={restart}>↻ Recommencer</button></div>
-      <div className="demo-steps">{["12 qualifiées","5 finalistes","Le classement","Le grand show"].map((title,i)=><span key={title} className={phase === i+1 ? "active" : phase>i+1 ? "done" : ""}>{i+1}. {title}</span>)}</div>
+
     </header>
     {phase < 4 ? <>
       <section className="demo-intro">
@@ -73,11 +77,13 @@ export default function Demo() {
           }}><option value="">Choisir</option>{[1,2,3,4,5].map(n=><option key={n} value={n}>{n===1?"Miss France":(n-1)+"e dauphine"}</option>)}</select></div>}
           {phase<3 && selected.includes(c.id)&&<div className="demo-selected">✓ Sélectionnée</div>}
         </div>)}</div>
-      <div className="demo-bottom"><button type="button" disabled={phase===3?ranking.length!==5:selected.length!==maximum} onClick={next}>{phase===1?"Révéler les 12 qualifiées →":phase===2?"Révéler les 5 finalistes →":"Découvrir le show final →"}</button></div>
+      <div className="demo-bottom"><button type="button" disabled={phase===3?ranking.length!==5:selected.length!==maximum} onClick={next}>{phase===3?"Valider mon classement":"Valider mon vote"}</button></div>
+      <div className="demo-floating demo-selection"><button type="button" className="demo-bubble demo-star" aria-label="Voir ma sélection en cours" onClick={()=>setSelectionOpen(v=>!v)}>⭐</button>{selectionOpen && <div className="demo-float-panel"><strong>{phase===3?"Mon classement":"Ma sélection en cours"}</strong>{(phase===3?ranking:selected).length ? <ol>{(phase===3?ranking:selected).map(id=><li key={id}>{label(id)}</li>)}</ol> : <p>Aucune Miss sélectionnée.</p>}</div>}</div>
     </> : <section className="demo-ceremony">
       <div className="demo-eyebrow">✦ LA GRANDE FINALE · SIMULATION ✦</div>
       {scene===0?<><div className="demo-crown">♛</div><h2>MISS FRANCE EST ÉLUE...</h2><p>Mais qui aura fait les meilleurs pronostics ?</p><button onClick={()=>setScene(1)}>Révéler le couronnement →</button></>:scene===1?<><div className="demo-crown">👑</div><h2>MISS {label(OFFICIAL[0]).toUpperCase()}</h2><p>Miss France 2027 — résultat fictif de la démonstration</p><div className="demo-podium">{OFFICIAL.map((id,i)=><div key={id}><strong>{i+1}</strong><span>{label(id)}</span></div>)}</div><button onClick={()=>{setScene(2);setShowScores(true)}}>Découvrir le classement des joueurs →</button></>:<><div className="demo-crown">🏆</div><h2>LE CLASSEMENT FINAL</h2><p>Voici les résultats complets de cette simulation.</p><div className="demo-scores">{leaderboard.map((p,i)=><div key={p.pseudo} className={p.pseudo==="Vous"?"me":""}><span>{i===0?"👑":i+1} · {p.pseudo}</span><strong>{showScores?p.score+" pts":"•••"}</strong></div>)}</div><button onClick={restart}>Rejouer la démo ↻</button></>}
       <p className="demo-note">Démo entièrement fictive · résultats non enregistrés · barème identique au concours</p>
     </section>}
+    <div className="demo-floating demo-chat"><button type="button" className="demo-bubble demo-chat-button" aria-label="Ouvrir le chat de démonstration" onClick={()=>setChatOpen(v=>!v)}>💬</button>{chatOpen && <div className="demo-float-panel demo-chat-panel"><strong>CHAT · DÉMONSTRATION</strong><p className="demo-small">Messages fictifs et locaux uniquement.</p><div className="demo-chat-messages">{chatMessages.map((m,i)=><p key={i}><b>{m.author} :</b> {m.text}</p>)}</div><form onSubmit={e=>{e.preventDefault();if(chatText.trim()){setChatMessages(prev=>[...prev,{author:"Vous",text:chatText.trim().slice(0,500)}]);setChatText("");}}}><input aria-label="Votre message" placeholder="Écrire un message..." maxLength={500} value={chatText} onChange={e=>setChatText(e.target.value)}/><button type="submit">Envoyer</button></form></div>}</div>
   </main>;
 }

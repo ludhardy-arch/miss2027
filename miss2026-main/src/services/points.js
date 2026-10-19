@@ -11,11 +11,11 @@ const norm = (d) => {
  * 🎯 NOUVEAU SYSTÈME DE POINTS (MIS À JOUR)
  *
  * TOUR 1 :
- *    +10 points par bonne miss
+ *    +15 points par bonne miss
  *
  * TOUR 2 :
- *    VERT  = bonne T1 + bonne T2 = +20 pts
- *    JAUNE = bonne T2 seulement  = +10 pts
+ *    VERT  = bonne T1 + bonne T2 = +25 pts
+ *    JAUNE = bonne T2 seulement  = +15 pts
  *
  * FINALE (place admin) :
  *
@@ -43,22 +43,22 @@ export function calculatePoints(playerVotes, adminSelections) {
   let total = 0;
 
   // ----------------------------------------------------------
-  // 🔵 TOUR 1 — +10 pts par bonne miss
+  // 🔵 TOUR 1 — +15 pts par bonne miss
   // ----------------------------------------------------------
   t1P.forEach((miss) => {
-    if (t1A.includes(miss)) total += 10;
+    if (t1A.includes(miss)) total += 15;
   });
 
   // ----------------------------------------------------------
-  // 🟩 TOUR 2 — +20 pts (verte) / +10 pts (jaune)
+  // 🟩 TOUR 2 — +25 pts (verte) / +15 pts (jaune)
   // ----------------------------------------------------------
   t2P.forEach((miss) => {
     if (!t2A.includes(miss)) return; // mauvaise au T2
 
     const isGreen = t1P.includes(miss) && t1A.includes(miss);
 
-    if (isGreen) total += 20;
-    else total += 10;
+    if (isGreen) total += 25;
+    else total += 15;
   });
 
   // ----------------------------------------------------------

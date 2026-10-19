@@ -262,16 +262,18 @@ export default function Player({ user, setUser }) {
       {!votesOpen && (
         <div
           style={{
-            margin: "0 auto 15px",
-            maxWidth: 600,
-            padding: "12px 18px",
-            borderRadius: 12,
-            background: "rgba(180,0,0,0.9)",
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 9999,
+            padding: "15px 20px",
+            background: "linear-gradient(135deg, #d60013, #fc2445)",
             color: "white",
             textAlign: "center",
             fontWeight: "bold",
             fontSize: 18,
-            boxShadow: "0 0 18px rgba(255,0,0,0.7)",
+            boxShadow: "0 0 22px rgba(255,30,65,0.75)",
           }}
         >
           <div>LES VOTES SONT FERMÉS</div>

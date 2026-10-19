@@ -11,6 +11,7 @@ import {
 } from "react-router-dom";
 
 import Login from "./pages/Login";
+import Demo from "./pages/Demo";
 import Admin from "./pages/Admin";
 import Player from "./pages/Player";
 import Waiting from "./pages/Waiting";
@@ -99,6 +100,9 @@ function RouterContent() {
 
   const shouldShowFinale =
     finaleStarted && user && location.pathname !== "/login";
+
+  // The interactive demo needs no Firebase identity and cannot mutate the game.
+  if (location.pathname === "/demo") return <Demo />;
 
   if (!authReady) return <p>Connexion en cours…</p>;
 

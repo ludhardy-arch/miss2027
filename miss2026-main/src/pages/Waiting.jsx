@@ -45,7 +45,7 @@ export default function Waiting({ user }) {
   const selection = Array.isArray(players[user?.pseudo]?.[key]) ? players[user.pseudo][key] : [];
 
   return (
-    <main className="tv-page tv-waiting-page">
+    <main className="tv-page tv-waiting-page tv-show-v3">
       <header className="tv-show-header"><span className="tv-kicker">✦ MISS FRANCE 2027 ✦</span><span className="tv-live-pill">● TENDANCES EN DIRECT</span><h1>LE CHOIX DU PUBLIC</h1><p>Les pronostics prennent vie à chaque vote</p></header>
       <div role="status" aria-live="polite" style={{
         background: votesOpen ? "#176b43" : "#8e303f", color: "white",
@@ -54,7 +54,7 @@ export default function Waiting({ user }) {
         {votesOpen ? "✅ LES VOTES SONT OUVERTS !" : "⛔ LES VOTES SONT FERMÉS"}
       </div>
 
-      <section className="tv-trends-panel" style={{
+      <section className="tv-trends-panel tv-trends-v3" style={{
         borderRadius: 18, padding: "18px 14px", background: "#111827",
         color: "#f9fafb", boxShadow: "0 8px 26px rgba(0,0,0,.18)"
       }}>

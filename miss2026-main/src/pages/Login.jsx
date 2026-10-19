@@ -91,7 +91,7 @@ export default function Login({ setUser }) {
         ))}
         <p style={{ color: "#ffd49c", margin: "17px 7px 5px", fontSize: 14 }}>✨ Attends l'ouverture des votes à chaque tour.</p>
       </section>
-      <div className="tv-entry tv-entry-v3"><div className="tv-entry-eyebrow">✦ ACCÈS AU DIRECT ✦</div><h2>ENTREZ EN SCÈNE</h2><p role="status" style={{ padding: 12, borderRadius: 10, background: connectionsError ? "#93511b" : !connectionsLoaded ? "#56516f" : connectionsOpen ? "#176b43" : "#74323e", color: "white", fontWeight: "bold" }}>
+      <div className="tv-entry tv-entry-v3"><div className="tv-entry-eyebrow">✦ ACCÈS AU DIRECT ✦</div><h2>ENTREZ EN SCÈNE</h2><p role="status" style={{ padding: 12, borderRadius: 10, background: connectionsError ? "#93511b" : !connectionsLoaded ? "#56516f" : connectionsOpen ? "#008E28" : "#D60000", color: "white", fontWeight: "bold" }}>
         {connectionsError ? "⚠️ Impossible de vérifier les connexions : " + connectionsError
           : !connectionsLoaded ? "⏳ Connexion au serveur en cours…"
           : connectionsOpen ? "✅ Connexions ouvertes" : "⏳ Connexions fermées — attends l’ouverture par l’admin"}

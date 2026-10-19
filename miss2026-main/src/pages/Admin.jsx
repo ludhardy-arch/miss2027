@@ -158,14 +158,19 @@ export default function Admin({ user, setUser }) {
   const votedCount = playerEntries.filter(([, player]) => playerHasVoted(player)).length;
   const standings = playerEntries.map(([pseudo, player]) => ({ pseudo, points: calculatePoints(player, adminSelections) }))
     .sort((a,b) => b.points-a.points || a.pseudo.localeCompare(b.pseudo,"fr"));
-  const popularity = candidates.map(miss => ({
+  // Cumulative popularity: 1 point per selection in rounds 1 and 2;
+  // in the final, ordered predictions award 5 to Miss France, then 4, 3, 2, 1.
+  const voteIds = (votes) => (Array.isArray(votes) ? votes : Object.values(votes || {})).map(Number);
+  const popularity = CANDIDATES.map(miss => ({
     ...miss,
-    count: playerEntries.filter(([,p]) => {
-      const votes = p?.[`tour${tour}`];
-      return (Array.isArray(votes) ? votes : Object.values(votes || {})).map(Number).includes(miss.id);
-    }).length
+    count: playerEntries.reduce((sum, [, player]) => {
+      const round1 = voteIds(player?.tour1).includes(miss.id) ? 1 : 0;
+      const round2 = voteIds(player?.tour2).includes(miss.id) ? 1 : 0;
+      const finalIndex = voteIds(player?.tour3).indexOf(miss.id);
+      return sum + round1 + round2 + (finalIndex >= 0 ? 5 - finalIndex : 0);
+    }, 0)
   })).sort((a,b) => b.count-a.count || a.label.localeCompare(b.label,"fr")).slice(0,5);
-
+  const maxPopularity = Math.max(1, ...popularity.map(m => m.count));
 
   return (
     <div className="tv-page tv-admin-page tv-show-v3">
@@ -202,7 +207,7 @@ export default function Admin({ user, setUser }) {
       <div className="regie-info-grid">
         <AdminLiveChat user={user} />
         <section className="regie-panel"><div className="regie-panel-heading"><h3>⭐ MISS FAVORITES</h3><span>TOUR {tour}</span></div>
-          {popularity.map(m=><div className="regie-popularity" key={m.id}><div><span>{m.label}</span><strong>{totalPlayers?Math.round(100*m.count/totalPlayers):0}%</strong></div><div className="regie-meter"><span style={{width:(totalPlayers?100*m.count/totalPlayers:0)+"%"}} /></div><small>{m.count} vote(s)</small></div>)}
+          {popularity.map(m=><div className="regie-popularity" key={m.id}><div><span>{m.label}</span><strong>{m.count} pts</strong></div><div className="regie-meter"><span style={{width:(100*m.count/maxPopularity)+"%"}} /></div><small>Cumul des sélections · tours 1, 2 et finale</small></div>)}
           {!popularity.length&&<p>Aucune candidate à afficher.</p>}
         </section>
       </div>

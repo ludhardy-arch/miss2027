@@ -27,7 +27,7 @@ const sessions = [];
 const prompt = readline.createInterface({ input: process.stdin, output: process.stdout });
 const pause = async message => { await prompt.question('\n' + message + ' — Entrée pour continuer : '); };
 const path = page => new URL(page.url()).hash;
-const waitFor = (p, f, timeout = 60000) => p.waitForFunction(f, { timeout });
+const waitFor = (p, f, timeout = 60000) => p.waitForFunction(f, null, { timeout });
 const report = (s, txt) => console.log(s.pseudo.padEnd(9), txt);
 async function batches(items, task) {
   for (let i = 0; i < items.length; i += CONCURRENCY) {
@@ -40,6 +40,7 @@ try {
   for (let n = 1; n <= COUNT; n++) {
     const pseudo = 'Test' + String(n).padStart(2, '0');
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    if (local) await context.route('**/*', route => { const u=route.request().url(); if (/firebaseio\\.com|firebasedatabase\\.app|identitytoolkit\\.googleapis\\.com|securetoken\\.googleapis\\.com/i.test(u)) return route.abort(); return route.continue(); });
     const page = await context.newPage();
     page.on('dialog', dialog => dialog.accept());
     sessions.push({ pseudo, context, page, errors: [] });

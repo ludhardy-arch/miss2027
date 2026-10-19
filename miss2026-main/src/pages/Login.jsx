@@ -99,12 +99,14 @@ export default function Login({ setUser }) {
       <button onClick={loginPlayer} disabled={pending || !connectionsLoaded || !connectionsOpen} style={{ padding: 12, width: "100%", background: "#ff0088", color: "white", border: 0, cursor: "pointer", marginBottom: 18 }}>
         🚀 Participer au concours
       </button>
-      <button onClick={loginAdmin} disabled={pending} style={{ padding: 12, width: "100%", cursor: "pointer" }}>
-        Admin
-      </button>
       {error && <p role="alert" style={{ color: "#b00020" }}>{error}</p>}
       {adminUid && <p>Ton UID Firebase : <code>{adminUid}</code> — à renseigner dans Render et dans les règles Firebase.</p>}
       </div>
+      <footer style={{ textAlign: "center", margin: "38px auto 0", padding: "12px 0 20px" }}>
+        <button type="button" onClick={loginAdmin} disabled={pending} style={{ background: "transparent", border: "none", boxShadow: "none", color: "#9ba8c8", padding: "6px 12px", fontSize: 12, fontWeight: 500, letterSpacing: ".025em", textDecoration: "underline", textUnderlineOffset: 3, cursor: pending ? "default" : "pointer", opacity: pending ? .45 : .8 }}>
+          Administrateur
+        </button>
+      </footer>
     </div>
   );
 }

@@ -40,7 +40,7 @@ try {
       sessions.push({ pseudo, page, context });
       await page.goto(SITE, { waitUntil: 'domcontentloaded' });
       await page.getByPlaceholder('Ton pseudo').waitFor();
-      await page.waitForFunction(() => !document.querySelector('input[placeholder="Ton pseudo"]').disabled, { timeout: 45000 });
+      await page.waitForFunction(() => !document.querySelector('input[placeholder="Ton pseudo"]').disabled, null, { timeout: 45000 });
       await page.getByPlaceholder('Ton pseudo').fill(pseudo);
       await page.getByRole('button', { name: /Participer au concours/i }).click();
       await page.waitForURL(/#\/(player|waiting)/, { timeout: 45000 });

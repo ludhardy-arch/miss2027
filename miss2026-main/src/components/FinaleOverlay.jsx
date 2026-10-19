@@ -91,6 +91,8 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
   return (
     <div className="finalshow" role="dialog" aria-modal="true" aria-label="Miss France 2027, cérémonie finale">
       <div className="finalshow-glow" aria-hidden="true" />
+      <div className="finalshow-spotlights" aria-hidden="true"><i /><i /><i /><i /></div>
+      <div className="finalshow-broadcast-label" aria-hidden="true">✦ LE GRAND SHOW · MISS FRANCE 2027 ✦</div>
       <div className="finalshow-stage" aria-hidden="true"><div className="finalshow-stage-ring" /></div>
       <header className="finalshow-header">
         <div style={{ fontSize: 27, lineHeight: 1, color: "#f0cf86" }} aria-hidden="true">♛</div>
@@ -265,6 +267,65 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
         .finalshow-rank-number.rank-1 { background:linear-gradient(130deg,#eac77c,#bd8a3b); color:#30200e; }
         .finalshow-rank-number.rank-2 { background:linear-gradient(130deg,#e2e6eb,#8f9baa); color:#24303c; }
         .finalshow-rank-number.rank-3 { background:linear-gradient(130deg,#dea174,#985c34); color:#2b190e; }
+        /* GRAND SHOW TV 2.0: stage, projected lights, LED-screen reveals.
+           Presentation only: scenes, timing, scores and admin actions untouched. */
+        .finalshow {
+          background:
+            radial-gradient(ellipse 76% 56% at 50% 77%,rgba(18,91,231,.43),transparent 73%),
+            radial-gradient(ellipse 49% 60% at 97% 11%,rgba(128,43,220,.43),transparent 79%),
+            radial-gradient(ellipse 56% 50% at 0% 13%,rgba(39,92,207,.42),transparent 78%),
+            linear-gradient(155deg,#030919 0%,#0b1345 48%,#06071a 100%);
+        }
+        .finalshow::after {
+          content:"";position:absolute;inset:auto 0 0;height:32%;pointer-events:none;z-index:0;
+          background:repeating-linear-gradient(90deg,transparent 0 36px,rgba(80,151,255,.09) 38px 40px,transparent 42px 78px);
+          opacity:.6;mask-image:linear-gradient(to top,#000,transparent);
+        }
+        .finalshow-glow {
+          background:radial-gradient(ellipse 65% 55% at 50% 60%,rgba(44,100,252,.29),transparent 85%),
+            radial-gradient(ellipse 42% 48% at 85% 15%,rgba(147,61,248,.23),transparent 85%);
+        }
+        .finalshow-spotlights{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0;opacity:.95}
+        .finalshow-spotlights i{position:absolute;top:-25%;left:50%;width:31vw;max-width:360px;height:112vh;transform-origin:50% 0;
+          background:linear-gradient(to bottom,rgba(112,189,255,.48),rgba(77,112,255,.14) 46%,transparent 86%);
+          filter:blur(17px);clip-path:polygon(48% 0,52% 0,100% 100%,0 100%);
+          animation:finalshowBeam 9s ease-in-out infinite alternate;}
+        .finalshow-spotlights i:nth-child(1){left:2%;transform:rotate(-30deg);animation-delay:-4s;}
+        .finalshow-spotlights i:nth-child(2){left:22%;transform:rotate(21deg);background:linear-gradient(to bottom,rgba(180,98,255,.42),rgba(97,75,244,.13),transparent);}
+        .finalshow-spotlights i:nth-child(3){left:64%;transform:rotate(-23deg);animation-delay:-2s;}
+        .finalshow-spotlights i:nth-child(4){left:91%;transform:rotate(30deg);background:linear-gradient(to bottom,rgba(172,96,255,.45),rgba(106,71,214,.11),transparent);animation-delay:-6s;}
+        .finalshow-broadcast-label{position:absolute;bottom:max(11px,env(safe-area-inset-bottom));left:0;right:0;text-align:center;
+          font-size:9px;letter-spacing:.24em;font-weight:800;color:rgba(182,203,255,.65);z-index:2;pointer-events:none;}
+        .finalshow-header{background:linear-gradient(180deg,rgba(4,10,36,.94),rgba(7,14,47,.58));border-bottom:1px solid rgba(113,171,255,.39);box-shadow:0 4px 30px rgba(58,112,246,.18);}
+        .finalshow-main{padding-bottom:max(46px,env(safe-area-inset-bottom));}
+        .finalshow-enter {max-width:520px!important;padding:clamp(18px,5vw,33px) clamp(14px,4vw,30px);
+          background:linear-gradient(150deg,rgba(15,36,92,.76),rgba(14,15,51,.69));
+          border:1px solid rgba(121,168,255,.53);border-radius:25px;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.13),0 20px 60px rgba(0,0,0,.4),0 0 55px rgba(52,107,248,.23);
+          backdrop-filter:blur(13px);}
+        .finalshow-stage{bottom:-96px;opacity:.95;background:radial-gradient(ellipse at 50% 55%,rgba(28,103,251,.65),transparent 70%);}
+        .finalshow-stage-ring{border-color:rgba(106,167,255,.7);box-shadow:0 0 35px 12px rgba(43,124,255,.26),inset 0 0 30px rgba(131,91,255,.2);}
+        .finalshow-ribbon{background:linear-gradient(100deg,#0e5cc1,#377fff 35%,#a16cf3 75%,#4927a5);color:#fff;
+          border:1px solid rgba(186,209,255,.76);border-radius:8px;box-shadow:0 0 40px rgba(45,122,255,.48);transform:none;}
+        .finalshow-medallion{background:radial-gradient(circle at 40% 25%,#416ad1,#171e65 58%,#070e2e);
+          border:2px solid #8ac2ff;box-shadow:0 0 0 8px rgba(72,123,243,.15),0 0 60px rgba(91,119,255,.52);color:#ffe0a0;}
+        .finalshow-medallion-winner{border-color:#ffe1a1;background:radial-gradient(circle at 35% 20%,#8062c7,#1d2b7a 58%,#111137);}
+        .finalshow-finalist{border:1px solid #79adff;border-radius:19px;
+          background:radial-gradient(ellipse at 50% 0,rgba(70,142,255,.38),transparent 72%),linear-gradient(145deg,#142661,#14143e);
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.17),0 0 31px rgba(47,105,231,.32);}
+        .finalshow-finalist:nth-child(2){border-color:#be90ff;background:radial-gradient(ellipse at 50% 0,rgba(160,93,250,.32),transparent 72%),linear-gradient(145deg,#312063,#161139);}
+        .finalshow-shimmer{background:linear-gradient(to right,transparent,#6fa6ff,#fff0b8,#ad7aff,transparent);box-shadow:0 0 25px #6c86ff;}
+        .finalshow-points{border-color:#86b7ff;background:rgba(13,30,83,.92);box-shadow:0 0 28px rgba(51,119,255,.22);}
+        .finalshow-podium-column{box-shadow:inset 0 12px 26px rgba(255,255,255,.25),0 0 28px rgba(87,127,245,.33);}
+        .finalshow-ranking-row{border:1px solid rgba(108,163,252,.39);background:rgba(17,32,88,.85);border-radius:12px;}
+        .finalshow-ranking-row:first-child{border-color:rgba(247,205,121,.85);background:linear-gradient(90deg,rgba(113,81,41,.48),rgba(25,39,98,.9));}
+        .finalshow-count{font-family:Arial,sans-serif;font-size:clamp(98px,25vw,164px);font-weight:900;line-height:1;
+          color:#fff9e9;text-shadow:0 0 18px rgba(247,211,138,.84),0 0 66px rgba(54,132,255,.95);
+          animation:finalshowCountdown 1s ease-out both;}
+        @keyframes finalshowBeam{from{transform:rotate(-26deg) translateX(-15px)}to{transform:rotate(19deg) translateX(15px)}}
+        @keyframes finalshowCountdown{from{opacity:.2;transform:scale(1.55);filter:blur(8px)}to{opacity:1;transform:scale(1);filter:blur(0)}}
+        @media(max-width:480px){.finalshow-enter{padding:23px 13px}.finalshow-broadcast-label{font-size:8px;letter-spacing:.12em}}
+        @media(prefers-reduced-motion:reduce){.finalshow-spotlights i,.finalshow-count{animation:none!important}}
         @keyframes finalShowEnter { from { opacity:0; transform:translateY(18px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
         @keyframes winnerPulse { 0%,100% { box-shadow:0 0 0 8px rgba(202,146,65,.12),0 0 42px rgba(250,184,92,.26); } 50% { box-shadow:0 0 0 12px rgba(202,146,65,.2),0 0 80px rgba(250,184,92,.6); } }
         @media (max-height:650px) { .finalshow-main { align-items:safe center; } .finalshow-medallion { width:100px; height:100px; font-size:48px; } .finalshow-medallion-winner { margin:15px auto; } .finalshow-ribbon { margin-top:12px; } }

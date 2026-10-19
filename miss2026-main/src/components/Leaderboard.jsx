@@ -4,7 +4,7 @@ import React, { useContext, useMemo } from "react";
 import { AppContext } from "../context/AppContext";
 import { calculatePoints } from "../services/points";
 
-export default function Leaderboard() {
+export default function Leaderboard({ showPoints = false }) {
   const { players, adminSelections } = useContext(AppContext);
 
   // 🔥 recalcul automatique dès que les votes ou les sélections admin changent
@@ -23,7 +23,7 @@ export default function Leaderboard() {
       <ol>
         {ranking.map((p, index) => (
           <li className={`tv-rank-row ${index < 3 ? "tv-top-rank" : ""}`} key={p.pseudo}><span className="tv-rank-num">{index === 0 ? "👑" : String(index + 1).padStart(2, "0")}</span><span className="tv-rank-player">
-            {p.pseudo}</span><b className="tv-rank-score">{p.points} pts</b>
+            {p.pseudo}</span>{showPoints && <b className="tv-rank-score">{p.points} pts</b>}
           </li>
         ))}
       </ol>

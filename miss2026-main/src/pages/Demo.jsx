@@ -28,7 +28,7 @@ export default function Demo() {
   const [phase, setPhase] = useState(1);
   const [selected1, setSelected1] = useState([]);
   const [selected2, setSelected2] = useState([]);
-  const [ranking, setRanking] = useState([]);
+  const [ranking, setRanking] = useState([null, null, null, null, null]);
   const [scene, setScene] = useState(0);
   const [showScores, setShowScores] = useState(false);
   const [selectionOpen, setSelectionOpen] = useState(false);
@@ -45,7 +45,7 @@ export default function Demo() {
   const next = () => {
     if (phase === 1 && selected1.length !== 12) return;
     if (phase === 2 && selected2.length !== 5) return;
-    if (phase === 3 && ranking.length !== 5) return;
+    if (phase === 3 && ranking.filter(Boolean).length !== 5) return;
     setPhase(p => Math.min(p + 1, 4));
   };
   const self = { pseudo: "Vous", tour1: selected1, tour2: selected2, tour3: ranking };
@@ -53,7 +53,7 @@ export default function Demo() {
   const leaderboard = useMemo(() => [self, ...DEMO_PLAYERS]
     .map(p => ({ pseudo: p.pseudo, score: calculatePoints(p, admin) }))
     .sort((a,b) => b.score-a.score || a.pseudo.localeCompare(b.pseudo,"fr")), [selected1, selected2, ranking]);
-  const restart = () => { setPhase(1); setSelected1([]); setSelected2([]); setRanking([]); setScene(0); setShowScores(false); setSelectionOpen(false); setChatOpen(false); };
+  const restart = () => { setPhase(1); setSelected1([]); setSelected2([]); setRanking([null, null, null, null, null]); setScene(0); setShowScores(false); setSelectionOpen(false); setChatOpen(false); };
   const isGreen = id => selected1.includes(id) && QUALIFIED.includes(id);
   const isYellow = id => selected2.includes(id) && FINALISTS.includes(id) && !isGreen(id);
   return <main className="demo-page tv-show-v3">
@@ -69,7 +69,7 @@ export default function Demo() {
         <div className="demo-eyebrow">TOUR {phase} · DÉMONSTRATION</div>
         <h2>{phase === 1 ? "Choisissez vos 12 Miss" : phase === 2 ? "Qui sera dans le top 5 ?" : "Classez les cinq finalistes"}</h2>
         <p>{phase === 1 ? "Sélectionnez 12 candidates parmi les 30. Les douze qualifiées fictives seront ensuite révélées." : phase === 2 ? "Les 12 qualifiées sont connues. Retrouvez les 5 finalistes : vert = bonne au premier tour, jaune = bonne au deuxième uniquement." : "Touchez une candidate puis choisissez sa place dans votre pronostic. La finale sera ensuite dévoilée."}</p>
-        <div className="demo-counter">{phase === 3 ? ranking.length : selected.length} / {maximum} {phase === 3 ? "places attribuées" : "sélectionnées"}</div>
+        <div className="demo-counter">{phase === 3 ? ranking.filter(Boolean).length : selected.length} / {maximum} {phase === 3 ? "places attribuées" : "sélectionnées"}</div>
       </section>
       {phase === 2 && <div className="demo-reveal">✦ RÉSULTATS FICTIFS DU 1er TOUR ✦<p>{selected1.filter(id=>QUALIFIED.includes(id)).length} bonne(s) réponse(s) sur 12 — {selected1.filter(id=>QUALIFIED.includes(id)).length*15} points.</p></div>}
       {phase === 3 && <div className="demo-reveal">✦ RÉSULTATS FICTIFS DU 2e TOUR ✦<p>{selected2.filter(id=>FINALISTS.includes(id)).length} finalistes trouvé(e)s. Classez maintenant les cinq candidates.</p></div>}
@@ -77,11 +77,11 @@ export default function Demo() {
           <img src={c.image} alt={c.label} loading="lazy"/>
           <div className="demo-card-name">{c.label}</div>
           {phase===3 && <div className="demo-ranks"><label htmlFor={"rank-"+c.id}>Position</label><select id={"rank-"+c.id} value={ranking.indexOf(c.id)>=0?String(ranking.indexOf(c.id)+1):""} onChange={e=>{
-            const pos=Number(e.target.value);setRanking(prev=>{const arr=prev.filter(x=>x!==c.id);if(!pos)return arr;arr.splice(pos-1,0,c.id);return arr.slice(0,5)});
-          }}><option value="">Choisir</option>{[1,2,3,4,5].map(n=><option key={n} value={n}>{n===1?"Miss France":(n-1)+"e dauphine"}</option>)}</select></div>}
+            const pos=Number(e.target.value);setRanking(prev=>{const arr=prev.map(x=>x===c.id?null:x);if(pos && !arr[pos-1])arr[pos-1]=c.id;return arr;});
+          }}><option value="">Choisir</option>{[1,2,3,4,5].filter(n=>!ranking[n-1] || ranking[n-1]===c.id).map(n=><option key={n} value={n}>{n===1?"Miss France":(n-1)+"e dauphine"}</option>)}</select></div>}
           
         </div>)}</div>
-      <div className="tv-submit" style={{ textAlign: "center", marginTop: 20 }}><button type="button" disabled={phase===3?ranking.length!==5:selected.length!==maximum} onClick={next}>{phase===3?"Valider mon classement":"Valider mon vote"}</button></div>
+      <div className="tv-submit" style={{ textAlign: "center", marginTop: 20 }}><button type="button" disabled={phase===3?ranking.filter(Boolean).length!==5:selected.length!==maximum} onClick={next}>{phase===3?"Valider mon classement":"Valider mon vote"}</button></div>
       <Leaderboard demoPlayers={demoPlayerRecords} demoSelections={admin} />
       <SelectionBubble user={{pseudo:"Vous"}} tour={phase} selection={selected} />
     </> : <section className="demo-ceremony">

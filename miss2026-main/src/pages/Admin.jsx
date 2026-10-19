@@ -43,6 +43,9 @@ export default function Admin({ user, setUser }) {
     votesOpen,
     connectionsOpen,
     updateConnectionsOpen,
+    demoEnabled,
+    demoLoaded,
+    updateDemoEnabled,
     updateVotesOpen,
     tour,
     updateTour,
@@ -200,6 +203,10 @@ export default function Admin({ user, setUser }) {
           {votesOpen ? "Fermer les votes" : "Ouvrir les votes"}
         </button>
 
+
+        <button type="button" disabled={!demoLoaded} onClick={() => safely(() => updateDemoEnabled(!demoEnabled))} aria-pressed={demoEnabled} style={{ background: !demoLoaded ? "#555" : demoEnabled ? "#16814f" : "#a83248", color: "white", padding: "10px 16px", border: "1px solid #e0d0a0", borderRadius: 9 }}>
+          {!demoLoaded ? "Mode démo : chargement…" : demoEnabled ? "🟢 Mode démo : ON" : "🔴 Mode démo : OFF"}
+        </button>
 
         {tour === 3 && (
           <button

@@ -89,11 +89,11 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
   const gold = { color: "#ffe0a0" };
 
   return (
-    <div className="finalshow" role="dialog" aria-modal="true" aria-label="Miss France 2027, cérémonie finale">
+    <div className="finalshow finalshow-v3" role="dialog" aria-modal="true" aria-label="Miss France 2027, cérémonie finale">
       <div className="finalshow-glow" aria-hidden="true" />
       <div className="finalshow-spotlights" aria-hidden="true"><i /><i /><i /><i /></div>
       <div className="finalshow-broadcast-label" aria-hidden="true">✦ LE GRAND SHOW · MISS FRANCE 2027 ✦</div>
-      <div className="finalshow-stage" aria-hidden="true"><div className="finalshow-stage-ring" /></div>
+      <div className="finalshow-tv-marquee" aria-hidden="true"><span>LA GRANDE FINALE</span><span>★ MISS FRANCE 2027 ★</span></div><div className="finalshow-stage" aria-hidden="true"><div className="finalshow-stage-ring" /></div>
       <header className="finalshow-header">
         <div style={{ fontSize: 27, lineHeight: 1, color: "#f0cf86" }} aria-hidden="true">♛</div>
         <div style={{ ...smallCap, fontSize: 14, letterSpacing: ".14em" }}>MISS FRANCE <span style={gold}>2027</span></div>

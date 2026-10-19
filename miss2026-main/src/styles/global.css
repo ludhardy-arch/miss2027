@@ -284,3 +284,31 @@ background:linear-gradient(110deg,transparent 19%,rgba(78,157,255,.16) 34%,trans
 .tv-admin-page button{border-radius:12px;}
 .tv-admin-page .grid .miss-card img{aspect-ratio:3/3.5;object-fit:cover;}
 @media(max-width:480px){.tv-page{padding:12px 11px 100px;}.tv-login-shell{padding:10px 10px 80px;}.tv-vote-page>.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;}.tv-show-header{padding:25px 10px;}.tv-login-shell .tv-hero{padding:35px 12px!important;}.tv-leaderboard{padding:19px 12px;}}
+
+
+/* ===== Grand Show TV: second visual polish, TEST ONLY ===== */
+.tv-show-header::before,.tv-login-shell .tv-hero::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 115%,rgba(62,153,255,.32),transparent 63%),
+    repeating-linear-gradient(90deg,transparent 0 50px,rgba(126,181,255,.035) 51px 52px,transparent 53px 103px);
+  z-index:-1;
+}
+.tv-show-header{box-shadow:0 15px 42px rgba(0,0,0,.38),0 0 40px rgba(53,109,239,.21),inset 0 1px 0 rgba(255,255,255,.13);}
+.tv-show-header .tv-live-pill{box-shadow:0 0 17px rgba(26,234,167,.18);}
+.tv-vote-page>.grid .miss-card{isolation:isolate;box-shadow:0 10px 28px rgba(0,0,0,.45),inset 0 1px rgba(255,255,255,.17);}
+.tv-vote-page>.grid .miss-card::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+  background:linear-gradient(140deg,rgba(255,255,255,.12),transparent 38%,transparent 80%,rgba(128,159,255,.1));z-index:1;}
+.tv-vote-page>.grid .miss-card:hover{transform:translateY(-5px);filter:brightness(1.09);}
+.tv-vote-page>.grid .miss-card.border-blue{animation:tvBlueSignal 2.8s ease-in-out infinite;}
+@keyframes tvBlueSignal{0%,100%{box-shadow:0 0 0 1px rgba(65,163,255,.45),0 0 16px rgba(29,132,255,.52)}
+  50%{box-shadow:0 0 0 2px rgba(110,195,255,.75),0 0 30px rgba(29,132,255,.85)}}
+.tv-leaderboard{position:relative;overflow:hidden;}
+.tv-leaderboard::before{content:"";position:absolute;top:0;left:5%;right:5%;height:2px;background:linear-gradient(90deg,transparent,#77b7ff,#e3b8fc,transparent);box-shadow:0 0 19px rgba(84,165,255,.55);}
+.tv-rank-row{transition:transform .22s ease,background .22s ease;}
+.tv-rank-row:hover{transform:translateX(3px);background:#1e3478;}
+.tv-rank-row:first-child .tv-rank-num{background:linear-gradient(135deg,#bf8b42,#fae2a6);color:#32200a;font-size:22px;}
+.tv-trends-panel{position:relative;overflow:hidden;}
+.tv-trends-panel::before{content:"";position:absolute;left:15%;right:15%;top:0;height:2px;background:linear-gradient(90deg,transparent,#4aa7ff,#ab79f9,transparent);box-shadow:0 0 20px #338aff;}
+.tv-entry{position:relative;}
+.tv-entry::before{content:"";position:absolute;left:15%;right:15%;top:0;height:2px;background:linear-gradient(90deg,transparent,#72c2ff,#ce91ff,transparent);}
+@media(prefers-reduced-motion:reduce){.tv-vote-page>.grid .miss-card.border-blue{animation:none}.tv-rank-row{transition:none}}

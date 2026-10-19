@@ -43,6 +43,9 @@ export default function Admin({ user, setUser }) {
     votesOpen,
     connectionsOpen,
     updateConnectionsOpen,
+    demoEnabled,
+    demoLoaded,
+    updateDemoEnabled,
     updateVotesOpen,
     tour,
     updateTour,
@@ -201,6 +204,10 @@ export default function Admin({ user, setUser }) {
         </button>
 
 
+        <button type="button" disabled={!demoLoaded} onClick={() => safely(() => updateDemoEnabled(!demoEnabled))} aria-pressed={demoEnabled} style={{ background: !demoLoaded ? "#555" : demoEnabled ? "#16814f" : "#a83248", color: "white", padding: "10px 16px", border: "1px solid #e0d0a0", borderRadius: 9 }}>
+          {!demoLoaded ? "Mode démo : chargement…" : demoEnabled ? "🟢 Mode démo : ON" : "🔴 Mode démo : OFF"}
+        </button>
+
         {tour === 3 && (
           <button
             onClick={() => safely(() => updateFinaleStarted(true))}
@@ -339,18 +346,16 @@ export default function Admin({ user, setUser }) {
                       const updated = { ...prev };
                       delete updated[miss.id];
 
-                      Object.keys(updated).forEach((mid) => {
-                        if (updated[mid] === newRank) delete updated[mid];
-                      });
-
-                      updated[miss.id] = newRank;
+                      if (newRank && !Object.values(updated).includes(newRank)) {
+                        updated[miss.id] = newRank;
+                      }
                       return updated;
                     });
                   }}
                   style={{ width: "100%", padding: 8, borderRadius: 8 }}
                 >
                   <option value="">— Choisir —</option>
-                  {[1, 2, 3, 4, 5].map((r) => (
+                  {[1, 2, 3, 4, 5].filter((r) => r === ranking[miss.id] || !Object.entries(ranking).some(([id, assigned]) => Number(id) !== miss.id && assigned === r)).map((r) => (
                     <option key={r} value={r}>
                       {getRankLabel(r)}
                     </option>

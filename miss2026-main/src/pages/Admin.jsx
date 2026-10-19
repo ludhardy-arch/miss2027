@@ -339,18 +339,16 @@ export default function Admin({ user, setUser }) {
                       const updated = { ...prev };
                       delete updated[miss.id];
 
-                      Object.keys(updated).forEach((mid) => {
-                        if (updated[mid] === newRank) delete updated[mid];
-                      });
-
-                      updated[miss.id] = newRank;
+                      if (newRank && !Object.values(updated).includes(newRank)) {
+                        updated[miss.id] = newRank;
+                      }
                       return updated;
                     });
                   }}
                   style={{ width: "100%", padding: 8, borderRadius: 8 }}
                 >
                   <option value="">— Choisir —</option>
-                  {[1, 2, 3, 4, 5].map((r) => (
+                  {[1, 2, 3, 4, 5].filter((r) => r === ranking[miss.id] || !Object.entries(ranking).some(([id, assigned]) => Number(id) !== miss.id && assigned === r)).map((r) => (
                     <option key={r} value={r}>
                       {getRankLabel(r)}
                     </option>

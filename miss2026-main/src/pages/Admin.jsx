@@ -148,7 +148,7 @@ export default function Admin({ user, setUser }) {
   const usedRanks = Object.values(ranking).filter(Boolean);
 
   return (
-    <div className="tv-page tv-admin-page">
+    <div className="tv-page tv-admin-page tv-show-v3">
       <style>{votePulseKeyframes}</style>
 
       {finaleStarted && (
@@ -159,7 +159,7 @@ export default function Admin({ user, setUser }) {
         />
       )}
 
-      <header className="tv-show-header"><span className="tv-kicker">✦ MISS FRANCE 2027 ✦</span><span className="tv-live-pill">● RÉGIE DU DIRECT</span><h1>TABLEAU DE BORD</h1><p>Pilotez la soirée en temps réel</p></header>
+      <header className="tv-show-header tv-control-studio"><span className="tv-kicker">✦ MISS FRANCE 2027 ✦</span><span className="tv-live-pill">● RÉGIE DU DIRECT</span><h1>TABLEAU DE BORD</h1><p>Pilotez la soirée en temps réel</p></header>
       <div className="tv-admin-topbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <h2 style={{ margin: "12px 0" }}>ADMIN — {user.pseudo}</h2>
         <button onClick={handleLogout} disabled={loggingOut} style={{ padding: "9px 14px", borderRadius: 9, background: "#32323c", color: "white", border: "1px solid #777", cursor: "pointer" }}>

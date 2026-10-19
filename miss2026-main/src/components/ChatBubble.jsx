@@ -2,9 +2,11 @@
 import { database } from "../firebase";
 import { ref, push, onValue } from "firebase/database";
 
-export default function ChatBubble({ user }) {
+export default function ChatBubble({ user, demoMessages = null, onDemoSend = null }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
+  const inDemo = Array.isArray(demoMessages);
+  const visibleMessages = inDemo ? demoMessages : messages;
   const [text, setText] = useState("");
   const [chatError, setChatError] = useState("");
   const [sending, setSending] = useState(false);
@@ -17,6 +19,7 @@ export default function ChatBubble({ user }) {
 
   // Charger messages Firebase
   useEffect(() => {
+    if (inDemo) return;
     const chatRef = ref(database, "rooms/miss2027/chat");
 
     const unsubscribe = onValue(chatRef, (snap) => {
@@ -51,7 +54,7 @@ export default function ChatBubble({ user }) {
     });
 
     return () => unsubscribe();
-  }, [open, user.pseudo]);
+  }, [open, user.pseudo, inDemo]);
 
   // Scroll auto
   useEffect(() => {
@@ -158,7 +161,7 @@ export default function ChatBubble({ user }) {
               fontWeight: "bold",
             }}
           >
-            💬 Chat Miss2027
+            💬 Chat Miss2027{inDemo ? " · Démo" : ""}
           </div>
 
           {/* Messages */}
@@ -172,7 +175,7 @@ export default function ChatBubble({ user }) {
               gap: 8,
             }}
           >
-            {messages.map((m, i) => {
+            {visibleMessages.map((m, i) => {
               const isMe = m.author === user.pseudo;
               const isAdmin = m.author.toLowerCase() === "admin";
 

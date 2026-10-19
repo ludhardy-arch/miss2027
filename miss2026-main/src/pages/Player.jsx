@@ -297,8 +297,11 @@ export default function Player({ user, setUser }) {
         <h3>◈ LE CODE COULEUR DU JEU</h3>
 
         <LegendItem colorClass="border-blue" text="Sélection en cours" />
-        <LegendItem colorClass="border-green" text="Bonne au tour 1" />
-        <LegendItem colorClass="border-yellow" text="Bonne au tour 2" />
+        {tour === 2 && <LegendItem colorClass="border-green" text="Vous aviez déjà sélectionné cette Miss au premier tour." />}
+        {tour === 3 && <>
+          <LegendItem colorClass="border-green" text="Vous avez sélectionné cette Miss aux deux premiers tours." />
+          <LegendItem colorClass="border-yellow" text="Vous avez sélectionné cette Miss uniquement au deuxième tour." />
+        </>}
         <LegendItem colorClass="border-grey" text="Jamais sélectionnée" />
       </div>
 

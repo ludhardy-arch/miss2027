@@ -399,3 +399,21 @@ body{background:#030918 url("/images/grand-show-stage.svg") center top / cover f
 .tv-login-shell.tv-show-v3 .tv-entry-v3 {
   background: linear-gradient(150deg,rgba(12,34,89,.95),rgba(8,9,43,.98)) !important;
 }
+
+
+/* Footer administrator: text-only control, no decorative white dot */
+.tv-login-shell footer > button {
+  appearance: none !important;
+  display: inline-block !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  width: auto !important;
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline-offset: 3px;
+}
+.tv-login-shell footer > button::before,
+.tv-login-shell footer > button::after { content: none !important; display: none !important; }
+.tv-login-shell footer > button:hover:not(:disabled) { box-shadow: none !important; }

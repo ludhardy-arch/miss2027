@@ -81,7 +81,7 @@ export default function Demo() {
           }}><option value="">Choisir</option>{[1,2,3,4,5].map(n=><option key={n} value={n}>{n===1?"Miss France":(n-1)+"e dauphine"}</option>)}</select></div>}
           {phase<3 && selected.includes(c.id)&&<div className="demo-selected">✓ Sélectionnée</div>}
         </div>)}</div>
-      <div className="demo-bottom"><button type="button" disabled={phase===3?ranking.length!==5:selected.length!==maximum} onClick={next}>{phase===3?"Valider mon classement":"Valider mon vote"}</button></div>
+      <div className="tv-submit" style={{ textAlign: "center", marginTop: 20 }}><button type="button" disabled={phase===3?ranking.length!==5:selected.length!==maximum} onClick={next}>{phase===3?"Valider mon classement":"Valider mon vote"}</button></div>
       <Leaderboard demoPlayers={demoPlayerRecords} demoSelections={admin} />
       <SelectionBubble user={{pseudo:"Vous"}} tour={phase} selection={selected} />
     </> : <section className="demo-ceremony">

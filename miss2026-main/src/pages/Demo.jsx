@@ -2,6 +2,9 @@ import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CANDIDATES } from "../data/candidates";
 import { calculatePoints } from "../services/points";
+import ChatBubble from "../components/ChatBubble";
+import SelectionBubble from "../components/SelectionBubble";
+import Leaderboard from "../components/Leaderboard";
 import "./Demo.css";
 
 // Fictional results, chosen for a demonstration, never read from / written to Firebase.
@@ -46,6 +49,7 @@ export default function Demo() {
     setPhase(p => Math.min(p + 1, 4));
   };
   const self = { pseudo: "Vous", tour1: selected1, tour2: selected2, tour3: ranking };
+  const demoPlayerRecords = useMemo(() => Object.fromEntries([self, ...DEMO_PLAYERS].map(p => [p.pseudo, { tour1: phase > 1 ? p.tour1 : [], tour2: phase > 2 ? p.tour2 : [], tour3: phase > 3 ? p.tour3 : [] }])), [selected1, selected2, ranking, phase]);
   const leaderboard = useMemo(() => [self, ...DEMO_PLAYERS]
     .map(p => ({ pseudo: p.pseudo, score: calculatePoints(p, admin) }))
     .sort((a,b) => b.score-a.score || a.pseudo.localeCompare(b.pseudo,"fr")), [selected1, selected2, ranking]);
@@ -78,12 +82,13 @@ export default function Demo() {
           {phase<3 && selected.includes(c.id)&&<div className="demo-selected">✓ Sélectionnée</div>}
         </div>)}</div>
       <div className="demo-bottom"><button type="button" disabled={phase===3?ranking.length!==5:selected.length!==maximum} onClick={next}>{phase===3?"Valider mon classement":"Valider mon vote"}</button></div>
-      <div className="demo-floating demo-selection"><button type="button" className="demo-bubble demo-star" aria-label="Voir ma sélection en cours" onClick={()=>setSelectionOpen(v=>!v)}>⭐</button>{selectionOpen && <div className="demo-float-panel"><strong>{phase===3?"Mon classement":"Ma sélection en cours"}</strong>{(phase===3?ranking:selected).length ? <ol>{(phase===3?ranking:selected).map(id=><li key={id}>{label(id)}</li>)}</ol> : <p>Aucune Miss sélectionnée.</p>}</div>}</div>
+      <Leaderboard demoPlayers={demoPlayerRecords} demoSelections={admin} />
+      <SelectionBubble user={{pseudo:"Vous"}} tour={phase} selection={selected} />
     </> : <section className="demo-ceremony">
       <div className="demo-eyebrow">✦ LA GRANDE FINALE · SIMULATION ✦</div>
       {scene===0?<><div className="demo-crown">♛</div><h2>MISS FRANCE EST ÉLUE...</h2><p>Mais qui aura fait les meilleurs pronostics ?</p><button onClick={()=>setScene(1)}>Révéler le couronnement →</button></>:scene===1?<><div className="demo-crown">👑</div><h2>MISS {label(OFFICIAL[0]).toUpperCase()}</h2><p>Miss France 2027 — résultat fictif de la démonstration</p><div className="demo-podium">{OFFICIAL.map((id,i)=><div key={id}><strong>{i+1}</strong><span>{label(id)}</span></div>)}</div><button onClick={()=>{setScene(2);setShowScores(true)}}>Découvrir le classement des joueurs →</button></>:<><div className="demo-crown">🏆</div><h2>LE CLASSEMENT FINAL</h2><p>Voici les résultats complets de cette simulation.</p><div className="demo-scores">{leaderboard.map((p,i)=><div key={p.pseudo} className={p.pseudo==="Vous"?"me":""}><span>{i===0?"👑":i+1} · {p.pseudo}</span><strong>{showScores?p.score+" pts":"•••"}</strong></div>)}</div><button onClick={restart}>Rejouer la démo ↻</button></>}
       <p className="demo-note">Démo entièrement fictive · résultats non enregistrés · barème identique au concours</p>
     </section>}
-    <div className="demo-floating demo-chat"><button type="button" className="demo-bubble demo-chat-button" aria-label="Ouvrir le chat de démonstration" onClick={()=>setChatOpen(v=>!v)}>💬</button>{chatOpen && <div className="demo-float-panel demo-chat-panel"><strong>CHAT · DÉMONSTRATION</strong><p className="demo-small">Messages fictifs et locaux uniquement.</p><div className="demo-chat-messages">{chatMessages.map((m,i)=><p key={i}><b>{m.author} :</b> {m.text}</p>)}</div><form onSubmit={e=>{e.preventDefault();if(chatText.trim()){setChatMessages(prev=>[...prev,{author:"Vous",text:chatText.trim().slice(0,500)}]);setChatText("");}}}><input aria-label="Votre message" placeholder="Écrire un message..." maxLength={500} value={chatText} onChange={e=>setChatText(e.target.value)}/><button type="submit">Envoyer</button></form></div>}</div>
+    <ChatBubble user={{pseudo:"Vous"}} demoMessages={chatMessages} onDemoSend={text=>setChatMessages(prev=>[...prev,{author:"Vous",text}])} />
   </main>;
 }

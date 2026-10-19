@@ -375,3 +375,27 @@ body{background:#030918 url("/images/grand-show-stage.svg") center top / cover f
 .finalshow-v3 .finalshow-tv-marquee{top:73px;font-size:8px}
 }
 @media(prefers-reduced-motion:reduce){.tv-stage-crown{animation:none}}
+
+
+/* TEST — proposition 2: luminous blue and gold premium borders on homepage only */
+.tv-login-shell.tv-show-v3 .tv-hero,
+.tv-login-shell.tv-show-v3 .tv-howto-v3,
+.tv-login-shell.tv-show-v3 .tv-entry-v3 {
+  border: 2px solid rgba(255,219,151,.91) !important;
+  box-shadow:
+    0 0 0 1px rgba(255,233,170,.35),
+    0 0 13px rgba(255,195,88,.50),
+    0 0 32px rgba(65,157,255,.52),
+    0 0 59px rgba(37,103,255,.38),
+    inset 0 0 18px rgba(55,123,255,.12),
+    0 13px 32px rgba(0,0,0,.42) !important;
+}
+.tv-login-shell.tv-show-v3 .tv-hero {
+  background: linear-gradient(150deg,rgba(9,26,72,.93),rgba(4,9,30,.97)) !important;
+}
+.tv-login-shell.tv-show-v3 .tv-howto-v3 {
+  background: linear-gradient(145deg,rgba(10,31,76,.94),rgba(8,12,43,.96)) !important;
+}
+.tv-login-shell.tv-show-v3 .tv-entry-v3 {
+  background: linear-gradient(150deg,rgba(12,34,89,.95),rgba(8,9,43,.98)) !important;
+}

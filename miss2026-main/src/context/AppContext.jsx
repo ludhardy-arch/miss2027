@@ -16,6 +16,8 @@ export function AppProvider({ children }) {
   });
 
   const [votesOpen, setVotesOpen] = useState(false);
+  const [demoEnabled, setDemoEnabled] = useState(true);
+  const [demoLoaded, setDemoLoaded] = useState(false);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [connectionsLoaded, setConnectionsLoaded] = useState(false);
   const [connectionsError, setConnectionsError] = useState("");
@@ -43,6 +45,7 @@ export function AppProvider({ children }) {
           adminSelections: { tour1: [], tour2: [], tour3: [] },
           votesOpen: false,
           connectionsOpen: false,
+          demoEnabled: true,
           tour: 1,
           finaleStarted: false,
           gameId: newGameId,
@@ -60,10 +63,14 @@ export function AppProvider({ children }) {
       stopRoomListeners();
       stopRoomListeners = () => {};
       setConnectionsLoaded(false);
+      setDemoLoaded(false);
       setConnectionsError("");
       if (!firebaseUser) return;
 
       const subscriptions = [
+        onValue(ref(database, "rooms/miss2027/demoEnabled"),
+          (snap) => { setDemoEnabled(snap.val() !== false); setDemoLoaded(true); },
+          (error) => { setDemoEnabled(false); setDemoLoaded(false); console.error("Demo setting sync:", error); }),
         onValue(ref(database, "rooms/miss2027/players"),
           (snap) => setPlayers(snap.val() || {}),
           (error) => console.error("Players sync:", error)),
@@ -139,6 +146,7 @@ export function AppProvider({ children }) {
       adminSelections: { tour1: [], tour2: [], tour3: [] },
       votesOpen: false,
       connectionsOpen: false,
+      demoEnabled,
       tour: 1,
       finaleStarted: false,
       gameId: newGameId,
@@ -153,6 +161,7 @@ export function AppProvider({ children }) {
   const updateTour = (num) => set(ref(database, "rooms/miss2027/tour"), num);
   const updateVotesOpen = (state) => set(ref(database, "rooms/miss2027/votesOpen"), state);
   const updateConnectionsOpen = (state) => set(ref(database, "rooms/miss2027/connectionsOpen"), state);
+  const updateDemoEnabled = (state) => set(ref(database, "rooms/miss2027/demoEnabled"), Boolean(state));
   const updateFinaleStarted = (state) => set(ref(database, "rooms/miss2027/finaleStarted"), state);
 
   // -----------------------------------------
@@ -167,6 +176,9 @@ export function AppProvider({ children }) {
         connectionsOpen,
         connectionsLoaded,
         connectionsError,
+        demoEnabled,
+        demoLoaded,
+        updateDemoEnabled,
         tour,
         finaleStarted,
         gameId,

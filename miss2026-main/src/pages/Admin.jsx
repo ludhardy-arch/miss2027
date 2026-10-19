@@ -2,9 +2,11 @@
 
 import React, { useContext, useState, useEffect } from "react";
 import { AppContext } from "../context/AppContext";
-import Leaderboard from "../components/Leaderboard";
+import { calculatePoints } from "../services/points";
+import AdminLiveChat from "../components/AdminLiveChat";
+import "./AdminRegie.css";
 import FinaleOverlay from "../components/FinaleOverlay";
-import ChatBubble from "../components/ChatBubble";
+
 import { CANDIDATES } from "../data/candidates";
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
@@ -61,6 +63,8 @@ export default function Admin({ user, setUser }) {
   const [showDangerZone, setShowDangerZone] = useState(false);
   const [resetConfirmation, setResetConfirmation] = useState("");
   const [ranking, setRanking] = useState({});
+  const [votesExpanded, setVotesExpanded] = useState(false);
+  const [rankExpanded, setRankExpanded] = useState(false);
 
   useEffect(() => {
     const current = adminSelections[`tour${tour}`];
@@ -149,6 +153,19 @@ export default function Admin({ user, setUser }) {
     selection.includes(id) ? "border-blue" : "border-grey";
 
   const usedRanks = Object.values(ranking).filter(Boolean);
+  const playerEntries = Object.entries(players || {});
+  const totalPlayers = playerEntries.length;
+  const votedCount = playerEntries.filter(([, player]) => playerHasVoted(player)).length;
+  const standings = playerEntries.map(([pseudo, player]) => ({ pseudo, points: calculatePoints(player, adminSelections) }))
+    .sort((a,b) => b.points-a.points || a.pseudo.localeCompare(b.pseudo,"fr"));
+  const popularity = candidates.map(miss => ({
+    ...miss,
+    count: playerEntries.filter(([,p]) => {
+      const votes = p?.[`tour${tour}`];
+      return (Array.isArray(votes) ? votes : Object.values(votes || {})).map(Number).includes(miss.id);
+    }).length
+  })).sort((a,b) => b.count-a.count || a.label.localeCompare(b.label,"fr")).slice(0,5);
+
 
   return (
     <div className="tv-page tv-admin-page tv-show-v3">
@@ -162,121 +179,46 @@ export default function Admin({ user, setUser }) {
         />
       )}
 
-      <header className="tv-show-header tv-control-studio"><span className="tv-kicker">✦ MISS FRANCE 2027 ✦</span><span className="tv-live-pill">● RÉGIE DU DIRECT</span><h1>TABLEAU DE BORD</h1><p>Pilotez la soirée en temps réel</p></header>
-      <div className="tv-admin-topbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <h2 style={{ margin: "12px 0" }}>ADMIN — {user.pseudo}</h2>
-        <button onClick={handleLogout} disabled={loggingOut} style={{ padding: "9px 14px", borderRadius: 9, background: "#32323c", color: "white", border: "1px solid #777", cursor: "pointer" }}>
-          {loggingOut ? "Déconnexion…" : "Se déconnecter"}
-        </button>
+      <header className="regie-header">
+        <div><span className="regie-eyebrow">♛ MISS FRANCE 2027</span><h1>RÉGIE DU DIRECT</h1><p>PILOTAGE DU CONCOURS <strong>TOUR {tour} / 3</strong></p></div>
+        <div className="regie-header-right"><span className="regie-live">● LIVE</span><button type="button" className="regie-logout" disabled={loggingOut} onClick={handleLogout}>↪ {loggingOut?"Déconnexion…":"Se déconnecter"}</button></div>
+      </header>
+
+      <section className="regie-kpis" aria-label="Statistiques du concours">
+        <div className="regie-kpi"><span className="regie-kpi-icon">♙</span><strong>{totalPlayers}</strong><span>JOUEURS</span></div>
+        <button type="button" className="regie-kpi" aria-expanded={votesExpanded} onClick={()=>setVotesExpanded(x=>!x)}><span className="regie-kpi-icon green">✓</span><strong>{votedCount}/{totalPlayers}</strong><span>VOTES VALIDÉS {votesExpanded?"⌃":"⌄"}</span></button>
+        <button type="button" className="regie-kpi" aria-expanded={rankExpanded} onClick={()=>setRankExpanded(x=>!x)}><span className="regie-kpi-icon gold">🏆</span><strong>🏆</strong><span>CLASSEMENT {rankExpanded?"⌃":"⌄"}</span></button>
+      </section>
+      {votesExpanded && <section className="regie-expand"><h3>SUIVI DES VOTES · TOUR {tour}</h3><div className="regie-player-grid">{playerEntries.map(([pseudo,player])=><div key={pseudo} className={"regie-player-status "+(playerHasVoted(player)?"yes":"no")}><span>{pseudo}</span><b>{playerHasVoted(player)?"✓ VOTÉ":"✕ PAS VOTÉ"}</b></div>)}</div>{totalPlayers===0&&<p>Aucun joueur enregistré.</p>}</section>}
+      {rankExpanded && <section className="regie-expand"><h3>CLASSEMENT DES JOUEURS</h3><div className="regie-standing-list">{standings.map((p,i)=><div key={p.pseudo}><strong>{i===0?"👑":String(i+1).padStart(2,"0")}</strong><span>{p.pseudo}</span><b>{p.points} pts</b></div>)}</div>{!standings.length&&<p>Aucun score pour le moment.</p>}</section>}
+
+      <section className="regie-controls"><h2>COMMANDES DE LA RÉGIE</h2><div className="regie-control-grid">
+        <button type="button" className={"regie-switch "+(connectionsOpen?"is-on":"is-off")} onClick={()=>safely(()=>updateConnectionsOpen(!connectionsOpen))}><span>⇥</span><b>CONNEXIONS</b><strong>{connectionsOpen?"ON":"OFF"}</strong></button>
+        <button type="button" className={"regie-switch "+(votesOpen?"is-on":"is-off")} onClick={()=>safely(()=>updateVotesOpen(!votesOpen))}><span>✉</span><b>VOTES</b><strong>{votesOpen?"ON":"OFF"}</strong></button>
+        <button type="button" disabled={!demoLoaded} className={"regie-switch "+(demoEnabled?"is-on":"is-off")} onClick={()=>safely(()=>updateDemoEnabled(!demoEnabled))}><span>▣</span><b>MODE DÉMO</b><strong>{!demoLoaded?"…":demoEnabled?"ON":"OFF"}</strong></button>
+        <button type="button" className="regie-show" disabled={tour!==3 || finaleStarted} onClick={()=>{if(window.confirm("Lancer le show final maintenant ?"))safely(()=>updateFinaleStarted(true));}}><span>♛</span><b>SHOW FINAL</b><strong>{finaleStarted?"SHOW LANCÉ":"LANCER LE SHOW"}</strong></button>
+      </div></section>
+
+      <div className="regie-info-grid">
+        <AdminLiveChat user={user} />
+        <section className="regie-panel"><div className="regie-panel-heading"><h3>⭐ MISS FAVORITES</h3><span>TOUR {tour}</span></div>
+          {popularity.map(m=><div className="regie-popularity" key={m.id}><div><span>{m.label}</span><strong>{totalPlayers?Math.round(100*m.count/totalPlayers):0}%</strong></div><div className="regie-meter"><span style={{width:(totalPlayers?100*m.count/totalPlayers:0)+"%"}} /></div><small>{m.count} vote(s)</small></div>)}
+          {!popularity.length&&<p>Aucune candidate à afficher.</p>}
+        </section>
       </div>
 
-      {votesOpen && (
-        <div
-          style={{
-            margin: "0 auto 15px",
-            maxWidth: 500,
-            padding: "10px 18px",
-            borderRadius: 999,
-            background: "linear-gradient(135deg, rgba(0,200,120,0.95), rgba(0,255,180,0.95))",
-            textAlign: "center",
-            fontWeight: "bold",
-            animation: "votePulse 1.6s infinite",
-          }}
-        >
-          ✅ VOTES OUVERTS !!!
-        </div>
-      )}
-
-      {/* Contrôles */}
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          flexWrap: "wrap",
-          justifyContent: "center",
-        }}
-      >
-        <button onClick={() => safely(() => updateConnectionsOpen(!connectionsOpen))} style={{ background: connectionsOpen ? "#933d42" : "#17794d", color: "white", padding: "10px 16px" }}>
-          {connectionsOpen ? "🔒 Fermer les connexions" : "🔓 Ouvrir les connexions"}
-        </button>
-        <button onClick={() => safely(() => updateVotesOpen(!votesOpen))}>
-          {votesOpen ? "Fermer les votes" : "Ouvrir les votes"}
-        </button>
-
-
-        <button type="button" disabled={!demoLoaded} onClick={() => safely(() => updateDemoEnabled(!demoEnabled))} aria-pressed={demoEnabled} style={{ background: !demoLoaded ? "#555" : demoEnabled ? "#16814f" : "#a83248", color: "white", padding: "10px 16px", border: "1px solid #e0d0a0", borderRadius: 9 }}>
-          {!demoLoaded ? "Mode démo : chargement…" : demoEnabled ? "🟢 Mode démo : ON" : "🔴 Mode démo : OFF"}
-        </button>
-
-        {tour === 3 && (
-          <button
-            onClick={() => safely(() => updateFinaleStarted(true))}
-            style={{
-              background: "linear-gradient(135deg, #ffd700, #ff00aa)",
-              color: "white",
-            }}
-          >
-            🎉 Lancer le show final
-          </button>
-        )}
-      </div>
-
-      <details style={{ margin: "28px auto 16px", maxWidth: 500, padding: 12, border: "1px solid #754343", borderRadius: 10 }} open={showDangerZone} onToggle={event => setShowDangerZone(event.currentTarget.open)}>
-        <summary style={{ cursor: "pointer", color: "#e6a2a2", fontWeight: "bold" }}>⚠️ Zone sensible — Réinitialiser la partie</summary>
-        <p style={{ fontSize: 14 }}>Cette action efface tous les joueurs, votes et résultats du jeu. Elle est irréversible.</p>
+      <details className="regie-danger" open={showDangerZone} onToggle={event=>setShowDangerZone(event.currentTarget.open)}>
+        <summary>⚠️ Zone sensible — Réinitialiser la partie</summary>
+        <p>Cette action efface tous les joueurs, votes et résultats du jeu. Elle est irréversible.</p>
         <label htmlFor="reset-confirm">Écris <strong>RESET</strong> pour confirmer :</label>
-        <input id="reset-confirm" value={resetConfirmation} onChange={event => setResetConfirmation(event.target.value)} autoComplete="off" style={{ display: "block", width: "100%", margin: "10px 0", padding: 10, boxSizing: "border-box" }} />
-        <button disabled={resetConfirmation !== "RESET"} onClick={() => {
-          if (!window.confirm("Dernière confirmation : effacer définitivement toute la partie ?")) return;
-          safely(async () => { await resetGame(); setResetConfirmation(""); setShowDangerZone(false); });
-        }} style={{ background: "#8b1e2b", color: "white", padding: 10 }}>
-          Supprimer la partie et recommencer
-        </button>
+        <input id="reset-confirm" value={resetConfirmation} onChange={event=>setResetConfirmation(event.target.value)} autoComplete="off" />
+        <button disabled={resetConfirmation!=="RESET"} onClick={()=>{
+          if(!window.confirm("Dernière confirmation : effacer définitivement toute la partie ?"))return;
+          safely(async()=>{await resetGame();setResetConfirmation("");setShowDangerZone(false);});
+        }}>Supprimer la partie et recommencer</button>
       </details>
 
-      {/* Joueurs */}
-      <div
-        style={{
-          margin: "20px auto",
-          maxWidth: 500,
-          padding: 15,
-          borderRadius: 12,
-          background: "rgba(0,0,0,0.45)",
-        }}
-      >
-        <h2>Joueurs</h2>
-        <ul style={{ listStyle: "none", padding: 0 }}>
-          {Object.keys(players).map((pseudo) => {
-            const p = players[pseudo];
-            const voted = playerHasVoted(p);
-
-            return (
-              <li
-                key={pseudo}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "4px 0",
-                  fontSize: 18,
-                  borderBottom: "1px solid rgba(255,255,255,0.1)",
-                }}
-              >
-                {pseudo}
-                <span
-                  style={{
-                    width: 14,
-                    height: 14,
-                    backgroundColor: voted ? "limegreen" : "gold",
-                    borderRadius: "50%",
-                    display: "inline-block",
-                  }}
-                ></span>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-
+      <h2 className="regie-selection-heading">♛ SÉLECTION OFFICIELLE DES MISS</h2>
       {/* Sélection tour 1 & 2 */}
       {tour !== 3 && (
         <>
@@ -374,9 +316,7 @@ export default function Admin({ user, setUser }) {
         </button>
       </div>
 
-      <Leaderboard showPoints />
 
-      <ChatBubble user={user} />
     </div>
   );
 }

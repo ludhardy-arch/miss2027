@@ -369,7 +369,7 @@ export default function Admin({ user, setUser }) {
         </button>
       </div>
 
-      <Leaderboard />
+      <Leaderboard showPoints />
 
       <ChatBubble user={user} />
     </div>

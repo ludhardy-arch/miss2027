@@ -5,7 +5,7 @@ import { AppContext } from "../context/AppContext";
 import { calculatePoints } from "../services/points";
 
 export default function Leaderboard({ showPoints = false, demoPlayers = null, demoSelections = null }) {
-  const { players, adminSelections } = useContext(AppContext);
+  const { players, adminSelections } = useContext(AppContext) || { players: {}, adminSelections: {} };
 
   // 🔥 recalcul automatique dès que les votes ou les sélections admin changent
   const ranking = useMemo(() => {

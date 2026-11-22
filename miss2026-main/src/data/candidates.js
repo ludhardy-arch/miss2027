@@ -29,6 +29,6 @@ export const CANDIDATES = [
   { id: 27, label: "Réunion", image: "/images/Reunion.jpg?v=2027" },
   { id: 28, label: "Rhône-Alpes", image: "/images/Rhone-Alpes.jpg?v=2027" },
   { id: 29, label: "Roussillon", image: "/images/Roussillon.jpg?v=2027" },
-  { id: 30, label: "Tahiti", image: "/images/Tahiti.jpg?v=2027" },
   { id: 31, label: "Saint-Barthélemy", image: "/images/Saint-Barthelemy.jpg?v=2027" },
+  { id: 30, label: "Tahiti", image: "/images/Tahiti.jpg?v=2027" },
 ];

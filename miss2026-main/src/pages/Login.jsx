@@ -108,7 +108,7 @@ export default function Login({ setUser }) {
         ))}
         <p style={{ color: "#ffd49c", margin: "17px 7px 5px", fontSize: 14 }}>✨ Attends l'ouverture des votes à chaque tour.</p>
       </section>
-      <div className="tv-entry tv-entry-v3"><div className="tv-entry-eyebrow">✦ ACCÈS AU DIRECT ✦</div><h2></h2><p role="status" style={{ padding: "15px 12px", borderRadius: 13, background: connectionsError ? "#93511b" : !connectionsLoaded ? "#56516f" : connectionsOpen ? "linear-gradient(110deg, #003b26, #006f42, #009e63)" : "linear-gradient(110deg, #89000c, #cc0019, #f31337)", border: connectionsLoaded && !connectionsError ? `2px solid ${connectionsOpen ? "#15ef98" : "#ff4d66"}` : "2px solid transparent", boxShadow: connectionsLoaded && !connectionsError ? (connectionsOpen ? "0 0 9px #00e58a, 0 0 20px rgba(0,235,137,.48), inset 0 0 12px rgba(27,255,167,.18)" : "0 0 9px #ff1b42, 0 0 20px rgba(255,27,66,.48), inset 0 0 12px rgba(255,93,111,.2)") : "none", color: "white", fontWeight: 800, letterSpacing: ".025em", textShadow: "0 1px 2px rgba(0,0,0,.5)" }}>
+      <div className="tv-entry tv-entry-v3"><div className="tv-entry-eyebrow">✦ ACCÈS AU DIRECT ✦</div><h2></h2><div role="status" style={{ padding: "15px 12px", borderRadius: 13, background: connectionsError ? "#93511b" : !connectionsLoaded ? "#56516f" : connectionsOpen ? "linear-gradient(110deg, #003b26, #006f42, #009e63)" : "linear-gradient(110deg, #89000c, #cc0019, #f31337)", border: connectionsLoaded && !connectionsError ? `2px solid ${connectionsOpen ? "#15ef98" : "#ff4d66"}` : "2px solid transparent", boxShadow: connectionsLoaded && !connectionsError ? (connectionsOpen ? "0 0 9px #00e58a, 0 0 20px rgba(0,235,137,.48), inset 0 0 12px rgba(27,255,167,.18)" : "0 0 9px #ff1b42, 0 0 20px rgba(255,27,66,.48), inset 0 0 12px rgba(255,93,111,.2)") : "none", color: "white", fontWeight: 800, letterSpacing: ".025em", textShadow: "0 1px 2px rgba(0,0,0,.5)" }}>
         {connectionsError ? "⚠️ Impossible de vérifier les connexions : " + connectionsError
           : !connectionsLoaded ? "⏳ Connexion au serveur en cours…"
           : connectionsOpen ? "✅ Inscriptions ouvertes"
@@ -133,7 +133,7 @@ export default function Login({ setUser }) {
               <div style={{ fontSize: 12, marginTop: 12, fontWeight: 600 }}>Samedi 12 décembre · 20 h 40 (heure de Paris)</div>
             </div>
           ) : "⏳ Heure d’ouverture atteinte — en attente de l’activation des inscriptions par l’administrateur"}
-      </p>
+      </div>
       <input disabled={!connectionsLoaded || !connectionsOpen || pending} placeholder="Ton pseudo" value={pseudo} onChange={(e) => setPseudo(e.target.value)}
         style={{ padding: 10, width: "100%", boxSizing: "border-box", marginBottom: 12 }} />
       <button onClick={loginPlayer} disabled={pending || !connectionsLoaded || !connectionsOpen} style={{ padding: 12, width: "100%", background: "#ff0088", color: "white", border: 0, cursor: "pointer", marginBottom: 18 }}>

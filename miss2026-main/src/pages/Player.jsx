@@ -47,6 +47,8 @@ export default function Player({ user, setUser }) {
   const [selection, setSelection] = useState([]);
   const [ranking, setRanking] = useState({});
   const [showVoteBanner, setShowVoteBanner] = useState(true);
+  const [votePending, setVotePending] = useState(false);
+  const [voteFeedback, setVoteFeedback] = useState("");
 
   // Bannière votes ouverts réapparait à chaque tour
   useEffect(() => {
@@ -129,20 +131,28 @@ export default function Player({ user, setUser }) {
 
   // Validation du vote
   const handleValidate = async () => {
-    if (!votesOpen) return alert("Les votes ne sont pas ouverts.");
+    if (votePending) return;
+    if (!votesOpen) { setVoteFeedback("Les votes ne sont pas ouverts."); return; }
 
     if (tour === 1 || tour === 2) {
-      if (selection.length !== maxSelect)
-        return alert(`Tu dois sélectionner ${maxSelect} miss.`);
+      if (selection.length !== maxSelect) {
+        setVoteFeedback(`Tu dois sélectionner ${maxSelect} Miss (actuellement ${selection.length}).`);
+        return;
+      }
 
-      if (!window.confirm("Envoyer ton vote ?")) return;
-
+      // Le clic sur « Valider mon vote » constitue la confirmation.
+      // Éviter window.confirm, parfois bloqué dans les navigateurs intégrés sur mobile.
+      setVotePending(true);
+      setVoteFeedback("Enregistrement de ton vote en cours…");
       try {
         await updatePlayerVote(user.pseudo, tour, selection);
+        setVoteFeedback("Vote enregistré !");
         navigate("/waiting");
       } catch (error) {
         console.error("Échec enregistrement du vote :", error);
-        alert(`Vote non enregistré (${error?.code || "erreur inconnue"}). ${error?.message || "Réessaie ou contacte l’administrateur."}`);
+        setVoteFeedback(`Vote non enregistré (${error?.code || "erreur inconnue"}) : ${error?.message || "Réessaie ou contacte l’administrateur."}`);
+      } finally {
+        setVotePending(false);
       }
       return;
     }
@@ -408,10 +418,11 @@ export default function Player({ user, setUser }) {
       <div className="tv-submit" style={{ textAlign: "center", marginTop: 20 }}>
         <button
           onClick={handleValidate}
-          disabled={!votesOpen || hasVotedThisTour}
+          disabled={!votesOpen || hasVotedThisTour || votePending}
         >
-          {tour === 3 ? "Valider mon classement" : "Valider mon vote"}
+          {votePending ? "Enregistrement…" : tour === 3 ? "Valider mon classement" : "Valider mon vote"}
         </button>
+        {voteFeedback && <p role="status" aria-live="polite" style={{ color: "#ffe4a0", padding: "8px", fontWeight: 700 }}>{voteFeedback}</p>}
       </div>
 
       <Leaderboard />

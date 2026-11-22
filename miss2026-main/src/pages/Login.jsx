@@ -3,6 +3,20 @@ import { AppContext } from "../context/AppContext";
 import { useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
 import { GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+ 
+// 12 décembre 2026, 20 h 40 à Paris (heure d'hiver : UTC+1).
+const REGISTRATION_OPEN_AT = new Date("2026-12-12T20:40:00+01:00").getTime();
+function getRemainingTime() {
+  const total = Math.max(0, Math.ceil((REGISTRATION_OPEN_AT - Date.now()) / 1000));
+  return {
+    total,
+    days: Math.floor(total / 86400),
+    hours: Math.floor((total % 86400) / 3600),
+    minutes: Math.floor((total % 3600) / 60),
+    seconds: total % 60,
+  };
+}
+
 
 export default function Login({ setUser }) {
   const { addPlayer, connectionsOpen, connectionsLoaded, connectionsError, gameId, demoEnabled, demoLoaded } = useContext(AppContext);
@@ -10,6 +24,11 @@ export default function Login({ setUser }) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [adminUid, setAdminUid] = useState("");
+  const [remaining, setRemaining] = useState(getRemainingTime);
+  useEffect(() => {
+    const timer = window.setInterval(() => setRemaining(getRemainingTime()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   const navigate = useNavigate();
 
   // Authenticate first-time visitors before reading the admin-controlled entry flag.
@@ -92,7 +111,28 @@ export default function Login({ setUser }) {
       <div className="tv-entry tv-entry-v3"><div className="tv-entry-eyebrow">✦ ACCÈS AU DIRECT ✦</div><h2></h2><p role="status" style={{ padding: "15px 12px", borderRadius: 13, background: connectionsError ? "#93511b" : !connectionsLoaded ? "#56516f" : connectionsOpen ? "linear-gradient(110deg, #003b26, #006f42, #009e63)" : "linear-gradient(110deg, #89000c, #cc0019, #f31337)", border: connectionsLoaded && !connectionsError ? `2px solid ${connectionsOpen ? "#15ef98" : "#ff4d66"}` : "2px solid transparent", boxShadow: connectionsLoaded && !connectionsError ? (connectionsOpen ? "0 0 9px #00e58a, 0 0 20px rgba(0,235,137,.48), inset 0 0 12px rgba(27,255,167,.18)" : "0 0 9px #ff1b42, 0 0 20px rgba(255,27,66,.48), inset 0 0 12px rgba(255,93,111,.2)") : "none", color: "white", fontWeight: 800, letterSpacing: ".025em", textShadow: "0 1px 2px rgba(0,0,0,.5)" }}>
         {connectionsError ? "⚠️ Impossible de vérifier les connexions : " + connectionsError
           : !connectionsLoaded ? "⏳ Connexion au serveur en cours…"
-          : connectionsOpen ? "✅ Connexions ouvertes" : "⏳ Connexions fermées — attends l’ouverture par l’admin"}
+          : connectionsOpen ? "✅ Inscriptions ouvertes"
+          : remaining.total > 0 ? (
+            <div style={{ textAlign: "center" }}>
+              <div style={{ color: "#ffe5ad", fontFamily: "Georgia, serif", fontSize: "clamp(18px, 4.8vw, 24px)", marginBottom: 14 }}>
+                ✨ Ouverture des inscriptions dans :
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 7, fontVariantNumeric: "tabular-nums" }}>
+                {[
+                  ["Jours", remaining.days],
+                  ["Heures", remaining.hours],
+                  ["Min", remaining.minutes],
+                  ["Sec", remaining.seconds],
+                ].map(([unit, value]) => (
+                  <div key={unit} style={{ padding: "10px 2px", border: "1px solid rgba(255,220,155,.65)", borderRadius: 10, background: "rgba(8,11,34,.65)" }}>
+                    <div style={{ fontSize: "clamp(24px, 7vw, 39px)", color: "#fff0c2", lineHeight: 1.2 }}>{String(value).padStart(2, "0")}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#ffdb9b", marginTop: 3 }}>{unit}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, marginTop: 12, fontWeight: 600 }}>Samedi 12 décembre · 20 h 40 (heure de Paris)</div>
+            </div>
+          ) : "⏳ Heure d’ouverture atteinte — en attente de l’activation des inscriptions par l’administrateur"}
       </p>
       <input disabled={!connectionsLoaded || !connectionsOpen || pending} placeholder="Ton pseudo" value={pseudo} onChange={(e) => setPseudo(e.target.value)}
         style={{ padding: 10, width: "100%", boxSizing: "border-box", marginBottom: 12 }} />

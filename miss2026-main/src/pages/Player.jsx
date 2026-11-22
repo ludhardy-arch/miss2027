@@ -141,7 +141,8 @@ export default function Player({ user, setUser }) {
         await updatePlayerVote(user.pseudo, tour, selection);
         navigate("/waiting");
       } catch (error) {
-        alert("Vote non enregistré. Réessaie ou contacte l’administrateur.");
+        console.error("Échec enregistrement du vote :", error);
+        alert(`Vote non enregistré (${error?.code || "erreur inconnue"}). ${error?.message || "Réessaie ou contacte l’administrateur."}`);
       }
       return;
     }
@@ -171,7 +172,8 @@ export default function Player({ user, setUser }) {
       await updatePlayerVote(user.pseudo, 3, ordered);
       navigate("/waiting");
     } catch (error) {
-      alert("Vote non enregistré. Réessaie ou contacte l’administrateur.");
+      console.error("Échec enregistrement du vote :", error);
+        alert(`Vote non enregistré (${error?.code || "erreur inconnue"}). ${error?.message || "Réessaie ou contacte l’administrateur."}`);
     }
   };
 

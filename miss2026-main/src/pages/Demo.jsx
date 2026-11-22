@@ -35,7 +35,7 @@ export default function Demo() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState("");
   const [chatMessages, setChatMessages] = useState([{ author: "Camille", text: "Bienvenue dans la démo ! 👑" }, { author: "Sophie", text: "À vous de choisir vos Miss !" }]);
-  const cards = phase === 1 ? CANDIDATES : phase === 2 ? QUALIFIED.map(contestant).filter(Boolean) : FINALISTS.map(contestant).filter(Boolean);
+  const cards = phase === 1 ? [...CANDIDATES].sort((a, b) => a.label.localeCompare(b.label, "fr")) : phase === 2 ? QUALIFIED.map(contestant).filter(Boolean) : FINALISTS.map(contestant).filter(Boolean);
   const selected = phase === 1 ? selected1 : selected2;
   const maximum = phase === 1 ? 12 : 5;
   const toggle = (id) => {
@@ -60,7 +60,7 @@ export default function Demo() {
     <header className="demo-head">
       <div className="demo-eyebrow">✦ MISS FRANCE 2027 ✦</div>
       <h1>MODE DÉCOUVERTE</h1>
-      <p>Ce sont les photos des Miss 2026, celles des Miss 2027 ne sont pas encore publiées.</p>
+      <p>Découvrez les 31 candidates de Miss France 2027 et testez vos pronostics.</p>
       <div className="demo-topactions"><button type="button" onClick={() => navigate("/login")}>← Retour à l'accueil</button></div>
 
     </header>
@@ -68,7 +68,7 @@ export default function Demo() {
       <section className="demo-intro">
         <div className="demo-eyebrow">TOUR {phase} · DÉMONSTRATION</div>
         <h2>{phase === 1 ? "Choisissez vos 12 Miss" : phase === 2 ? "Qui sera dans le top 5 ?" : "Classez les cinq finalistes"}</h2>
-        <p>{phase === 1 ? "Sélectionnez 12 candidates parmi les 30. Les douze qualifiées fictives seront ensuite révélées." : phase === 2 ? "Parmi les 12 Miss qualifiées, choisissez vos 5 favorites pour la finale." : "Les 5 finalistes sont dévoilées ! À vous de prédire leur classement final."}</p>
+        <p>{phase === 1 ? "Sélectionnez 12 candidates parmi les 31. Les douze qualifiées fictives seront ensuite révélées." : phase === 2 ? "Parmi les 12 Miss qualifiées, choisissez vos 5 favorites pour la finale." : "Les 5 finalistes sont dévoilées ! À vous de prédire leur classement final."}</p>
         {phase === 2 && <p className="demo-round-legend"><span className="demo-legend-swatch" style={{borderColor:"#12e994"}} /> Vous aviez déjà sélectionné cette Miss au premier tour.</p>}
         {phase === 3 && <div className="demo-round-legends">
           <p className="demo-round-legend"><span className="demo-legend-swatch" style={{borderColor:"#12e994"}} /> Vous avez sélectionné cette Miss aux deux premiers tours.</p>

@@ -187,18 +187,25 @@ export default function Player({ user, setUser }) {
     }
   };
 
-  // Couleurs cartes
+  // Couleurs des choix du joueur, indépendamment des résultats officiels.
+  // Vert : choix en cours, à tous les tours.
   const getBorderColor = (id) => {
     const t1P = playerData.tour1 || [];
     const t2P = playerData.tour2 || [];
-    const t1A = adminSelections.tour1 || [];
-    const t2A = adminSelections.tour2 || [];
 
-    if (!hasVotedThisTour && tour !== 3 && selection.includes(id))
-      return "blue";
+    if (!hasVotedThisTour) {
+      if (tour === 3 && ranking[id]) return "green";
+      if (tour !== 3 && selection.includes(id)) return "green";
+    }
 
-    if (t1P.includes(id) && t1A.includes(id)) return "green";
-    if (t2P.includes(id) && t2A.includes(id)) return "yellow";
+    if (tour === 2) {
+      return t1P.includes(id) ? "blue" : "grey";
+    }
+
+    if (tour === 3) {
+      if (t1P.includes(id) && t2P.includes(id)) return "blue";
+      if (t2P.includes(id)) return "yellow";
+    }
 
     return "grey";
   };
@@ -308,10 +315,10 @@ export default function Player({ user, setUser }) {
       >
         <h3>◈ LE CODE COULEUR DU JEU</h3>
 
-        <LegendItem colorClass="border-blue" text="Sélection en cours" />
-        {tour === 2 && <LegendItem colorClass="border-green" text="Vous aviez déjà sélectionné cette Miss au premier tour." />}
+        <LegendItem colorClass="border-green" text="Sélection en cours" />
+        {tour === 2 && <LegendItem colorClass="border-blue" text="Vous aviez déjà sélectionné cette Miss au premier tour." />}
         {tour === 3 && <>
-          <LegendItem colorClass="border-green" text="Vous avez sélectionné cette Miss aux deux premiers tours." />
+          <LegendItem colorClass="border-blue" text="Vous avez sélectionné cette Miss aux deux premiers tours." />
           <LegendItem colorClass="border-yellow" text="Vous avez sélectionné cette Miss uniquement au deuxième tour." />
         </>}
         <LegendItem colorClass="border-grey" text="Jamais sélectionnée" />

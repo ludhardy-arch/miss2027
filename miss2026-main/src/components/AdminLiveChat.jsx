@@ -19,7 +19,7 @@ export default function AdminLiveChat({ user }) {
     if (!message || sending) return;
     setSending(true); setError("");
     try {
-      await push(ref(database, "rooms/miss2027/chat"), {author:user.pseudo, text:message.slice(0,500), date:Date.now()});
+      await push(ref(database, "rooms/miss2027/chat"), {author:"admin", text:message.slice(0,500), date:Date.now()});
       setText("");
     } catch(e) { setError("Envoi impossible : " + (e?.code || e?.message)); }
     finally { setSending(false); }
@@ -28,8 +28,8 @@ export default function AdminLiveChat({ user }) {
     <div className="regie-panel-heading"><h3>💬 CHAT EN DIRECT</h3><span className="regie-live">● LIVE</span></div>
     <div className="regie-chat-messages" role="log" aria-label="Messages du chat">
       {messages.length === 0 && <p className="regie-muted">Aucun message pour le moment.</p>}
-      {messages.map((m,i)=><div className={"regie-chat-message "+(m.author===user.pseudo?"regie-chat-me":"")} key={i}>
-        <strong>{m.author===user.pseudo?"👑 VOUS":m.author}</strong><span>{m.text}</span>
+      {messages.map((m,i)=><div className={"regie-chat-message "+(m.author==="admin" || m.author===user.pseudo?"regie-chat-me":"")} key={i}>
+        <strong style={m.author==="admin" || m.author===user.pseudo ? {color:"#ffd779",textShadow:"0 0 11px rgba(255,211,108,.4)"} : undefined}>{m.author==="admin" || m.author===user.pseudo ? "✦ ADMIN ✦" : m.author}</strong>{m.targetUid && <small style={{color:"#ffdfa5"}}> · avertissement ciblé</small>}<span>{m.text}</span>
       </div>)}
       <div ref={bottom} />
     </div>

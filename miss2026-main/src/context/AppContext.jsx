@@ -137,9 +137,11 @@ export function AppProvider({ children }) {
     if (selection.length !== 12 || !selection.includes(favoriteId)) {
       return Promise.reject(new Error("Le coup de cœur doit faire partie des 12 Miss."));
     }
-    return update(ref(database, `rooms/miss2027/players/${pseudo}`), {
-      tour1: selection,
-      favorite: favoriteId,
+    // Mise à jour multipath atomique : les droits sont évalués sur
+    // chaque enfant (tour1 et favorite), pas sur le joueur entier.
+    return update(ref(database, "rooms/miss2027"), {
+      [`players/${pseudo}/tour1`]: selection,
+      [`players/${pseudo}/favorite`]: favoriteId,
     });
   };
 

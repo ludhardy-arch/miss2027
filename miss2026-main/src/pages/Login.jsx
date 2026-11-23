@@ -106,6 +106,9 @@ export default function Login({ setUser }) {
             <span style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.5 }}>{item.text}</span>
           </div>
         ))}
+        <div style={{ textAlign: "center", margin: "8px 5px 10px", padding: "10px 8px", color: "#ffe6b3", fontWeight: 700, fontSize: 15, lineHeight: 1.4 }}>
+          👑 Et pour finir : le show final pour découvrir les résultats !
+        </div>
         <p style={{ color: "#ffd49c", margin: "17px 7px 5px", fontSize: 14 }}>✨ Attends l'ouverture des votes à chaque tour.</p>
       </section>
       <div className="tv-entry tv-entry-v3"><div className="tv-entry-eyebrow">✦ ACCÈS AU DIRECT ✦</div><h2></h2><div role="status" style={{ padding: "15px 12px", borderRadius: 13, background: connectionsError ? "#93511b" : !connectionsLoaded ? "#56516f" : connectionsOpen ? "linear-gradient(110deg, #003b26, #006f42, #009e63)" : "linear-gradient(110deg, #89000c, #cc0019, #f31337)", border: connectionsLoaded && !connectionsError ? `2px solid ${connectionsOpen ? "#15ef98" : "#ff4d66"}` : "2px solid transparent", boxShadow: connectionsLoaded && !connectionsError ? (connectionsOpen ? "0 0 9px #00e58a, 0 0 20px rgba(0,235,137,.48), inset 0 0 12px rgba(27,255,167,.18)" : "0 0 9px #ff1b42, 0 0 20px rgba(255,27,66,.48), inset 0 0 12px rgba(255,93,111,.2)") : "none", color: "white", fontWeight: 800, letterSpacing: ".025em", textShadow: "0 1px 2px rgba(0,0,0,.5)" }}>

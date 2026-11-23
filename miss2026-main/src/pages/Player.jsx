@@ -51,6 +51,7 @@ export default function Player({ user, setUser }) {
   const [showVoteBanner, setShowVoteBanner] = useState(true);
   const [votePending, setVotePending] = useState(false);
   const [voteFeedback, setVoteFeedback] = useState("");
+  const [loadedDraftKey, setLoadedDraftKey] = useState(null);
 
   // Bannière votes ouverts réapparait à chaque tour
   useEffect(() => {
@@ -84,51 +85,59 @@ export default function Player({ user, setUser }) {
     if (hasVotedThisTour) navigate("/waiting");
   }, [hasVotedThisTour, navigate]);
 
-  // Charger sélection locale
+  // Brouillons propres à cette partie, au joueur et au tour.
+  const draftKey = `miss2027_${gameId}_${tour === 3 ? "ranking" : "selection"}_tour${tour}_${user.pseudo}`;
+  const favoriteKey = `miss2027_${gameId}_favorite_tour1_${user.pseudo}`;
+
+  // Charger le brouillon avant d'autoriser sa sauvegarde :
+  // évite d'écraser des choix existants par l'état React initial vide.
   useEffect(() => {
-    if (hasVotedThisTour) return;
+    if (hasVotedThisTour || !gameId || gameId === "loading") return;
+    setLoadedDraftKey(null);
+    const readDraft = (key, fallback) => {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw === null ? fallback : JSON.parse(raw);
+      } catch (error) {
+        console.warn("Brouillon local illisible :", error);
+        return fallback;
+      }
+    };
 
-    const key =
-      tour === 3
-        ? `miss2027_${gameId}_ranking_tour3_${user.pseudo}`
-        : `miss2027_${gameId}_selection_tour${tour}_${user.pseudo}`;
-
-    const saved = localStorage.getItem(key);
-
-    if (tour === 3) setRanking(saved ? JSON.parse(saved) : {});
-    else setSelection(saved ? JSON.parse(saved) : []);
-    if (tour === 1) {
-      const savedFavorite = localStorage.getItem(`miss2027_${gameId}_favorite_tour1_${user.pseudo}`);
-      setFavorite(savedFavorite ? Number(savedFavorite) : null);
+    if (tour === 3) {
+      const legacy = `miss2027_ranking_tour3_${user.pseudo}`;
+      const saved = readDraft(draftKey, readDraft(legacy, {}));
+      setRanking(saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {});
+    } else {
+      const legacy = `miss2027_selection_tour${tour}_${user.pseudo}`;
+      const saved = readDraft(draftKey, readDraft(legacy, []));
+      const eligible = new Set(candidateIds);
+      const valid = Array.isArray(saved)
+        ? [...new Set(saved.map(Number))].filter(id => eligible.has(id)).slice(0, maxSelect)
+        : [];
+      setSelection(valid);
+      if (tour === 1) {
+        const rawFavorite = localStorage.getItem(favoriteKey);
+        const picked = rawFavorite === null ? null : Number(rawFavorite);
+        setFavorite(picked !== null && valid.includes(picked) ? picked : null);
+      }
     }
-  }, [tour, hasVotedThisTour, user.pseudo, gameId]);
+    setLoadedDraftKey(draftKey);
+  }, [draftKey, favoriteKey, tour, hasVotedThisTour, gameId, user.pseudo]);
 
-  // Sauvegarde locale live
+  // Enregistrer les sélections non validées et le classement provisoire
+  // avec EXACTEMENT les mêmes clés que celles utilisées au chargement.
   useEffect(() => {
-    if (hasVotedThisTour || tour === 3) return;
-
-    localStorage.setItem(
-      `miss2027_selection_tour${tour}_${user.pseudo}`,
-      JSON.stringify(selection)
-    );
-  }, [selection, tour, hasVotedThisTour, user.pseudo, gameId]);
+    if (hasVotedThisTour || loadedDraftKey !== draftKey) return;
+    if (tour === 3) localStorage.setItem(draftKey, JSON.stringify(ranking));
+    else localStorage.setItem(draftKey, JSON.stringify(selection));
+  }, [draftKey, loadedDraftKey, hasVotedThisTour, tour, selection, ranking]);
 
   useEffect(() => {
-    if (tour !== 1 || hasVotedThisTour || !gameId || gameId === "loading") return;
-    const key = `miss2027_${gameId}_favorite_tour1_${user.pseudo}`;
-    if (favorite == null) localStorage.removeItem(key);
-    else localStorage.setItem(key, String(favorite));
-  }, [tour, hasVotedThisTour, favorite, gameId, user.pseudo]);
-
-  // Sauvegarde classement finale
-  useEffect(() => {
-    if (hasVotedThisTour || tour !== 3) return;
-
-    localStorage.setItem(
-      `miss2027_ranking_tour3_${user.pseudo}`,
-      JSON.stringify(ranking)
-    );
-  }, [ranking, tour, hasVotedThisTour, user.pseudo, gameId]);
+    if (tour !== 1 || hasVotedThisTour || loadedDraftKey !== draftKey) return;
+    if (favorite === null) localStorage.removeItem(favoriteKey);
+    else localStorage.setItem(favoriteKey, String(favorite));
+  }, [tour, hasVotedThisTour, loadedDraftKey, draftKey, favoriteKey, favorite]);
 
   // Sélection pour tour 1 & 2
   const handleClickMiss = (id) => {

@@ -87,9 +87,9 @@ export default function Login({ setUser }) {
   }
 
   return (
-    <div className="tv-login-shell tv-show-v3"><div className="tv-entry-stage" aria-hidden="true"><span className="tv-stage-crown">♛</span></div>
+    <div className="tv-login-shell tv-show-v3"><div className="tv-entry-stage" aria-hidden="true"><img className="tv-stage-crown" src="/images/couronne-prestige.svg" alt="" aria-hidden="true" style={{ width: "clamp(130px, 32vw, 195px)", height: "auto", objectFit: "contain", filter: "drop-shadow(0 0 18px rgba(238,190,107,.5))" }} /></div>
       <header className="tv-hero" style={{ position: "relative", overflow: "hidden", padding: "34px 15px 30px", margin: "-12px -15px 24px", borderRadius: 22, background: "radial-gradient(ellipse at 50% -20%, rgba(248,205,132,.28), transparent 65%), linear-gradient(145deg,#18121b 0%,#0b0c14 100%)", border: "1px solid rgba(232,192,123,.45)", boxShadow: "0 14px 36px rgba(0,0,0,.24)", color: "#fff7e8" }}>
-        <div aria-hidden="true" style={{ fontSize: 40, color: "#e8c68c", lineHeight: 1, marginBottom: 12 }}>♛</div>
+        <img src="/images/couronne-prestige.svg" alt="" aria-hidden="true" style={{ display: "block", width: 108, height: 73, objectFit: "contain", margin: "0 auto 12px", filter: "drop-shadow(0 0 11px rgba(240,198,119,.38))" }} />
         <h1 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: "clamp(34px, 9vw, 49px)", fontWeight: 500, lineHeight: 1.08, letterSpacing: "-.02em", margin: "14px 0 0", color: "#f9e4be", textShadow: "0 2px 22px rgba(238,187,100,.25)" }}>MISS FRANCE <span style={{ display: "block", fontSize: "1.25em", letterSpacing: ".05em" }}>2027</span></h1>
         <div style={{ width: 76, height: 1, margin: "20px auto", background: "linear-gradient(90deg,transparent,#e9c487,transparent)" }} />
         <p style={{ margin: "0 auto", maxWidth: 330, fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic", fontSize: "clamp(21px, 5.5vw, 27px)", lineHeight: 1.35, color: "#fff9ee" }}>Qui aura le <span style={{ color: "#f2c784" }}>meilleur pronostic ?</span></p>

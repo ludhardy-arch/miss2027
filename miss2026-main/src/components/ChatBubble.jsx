@@ -2,6 +2,12 @@
 import { database } from "../firebase";
 import { ref, push, onValue, get } from "firebase/database";
 
+// Messages historiques envoyés avant l'utilisation du nom ADMIN.
+const isAdminMessage = (message) => {
+  const author = String(message?.author || "").trim().toLocaleLowerCase("fr").replace(/\\s+/g, " ");
+  return author === "admin" || author === "hardy ludo" || author === "ludo hardy";
+};
+
 export default function ChatBubble({ user, demoMessages = null, onDemoSend = null }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -191,8 +197,8 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
             }}
           >
             {visibleMessages.map((m, i) => {
-              const isMe = m.author === user.pseudo;
-              const isAdmin = String(m.author || "").toLowerCase() === "admin";
+              const isMe = !isAdminMessage(m) && m.author === user.pseudo;
+              const isAdmin = isAdminMessage(m);
 
               return (
                 <div

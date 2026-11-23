@@ -97,9 +97,9 @@ export default function Login({ setUser }) {
       <section className="tv-howto tv-howto-v3" aria-label="Comment jouer" style={{ background: "linear-gradient(160deg, #231131, #18112d)", border: "1px solid #bc79be", color: "white", borderRadius: 22, padding: "18px 12px", marginBottom: 20, boxShadow: "0 10px 28px rgba(37,12,56,.23)" }}>
         <div style={{ color: "#f7acd7", letterSpacing: ".12em", fontWeight: 800, fontSize: 13, marginBottom: 6 }}>✦ ✨ COMMENT JOUER ✨ ✦</div>
         {[
-          { n: "01", text: "Premier tour : sélectionner 12 Miss et votre coup de cœur.", background: "#4e1d57", border: "#e77dc6", accent: "#ffc0e8" },
-          { n: "02", text: "Deuxième tour : sélectionner 5 Miss.", background: "#27265b", border: "#a09cff", accent: "#c9bfff" },
-          { n: "03", text: "Troisième tour : classer les 5 finalistes.", background: "#163c4f", border: "#68cfd9", accent: "#a2f4f2" }
+          { n: "01", text: "Premier tour : sélectionner 12 Miss et votre coup de cœur.", background: "#18304B", border: "#9BB9D4", accent: "#EAD2A3" },
+          { n: "02", text: "Deuxième tour : sélectionner 5 Miss.", background: "#253D51", border: "#A3BDC4", accent: "#D8E8EA" },
+          { n: "03", text: "Troisième tour : classer les 5 finalistes.", background: "#333A47", border: "#B9A98C", accent: "#F2DCB4" }
         ].map(item => (
           <div key={item.n} style={{ display: "flex", alignItems: "center", textAlign: "left", gap: 12, padding: 12, marginBottom: 10, background: item.background, border: `1px solid ${item.border}`, borderRadius: 14 }}>
             <span style={{ flexShrink: 0, width: 43, height: 43, borderRadius: 10, background: "rgba(255,255,255,.12)", color: item.accent, display: "grid", placeItems: "center", fontSize: 18, fontWeight: 800 }}>{item.n}</span>

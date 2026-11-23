@@ -4,7 +4,7 @@ import { ref, push, onValue, get } from "firebase/database";
 
 // Messages historiques envoyés avant l'utilisation du nom ADMIN.
 const isAdminMessage = (message) => {
-  const author = String(message?.author || "").trim().toLocaleLowerCase("fr").replace(/\\s+/g, " ");
+  const author = String(message?.author || "").trim().toLocaleLowerCase("fr").replace(/\s+/g, " ");
   return author === "admin" || author === "hardy ludo" || author === "ludo hardy";
 };
 

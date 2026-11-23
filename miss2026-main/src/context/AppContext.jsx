@@ -132,6 +132,17 @@ export function AppProvider({ children }) {
     remove(ref(database, `rooms/miss2027/players/${pseudo}/tour3`));
   };
 
+  // Le favori et les 12 choix sont enregistrés ensemble (écriture atomique).
+  const updateFirstRoundWithFavorite = (pseudo, selection, favoriteId) => {
+    if (selection.length !== 12 || !selection.includes(favoriteId)) {
+      return Promise.reject(new Error("Le coup de cœur doit faire partie des 12 Miss."));
+    }
+    return update(ref(database, `rooms/miss2027/players/${pseudo}`), {
+      tour1: selection,
+      favorite: favoriteId,
+    });
+  };
+
   const updatePlayerVote = (pseudo, tourNum, selection) => {
     return set(ref(database, `rooms/miss2027/players/${pseudo}/tour${tourNum}`), selection);
   };
@@ -185,6 +196,7 @@ export function AppProvider({ children }) {
         addPlayer,
         resetPlayerVotes,   // ⭐ ajouté ⭐
         updatePlayerVote,
+        updateFirstRoundWithFavorite,
         updateAdminSelections,
         updateTour,
         updateVotesOpen,

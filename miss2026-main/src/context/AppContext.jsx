@@ -173,7 +173,14 @@ export function AppProvider({ children }) {
 
   const updateTour = (num) => set(ref(database, "rooms/miss2027/tour"), num);
   const updateVotesOpen = (state) => set(ref(database, "rooms/miss2027/votesOpen"), state);
-  const updateConnectionsOpen = (state) => set(ref(database, "rooms/miss2027/connectionsOpen"), state);
+  // Ouvrir les connexions coupe simultanément le mode démo.
+  // Fermer les connexions ne réactive jamais le mode démo.
+  const updateConnectionsOpen = (state) => state
+    ? update(ref(database, "rooms/miss2027"), {
+        connectionsOpen: true,
+        demoEnabled: false,
+      })
+    : set(ref(database, "rooms/miss2027/connectionsOpen"), false);
   const updateDemoEnabled = (state) => set(ref(database, "rooms/miss2027/demoEnabled"), Boolean(state));
   const updateFinaleStarted = (state) => set(ref(database, "rooms/miss2027/finaleStarted"), state);
 

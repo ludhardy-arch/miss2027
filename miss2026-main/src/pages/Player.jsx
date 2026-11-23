@@ -24,6 +24,7 @@ export default function Player({ user, setUser }) {
     votesOpen,
     adminSelections,
     updatePlayerVote,
+    updateFirstRoundWithFavorite,
     players,
     gameId,
   } = useContext(AppContext);
@@ -45,6 +46,7 @@ export default function Player({ user, setUser }) {
   // ----------------------------------------------------------------------------------------
 
   const [selection, setSelection] = useState([]);
+  const [favorite, setFavorite] = useState(null);
   const [ranking, setRanking] = useState({});
   const [showVoteBanner, setShowVoteBanner] = useState(true);
   const [votePending, setVotePending] = useState(false);
@@ -95,6 +97,10 @@ export default function Player({ user, setUser }) {
 
     if (tour === 3) setRanking(saved ? JSON.parse(saved) : {});
     else setSelection(saved ? JSON.parse(saved) : []);
+    if (tour === 1) {
+      const savedFavorite = localStorage.getItem(`miss2027_${gameId}_favorite_tour1_${user.pseudo}`);
+      setFavorite(savedFavorite ? Number(savedFavorite) : null);
+    }
   }, [tour, hasVotedThisTour, user.pseudo, gameId]);
 
   // Sauvegarde locale live
@@ -106,6 +112,13 @@ export default function Player({ user, setUser }) {
       JSON.stringify(selection)
     );
   }, [selection, tour, hasVotedThisTour, user.pseudo, gameId]);
+
+  useEffect(() => {
+    if (tour !== 1 || hasVotedThisTour || !gameId || gameId === "loading") return;
+    const key = `miss2027_${gameId}_favorite_tour1_${user.pseudo}`;
+    if (favorite == null) localStorage.removeItem(key);
+    else localStorage.setItem(key, String(favorite));
+  }, [tour, hasVotedThisTour, favorite, gameId, user.pseudo]);
 
   // Sauvegarde classement finale
   useEffect(() => {
@@ -120,10 +133,19 @@ export default function Player({ user, setUser }) {
   // Sélection pour tour 1 & 2
   const handleClickMiss = (id) => {
     if (!votesOpen || hasVotedThisTour || tour === 3) return;
-    if (selection.includes(id))
+    if (selection.includes(id)) {
       setSelection(selection.filter((x) => x !== id));
+      if (tour === 1 && favorite === id) setFavorite(null);
+    }
     else if (selection.length < maxSelect)
       setSelection([...selection, id]);
+  };
+
+  const handleFavorite = (event, id) => {
+    event.stopPropagation();
+    if (tour !== 1 || !votesOpen || hasVotedThisTour || votePending || !selection.includes(id)) return;
+    setFavorite(current => current === id ? null : id);
+    setVoteFeedback("");
   };
 
   const getRankLabel = (rank) =>
@@ -140,12 +162,18 @@ export default function Player({ user, setUser }) {
         return;
       }
 
+      if (tour === 1 && !selection.includes(favorite)) {
+        setVoteFeedback("❤️ Choisis ton coup de cœur parmi tes 12 Miss avant de valider.");
+        return;
+      }
+
       // Le clic sur « Valider mon vote » constitue la confirmation.
       // Éviter window.confirm, parfois bloqué dans les navigateurs intégrés sur mobile.
       setVotePending(true);
       setVoteFeedback("Enregistrement de ton vote en cours…");
       try {
-        await updatePlayerVote(user.pseudo, tour, selection);
+        if (tour === 1) await updateFirstRoundWithFavorite(user.pseudo, selection, favorite);
+        else await updatePlayerVote(user.pseudo, tour, selection);
         setVoteFeedback("Vote enregistré !");
         navigate("/waiting");
       } catch (error) {
@@ -313,6 +341,11 @@ export default function Player({ user, setUser }) {
           boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
         }}
       >
+        {tour === 1 && <div style={{border:"1px solid rgba(255,134,180,.65)",borderRadius:12,padding:"13px 12px",marginBottom:15,background:"rgba(94,17,73,.42)",textAlign:"center"}}>
+          <div style={{fontSize:19,fontWeight:900,color:"#ffe0ac",marginBottom:6}}>❤️ TON COUP DE CŒUR · +20 POINTS</div>
+          <div style={{fontSize:14,lineHeight:1.5}}>Sélectionne 12 Miss, puis touche le petit cœur en haut à droite de celle que tu vois devenir <strong>Miss France 2027</strong> ! Si elle gagne, tu remportes <strong>20 points bonus</strong>.</div>
+          <div style={{fontSize:13,marginTop:8,color:"#ffd3e5",fontWeight:800}}>{favorite && selection.includes(favorite) ? `❤️ Coup de cœur : ${CANDIDATES.find(c => c.id === favorite)?.label || "Miss choisie"}` : "♡ Choisis un seul coup de cœur parmi tes 12 Miss"}</div>
+        </div>}
         <h3>◈ LE CODE COULEUR DU JEU</h3>
 
         <LegendItem colorClass="border-green" text={tour === 1 ? "Sélection des 12 Miss" : tour === 2 ? "Sélection des 5 Miss" : "Classement des 5 finalistes"} />
@@ -350,6 +383,27 @@ export default function Player({ user, setUser }) {
                   marginBottom: 4,
                 }}
               />
+              {tour === 1 && <button
+                type="button"
+                aria-label={favorite === miss.id ? `Retirer ${miss.label} des coups de cœur` : `Choisir ${miss.label} comme coup de cœur`}
+                aria-pressed={favorite === miss.id}
+                title={selection.includes(miss.id) ? "Mon coup de cœur" : "Sélectionne d’abord cette Miss"}
+                disabled={!votesOpen || hasVotedThisTour || votePending || !selection.includes(miss.id)}
+                onClick={(event) => handleFavorite(event, miss.id)}
+                style={{
+                  position: "absolute", top: 9, right: 9, zIndex: 5,
+                  width: 38, height: 38, minHeight: 0,
+                  display: "grid", placeItems: "center", padding: 0,
+                  borderRadius: "50%",
+                  background: favorite === miss.id ? "#c71b62" : "rgba(8,14,38,.76)",
+                  color: favorite === miss.id ? "#fff" : "#ffc5d8",
+                  border: favorite === miss.id ? "2px solid #ffe0ee" : "1px solid rgba(255,210,227,.8)",
+                  fontSize: 25, lineHeight: 1,
+                  boxShadow: favorite === miss.id ? "0 0 20px rgba(255,78,145,.8)" : "0 2px 9px rgba(0,0,0,.45)",
+                  opacity: selection.includes(miss.id) ? 1 : .45,
+                  cursor: selection.includes(miss.id) ? "pointer" : "default"
+                }}
+              >{favorite === miss.id ? "♥" : "♡"}</button>}
               <div className="tv-contestant-label"><span>{miss.label}</span><span aria-hidden="true">✦</span></div>
             </div>
           ))}

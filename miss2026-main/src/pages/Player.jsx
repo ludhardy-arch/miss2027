@@ -404,6 +404,7 @@ export default function Player({ user, setUser }) {
                   cursor: selection.includes(miss.id) ? "pointer" : "default"
                 }}
               >{favorite === miss.id ? "♥" : "♡"}</button>}
+              {tour === 2 && Number(playerData.favorite) === miss.id && <span title="Ton coup de cœur du premier tour" aria-label="Coup de cœur du premier tour" style={{position:"absolute",top:9,right:9,zIndex:5,fontSize:24,color:"#ff6a9e",textShadow:"0 0 10px rgba(255,84,154,.8)",background:"rgba(9,14,40,.85)",width:35,height:35,borderRadius:"50%",display:"grid",placeItems:"center"}}>♥</span>}
               <div className="tv-contestant-label"><span>{miss.label}</span><span aria-hidden="true">✦</span></div>
             </div>
           ))}
@@ -432,6 +433,7 @@ export default function Player({ user, setUser }) {
                   marginBottom: 8,
                 }}
               />
+              {Number(playerData.favorite) === miss.id && <span title="Ton coup de cœur du premier tour" aria-label="Coup de cœur du premier tour" style={{position:"absolute",top:9,right:9,zIndex:5,fontSize:24,color:"#ff6a9e",textShadow:"0 0 10px rgba(255,84,154,.8)",background:"rgba(9,14,40,.85)",width:35,height:35,borderRadius:"50%",display:"grid",placeItems:"center"}}>♥</span>}
               <div className="tv-contestant-label" style={{ marginBottom: 8 }}>{miss.label}</div>
 
               <select

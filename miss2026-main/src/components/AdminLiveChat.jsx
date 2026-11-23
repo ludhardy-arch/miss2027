@@ -5,7 +5,7 @@ import { ref, onValue, push } from "firebase/database";
 // Same shared Firebase chat room as the players, embedded in the control room.
 // Messages historiques envoyés avant l'utilisation du nom ADMIN.
 const isAdminMessage = (message) => {
-  const author = String(message?.author || "").trim().toLocaleLowerCase("fr").replace(/\\s+/g, " ");
+  const author = String(message?.author || "").trim().toLocaleLowerCase("fr").replace(/\s+/g, " ");
   return author === "admin" || author === "hardy ludo" || author === "ludo hardy";
 };
 

@@ -350,11 +350,48 @@ export default function Player({ user, setUser }) {
           boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
         }}
       >
-        {tour === 1 && <div style={{border:"1px solid rgba(255,134,180,.65)",borderRadius:12,padding:"13px 12px",marginBottom:15,background:"rgba(94,17,73,.42)",textAlign:"center"}}>
-          <div style={{fontSize:19,fontWeight:900,color:"#ffe0ac",marginBottom:6}}>❤️ TON COUP DE CŒUR · +20 POINTS</div>
-          <div style={{fontSize:14,lineHeight:1.5}}>Sélectionne 12 Miss, puis touche le petit cœur en haut à droite de celle que tu vois devenir <strong>Miss France 2027</strong> ! Si elle gagne, tu remportes <strong>20 points bonus</strong>.</div>
-          <div style={{fontSize:13,marginTop:8,color:"#ffd3e5",fontWeight:800}}>{favorite && selection.includes(favorite) ? `❤️ Coup de cœur : ${CANDIDATES.find(c => c.id === favorite)?.label || "Miss choisie"}` : "♡ Choisis un seul coup de cœur parmi tes 12 Miss"}</div>
-        </div>}
+        {tour === 1 && (
+          <section aria-label="Comment voter au premier tour" style={{
+            border: "1px solid #d57eb9",
+            borderRadius: 16,
+            padding: "15px 12px",
+            marginBottom: 16,
+            background: "linear-gradient(145deg, rgba(69,25,75,.85), rgba(30,15,49,.93))",
+            boxShadow: "0 3px 18px rgba(171,56,131,.2)"
+          }}>
+            <h3 style={{margin:"0 0 14px",fontFamily:"Georgia,serif",fontSize:"clamp(18px,5vw,23px)",lineHeight:1.25,color:"#ffe3aa",textAlign:"center"}}>
+              ✦ TOUR 1 · COMMENT VOTER ? ✦
+            </h3>
+            {[
+              {number:"1", symbol:"♛", title:"Sélectionne 12 Miss.", description:""},
+              {number:"2", symbol:"♡", title:"Choisis 1 coup de cœur parmi tes 12.", description:"Touche le petit cœur en haut à droite de sa photo."},
+              {number:"3", symbol:"✓", title:"Valide ton vote.", description:""}
+            ].map(item => (
+              <div key={item.number} style={{
+                display:"flex",alignItems:"center",gap:10,textAlign:"left",
+                background:"rgba(255,255,255,.07)",border:"1px solid rgba(250,207,235,.18)",
+                borderRadius:12,padding:"10px 11px",marginBottom:8
+              }}>
+                <span style={{flexShrink:0,background:"#f4c981",color:"#241438",borderRadius:"50%",width:28,height:28,display:"grid",placeItems:"center",fontWeight:900}}>{item.number}</span>
+                <span aria-hidden="true" style={{flexShrink:0,fontSize:23,color:"#ffda9e",width:27,textAlign:"center"}}>{item.symbol}</span>
+                <span style={{minWidth:0,lineHeight:1.4}}>
+                  <strong style={{display:"block",fontSize:14,color:"#fff6fc"}}>{item.title}</strong>
+                  {item.description && <span style={{display:"block",fontSize:13,color:"#e8dbea",marginTop:3}}>{item.description}</span>}
+                </span>
+              </div>
+            ))}
+            <div style={{
+              background:"rgba(192,34,100,.25)",border:"1px solid #fa86b9",
+              borderRadius:12,padding:"11px",marginTop:12,color:"#ffe4a9",
+              fontSize:14,lineHeight:1.45,textAlign:"center",fontWeight:700
+            }}>❤️ +20 points bonus si ton coup de cœur devient Miss France 2027.</div>
+            <div aria-live="polite" style={{marginTop:10,fontSize:13,color:"#ffd3e5",textAlign:"center",fontWeight:700}}>
+              {favorite && selection.includes(favorite)
+                ? `❤️ Ton coup de cœur : ${CANDIDATES.find(c => c.id === favorite)?.label || "Miss choisie"}`
+                : "♡ Un seul coup de cœur possible"}
+            </div>
+          </section>
+        )}
         <h3>◈ LE CODE COULEUR DU JEU</h3>
 
         <LegendItem colorClass="border-green" text={tour === 1 ? "Sélection des 12 Miss" : tour === 2 ? "Sélection des 5 Miss" : "Classement des 5 finalistes"} />

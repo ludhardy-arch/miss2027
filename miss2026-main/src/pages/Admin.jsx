@@ -12,7 +12,7 @@ import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { database } from "../firebase";
-import { ref, push, set } from "firebase/database";
+import { ref, push, set, get } from "firebase/database";
 
 const votePulseKeyframes = `
 @keyframes votePulse {
@@ -66,6 +66,7 @@ export default function Admin({ user, setUser }) {
   const [resetConfirmation, setResetConfirmation] = useState("");
   const [ranking, setRanking] = useState({});
   const [savingFinalRanking, setSavingFinalRanking] = useState(false);
+  const [advancingTour, setAdvancingTour] = useState(false);
   const [votesExpanded, setVotesExpanded] = useState(false);
   const [rankExpanded, setRankExpanded] = useState(false);
   const [playersExpanded, setPlayersExpanded] = useState(false);
@@ -133,12 +134,53 @@ export default function Admin({ user, setUser }) {
     if (savingFinalRanking) return;
     if (tour === 3 && finalRankingValidated) return;
     if (tour < 3) {
-      if (selection.length !== maxSelect)
-        return alert(`Vous devez sélectionner ${maxSelect} miss.`);
+      if (advancingTour) return;
+      if (votesOpen) {
+        alert("⛔ Fermez les votes avant de valider la sélection officielle et de passer au tour suivant.");
+        return;
+      }
+      if (selection.length !== maxSelect) {
+        alert(`Vous devez sélectionner ${maxSelect} Miss.`);
+        return;
+      }
 
-      if (!window.confirm(`Valider le tour ${tour} ?`)) return;
+      setAdvancingTour(true);
+      try {
+        // Relecture Firebase : la simple valeur affichée peut dater de quelques instants.
+        const votesSnapshot = await get(ref(database, "rooms/miss2027/votesOpen"));
+        if (votesSnapshot.val() !== false) {
+          alert("⛔ Les votes sont ouverts dans Firebase. Fermez-les avant de changer de tour.");
+          return;
+        }
 
-      safely(async () => { await updateAdminSelections(tour, selection); await updateTour(tour + 1); });
+        const missingPlayers = Object.entries(players || {})
+          .filter(([, player]) => {
+            const vote = player?.[`tour${tour}`];
+            return !(Array.isArray(vote) ? vote.length > 0 : vote && Object.keys(vote).length > 0);
+          }).map(([pseudo]) => pseudo);
+
+        if (missingPlayers.length > 0) {
+          const names = missingPlayers.slice(0, 8).join(", ");
+          const extra = missingPlayers.length > 8 ? "…" : "";
+          const message = `⚠️ ${missingPlayers.length} joueur(s) sur ${Object.keys(players || {}).length} n'ont pas voté au tour ${tour}.\n${names}${extra}\n\nPasser au tour suivant malgré les votes manquants ?`;
+          if (!window.confirm(message)) return;
+        }
+
+        if (!window.confirm(`Valider les ${maxSelect} Miss officielles et passer au tour ${tour + 1} ?`)) return;
+
+        // Vérification finale juste avant l'écriture.
+        const latestVotes = await get(ref(database, "rooms/miss2027/votesOpen"));
+        if (latestVotes.val() !== false) {
+          alert("⛔ Les votes ont été rouverts. Passage de tour annulé.");
+          return;
+        }
+        await updateAdminSelections(tour, selection);
+        await updateTour(tour + 1);
+      } catch (error) {
+        reportActionError(error);
+      } finally {
+        setAdvancingTour(false);
+      }
       return;
     }
 
@@ -267,7 +309,7 @@ export default function Admin({ user, setUser }) {
         <button type="button" className={"regie-switch "+(connectionsOpen?"is-on":"is-off")} onClick={()=>safely(()=>updateConnectionsOpen(!connectionsOpen))}><span>⇥</span><b>CONNEXIONS</b><strong>{connectionsOpen?"ON":"OFF"}</strong></button>
         <button type="button" className={"regie-switch "+(votesOpen?"is-on":"is-off")} onClick={()=>safely(()=>updateVotesOpen(!votesOpen))}><span>✉</span><b>VOTES</b><strong>{votesOpen?"ON":"OFF"}</strong></button>
         <button type="button" disabled={!demoLoaded} className={"regie-switch "+(demoEnabled?"is-on":"is-off")} onClick={()=>safely(()=>updateDemoEnabled(!demoEnabled))}><span>▣</span><b>MODE DÉMO</b><strong>{!demoLoaded?"…":demoEnabled?"ON":"OFF"}</strong></button>
-        <button type="button" className="regie-show" disabled={tour!==3 || finaleStarted} onClick={()=>{if(window.confirm("Lancer le show final maintenant ?"))safely(()=>updateFinaleStarted(true));}}><span>♛</span><b>SHOW FINAL</b><strong>{finaleStarted?"SHOW LANCÉ":"LANCER LE SHOW"}</strong></button>
+        <button type="button" className="regie-show" disabled={tour!==3 || finaleStarted || !finalRankingValidated || savingFinalRanking} onClick={()=>{if(window.confirm("Lancer le show final maintenant ?"))safely(()=>updateFinaleStarted(true));}}><span>♛</span><b>SHOW FINAL</b><strong>{finaleStarted?"SHOW LANCÉ":"LANCER LE SHOW"}</strong></button>
       </div></section>
 
       <div className="regie-info-grid">
@@ -385,7 +427,7 @@ export default function Admin({ user, setUser }) {
         <button
           onClick={handleValidate}
           type="button"
-          disabled={savingFinalRanking || finalRankingValidated}
+          disabled={savingFinalRanking || advancingTour || finalRankingValidated || (tour < 3 && votesOpen)}
           style={finalRankingValidated ? {
             background: "linear-gradient(120deg, #075b3f, #12835a)",
             border: "2px solid #55e8a8",
@@ -398,8 +440,10 @@ export default function Admin({ user, setUser }) {
         >
           {tour === 3
             ? (savingFinalRanking ? "Enregistrement…" : finalRankingValidated ? "✅ Classement validé" : "Valider le classement")
-            : "Valider la sélection"}
+            : (advancingTour ? "Passage au tour suivant…" : votesOpen ? "⛔ Fermez les votes pour valider" : "Valider la sélection")}
         </button>
+        {tour < 3 && votesOpen && <p role="status" style={{color:"#ffd48a",fontWeight:700,marginTop:10}}>Ferme d'abord les votes dans les commandes de la régie pour passer au tour suivant.</p>}
+        {tour === 3 && !finalRankingValidated && <p role="status" style={{color:"#ffd48a",fontWeight:700,marginTop:10}}>Le show final reste verrouillé tant que le classement officiel n'est pas validé.</p>}
       </div>
 
 

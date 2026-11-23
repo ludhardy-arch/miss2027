@@ -65,6 +65,7 @@ export default function Admin({ user, setUser }) {
   const [showDangerZone, setShowDangerZone] = useState(false);
   const [resetConfirmation, setResetConfirmation] = useState("");
   const [ranking, setRanking] = useState({});
+  const [savingFinalRanking, setSavingFinalRanking] = useState(false);
   const [votesExpanded, setVotesExpanded] = useState(false);
   const [rankExpanded, setRankExpanded] = useState(false);
   const [playersExpanded, setPlayersExpanded] = useState(false);
@@ -116,7 +117,21 @@ export default function Admin({ user, setUser }) {
     return "4ème dauphine";
   };
 
-  const handleValidate = () => {
+  // Confirmation visible seulement si le classement affiché correspond
+  // au classement officiel enregistré et synchronisé depuis Firebase.
+  const finalRankingOrder = [1, 2, 3, 4, 5].map(rank => {
+    const entry = Object.entries(ranking).find(([, value]) => value === rank);
+    return entry ? Number(entry[0]) : null;
+  });
+  const savedFinalRanking = adminSelections.tour3;
+  const finalRankingValidated = tour === 3 &&
+    Array.isArray(savedFinalRanking) &&
+    savedFinalRanking.length === 5 &&
+    finalRankingOrder.every((id, index) => id !== null && Number(savedFinalRanking[index]) === id);
+
+  const handleValidate = async () => {
+    if (savingFinalRanking) return;
+    if (tour === 3 && finalRankingValidated) return;
     if (tour < 3) {
       if (selection.length !== maxSelect)
         return alert(`Vous devez sélectionner ${maxSelect} miss.`);
@@ -144,7 +159,14 @@ export default function Admin({ user, setUser }) {
       if (entry) ordered.push(Number(entry[0]));
     }
 
-    safely(() => updateAdminSelections(3, ordered));
+    setSavingFinalRanking(true);
+    try {
+      await updateAdminSelections(3, ordered);
+    } catch (error) {
+      reportActionError(error);
+    } finally {
+      setSavingFinalRanking(false);
+    }
   };
 
   const playerHasVoted = (p) => {
@@ -360,8 +382,23 @@ export default function Admin({ user, setUser }) {
 
       {/* Validation */}
       <div style={{ textAlign: "center", marginTop: 20 }}>
-        <button onClick={handleValidate}>
-          Valider {tour === 3 ? "le classement" : "la sélection"}
+        <button
+          onClick={handleValidate}
+          type="button"
+          disabled={savingFinalRanking || finalRankingValidated}
+          style={finalRankingValidated ? {
+            background: "linear-gradient(120deg, #075b3f, #12835a)",
+            border: "2px solid #55e8a8",
+            color: "white",
+            boxShadow: "0 0 18px rgba(47, 232, 148, .35)",
+            opacity: 1,
+            cursor: "default",
+            padding: "12px 24px"
+          } : undefined}
+        >
+          {tour === 3
+            ? (savingFinalRanking ? "Enregistrement…" : finalRankingValidated ? "✅ Classement validé" : "Valider le classement")
+            : "Valider la sélection"}
         </button>
       </div>
 

@@ -68,10 +68,10 @@ export default function Waiting({ user }) {
         }}>
           <div aria-hidden="true" style={{ fontSize: 34, marginBottom: 9 }}>👑 ✨ 👑</div>
           <h2 style={{ margin: "0 0 12px", fontSize: "clamp(25px, 7vw, 40px)", lineHeight: 1.2, color: "#ffe5a5", textTransform: "uppercase", letterSpacing: ".035em" }}>
-            RESTE AVEC NOUS !!!
+            RESTE CONNECTÉ, SI TU VEUX SAVOIR SI C’EST TOI LE MEILLEUR !!!
           </h2>
           <p style={{ margin: 0, fontSize: "clamp(19px, 5vw, 27px)", lineHeight: 1.4, fontWeight: 800 }}>
-            Le résultat va tomber dans quelques instants…
+            Le résultat tombera juste après l’élection de Miss France.
           </p>
         </section>
       )}

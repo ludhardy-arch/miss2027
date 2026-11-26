@@ -18,3 +18,16 @@ test("owner issues and rotates direct invitation, no secret exposed",()=>{
  assert.equal(manageGroup(r,{uid:"u1",action:"remove",targetUid:"u1"}).code,"membership_locked");
  assert.equal(invitationView(r,d2).code,"unavailable");
 });
+
+test("owner UID alone authorizes management; members and strangers cannot manage",()=>{
+ let r=root();
+ r=manageGroup(r,{uid:"u1",action:"invite",digest:d}).state;
+ r=acceptInvitation(r,{uid:"u2",digest:d,pseudo:"Participant",now:1}).state;
+ for(const uid of ["u2","stranger"]){
+   assert.equal(ownerView(r,uid).code,"owner_required");
+   for(const action of ["invite","revoke","remove"])assert.equal(manageGroup(r,{uid,action,digest:d2,targetUid:"u1"}).code,"owner_required");
+ }
+ assert.equal(manageGroup(r,{uid:"u1",action:"remove",targetUid:"u1"}).code,"invalid_member");
+ assert.equal(ownerView(r,"u1").result.group.isOwner,true);
+ assert.equal(manageGroup(r,{uid:"u1",action:"remove",targetUid:"u2"}).result.group.memberCount,1);
+});

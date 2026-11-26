@@ -35,10 +35,7 @@ const registry=getDatabase(app).ref("events/miss2027/registration");
 const derive=promisify(scrypt);
 const digestInvite=token=>createHash("sha256").update(token).digest("hex");
 const validInvite=token=>typeof token==="string"&&/^[a-f0-9]{64}$/.test(token);
-const ownerGrants=new Map();
-const grant=(uid,authTime)=>{for(const [id,g] of ownerGrants)if(g.expires<Date.now())ownerGrants.delete(id);ownerGrants.set(uid,{authTime,expires:Date.now()+900000});};
-const hasGrant=(uid,user)=>{const g=ownerGrants.get(uid);return !!g&&g.authTime===user.auth_time&&g.expires>Date.now()&&user.email_verified===true;};
-function registrationChange(root,operation){if(locked(root))return {code:"membership_locked"};const event=root?.events?.miss2027||{},out=operation(event.registration);if(out.code)return out;return {state:{...root,events:{...root.events,miss2027:{...event,registration:out.state}}},result:out.result};}
+function registrationChange(root,operation){if(locked(root))return {code:"membership_locked"};const event=root?.events?.miss2027||{},out=operation(event.registration);if(out.code)return out;return {state:{...root,events:{...root?.events,miss2027:{...event,registration:out.state}}},result:out.result};}
 const validString=(v,min,max)=>typeof v==="string"&&v.trim().length>=min&&v.length<=max;
 const validId=v=>typeof v==="string"&&/^[a-f0-9-]{36}$/.test(v);
 const rate=new Map();
@@ -196,7 +193,6 @@ const server=http.createServer(async(req,res)=>{
       if(!word||b.confirmation!==word||b.confirmed!==true)return reply(res,400,{error:"invalid_reset"});
       const id=Date.now()+"-"+randomUUID();
       const result=await directReset(b.kind,id);
-      if(result.status===200&&b.kind==="registrations")ownerGrants.clear();
       console.log("TEST_ADMIN_RESET "+b.kind+" "+JSON.stringify(result.status===200?{verified:result.body.verified,before:result.body.before,remaining:result.body.remaining}:{error:result.body.error,reasons:result.body.reasons||[]}));
       return reply(res,result.status,result.body);
     }
@@ -231,7 +227,6 @@ const server=http.createServer(async(req,res)=>{
       return reply(res,result.status,result.body);
     }
     if(url.pathname==="/groups/owner/manage"){
-      if(!hasGrant(uid,user))return reply(res,403,{error:"owner_session_expired"});
       if(req.method==="GET"){
         const view=ownerView((await getDatabase(app).ref().get()).val(),uid);
         return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
@@ -242,18 +237,6 @@ const server=http.createServer(async(req,res)=>{
         return reply(res,result.status,result.status===200&&token?{...result.body,token}:result.body);
       }
       return reply(res,405,{error:"method_not_allowed"});
-    }
-    if(req.method==="POST"&&url.pathname==="/groups/email"){
-      // Availability only: never return account identifiers, group names or personal data.
-      // Limited to the test contest, not a general Firebase account existence check.
-      if(limited("email-check:"+uid,12))return reply(res,429,{error:"too_many_requests"});
-      const b=await body(req);
-      if(!validString(b.email,3,254)||!/^\S+@[^\s@]+\.[^\s@]+$/.test(b.email.trim())||b.email.trim().split("@").length!==2)return reply(res,400,{error:"invalid_fields"});
-      let account;
-      try{account=await auth.getUserByEmail(b.email.trim().toLowerCase());}
-      catch(err){if(err.code==="auth/user-not-found")return reply(res,200,{available:true});throw err;}
-      const state=(await registry.get()).val();
-      return reply(res,200,{available:!state?.membership?.[account.uid]});
     }
     if(req.method==="POST"&&url.pathname==="/groups/name"){
       const b=await body(req);
@@ -287,28 +270,14 @@ const server=http.createServer(async(req,res)=>{
       const snap=await registry.get();
       return reply(res,200,{groups:searchGroups(snap.val(),query)});
     }
-    if(req.method==="POST"&&url.pathname==="/groups/owner/access"){
-      if(!user.email||!user.email_verified||!user.auth_time||Date.now()/1000-user.auth_time>900)return reply(res,403,{error:"verified_email_required"});
-      if(limited("owner:"+uid,5))return reply(res,429,{error:"too_many_requests"});
-      const b=await body(req);
-      if(!validString(b.password,6,128))return reply(res,400,{error:"invalid_fields"});
-      const state=(await registry.get()).val();
-      const id=state?.membership?.[uid],group=id&&state.groups?.[id];
-      if(!group||group.ownerUid!==uid||!group.members?.[uid])return reply(res,403,{error:"owner_required"});
-      if(!await matches(b.password,group.secret))return reply(res,403,{error:"invalid_password"});
-      grant(uid,user.auth_time);
-      const view=ownerView((await getDatabase(app).ref().get()).val(),uid);
-      return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
-    }
     if(req.method==="POST"&&url.pathname==="/groups/create"){
-      if(!user.email||!user.email_verified||!user.auth_time||Date.now()/1000-user.auth_time>900)return reply(res,403,{error:"verified_email_required"});
+      if(uid==="fma5bvfcCRYoS1kBf0CUFdBVowJ3")return reply(res,403,{error:"admin_cannot_register"});
       if(limited("create:"+uid,3))return reply(res,429,{error:"too_many_requests"});
       const b=await body(req);
       if(!validString(b.name,1,80)||!validString(b.pseudo,1,24)||!validString(b.password,6,128))return reply(res,400,{error:"invalid_fields"});
       const epoch=(await registry.child("epoch").get()).val()||null;
       const id=randomUUID(),secret=await hash(b.password),now=Date.now();
       const result=await atomic(root=>registrationChange(root,s=>(s?.epoch||null)!==epoch?{code:"registration_reset"}:createGroup(s,{uid,id,name:b.name.trim(),pseudo:b.pseudo.trim(),secret,now})),getDatabase(app).ref());
-      if(result.status===200)grant(uid,user.auth_time);
       return reply(res,result.status,result.body);
     }
     if(req.method==="POST"&&url.pathname==="/groups/join"){

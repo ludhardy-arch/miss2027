@@ -1,0 +1,35 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "rooms": {
+      "miss2027": {
+        "demoEnabled": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid === 'fma5bvfcCRYoS1kBf0CUFdBVowJ3' && auth.token.firebase.sign_in_provider === 'google.com'",
+          ".validate": "newData.isBoolean()"
+        },
+        "connectionsOpen": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid === 'fma5bvfcCRYoS1kBf0CUFdBVowJ3' && auth.token.firebase.sign_in_provider === 'google.com'",
+          ".validate": "newData.isBoolean() && (!newData.val() || data.parent().child('finaleStarted').val() !== true)"
+        },
+        "votesOpen": {
+          ".read": "auth != null"
+        },
+        "tour": {
+          ".read": "auth != null"
+        },
+        "finaleStarted": {
+          ".read": "auth != null"
+        },
+        "gameId": {
+          ".read": "auth != null"
+        },
+        "adminSelections": {
+          ".read": "auth != null && auth.uid === 'fma5bvfcCRYoS1kBf0CUFdBVowJ3' && auth.token.firebase.sign_in_provider === 'google.com'"
+        }
+      }
+    }
+  }
+}

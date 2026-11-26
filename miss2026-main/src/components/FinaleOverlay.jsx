@@ -4,14 +4,16 @@ import { calculatePoints } from "../services/points";
 import { AppContext } from "../context/AppContext";
 
 // Premium, mobile-first ceremony for the PLAYERS' prediction competition.
-export default function FinalShow({ players, adminSelections, isAdmin }) {
+export default function FinalShow({ players, adminSelections, isAdmin, frozenRanking = null, national = null, showKey = null, groupName = null }) {
   const { updateFinaleStarted } = useContext(AppContext);
-  const ranking = useMemo(() => Object.entries(players || {})
+  const ranking = useMemo(() => frozenRanking ?? Object.entries(players || {})
     .map(([pseudo, votes]) => ({ pseudo, points: calculatePoints(votes, adminSelections) || 0 }))
     .sort((a, b) => b.points - a.points || a.pseudo.localeCompare(b.pseudo, "fr"))
-    .map((player, index) => ({ ...player, rank: index + 1 })), [players, adminSelections]);
+    .map((player, index) => ({ ...player, rank: index + 1 })), [players, adminSelections, frozenRanking]);
 
-  const [scene, setScene] = useState("intro");
+  const [scene, setScene] = useState(()=>{try{return showKey&&sessionStorage.getItem(showKey)==="done"?"results":"intro";}catch{return "intro";}});
+  const tied=ranking.some((p,i)=>i>0&&p.rank===ranking[i-1].rank);
+  useEffect(()=>{if(scene==="results"&&showKey)try{sessionStorage.setItem(showKey,"done");}catch{}},[scene,showKey]);
   const [introStep, setIntroStep] = useState(0);
   const [countdown, setCountdown] = useState(5);
   const [revealIndex, setRevealIndex] = useState(Math.min(4, ranking.length - 1));
@@ -25,11 +27,11 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
       else if (countdown > 1) setCountdown(value => value - 1);
       else {
         setRevealIndex(Math.min(4, ranking.length - 1));
-        setScene(ranking.length > 2 ? "reveal" : ranking.length === 2 ? "duel" : "suspense");
+        setScene(!ranking.length?"results":tied?"suspense":ranking.length > 2 ? "reveal" : ranking.length === 2 ? "duel" : "suspense");
       }
     }, introStep < 2 ? 4000 : 1000);
     return () => clearTimeout(timer);
-  }, [scene, introStep, countdown, ranking.length]);
+  }, [scene, introStep, countdown, ranking.length,tied]);
 
   // Only places 5, 4 and 3 are revealed individually.
   useEffect(() => {
@@ -81,7 +83,8 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
   const winner = ranking[0];
   const revealed = ranking[revealIndex];
   // Alphabetical display keeps the duel neutral: neither side identifies the winner.
-  const finalists = ranking.slice(0, 2).sort((a, b) => a.pseudo.localeCompare(b.pseudo, "fr"));
+  const winners=ranking.filter(p=>p.rank===1);
+  const finalists = (tied?winners:ranking.slice(0, 2)).slice().sort((a, b) => a.pseudo.localeCompare(b.pseudo, "fr"));
   const ordinal = rank => rank === 1 ? "1re" : `${rank}e`;
   const baseCard = { width: "100%", maxWidth: 460, margin: "auto", position: "relative", zIndex: 1 };
   const smallCap = { fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: "#e5c287", fontFamily: "Arial, sans-serif", fontWeight: 700 };
@@ -97,7 +100,7 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
       <header className="finalshow-header">
         <div style={{ fontSize: 27, lineHeight: 1, color: "#f0cf86" }} aria-hidden="true">♛</div>
         <div style={{ ...smallCap, fontSize: 14, letterSpacing: ".14em" }}>MISS FRANCE <span style={gold}>2027</span></div>
-        <div style={{ ...smallCap, fontSize: 9, color: "#d9bfa0", letterSpacing: ".2em" }}>Le jeu des pronostics</div>
+        <div style={{ ...smallCap, fontSize: 9, color: "#d9bfa0", letterSpacing: ".2em" }}>{groupName||"Le jeu des pronostics"}</div>
         {isAdmin && <button className="finalshow-quit" onClick={quit}>Quitter</button>}
       </header>
 
@@ -151,7 +154,7 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
               <h1 style={{ ...headline, color: "#ffe0a0", fontSize: "clamp(30px,8vw,47px)", margin: "19px 0 12px" }}>LE DUEL FINAL</h1>
               <p style={{ color: "#dfcbaa", fontSize: 14, margin: "0 0 30px" }}>Ils sont encore deux… Qui remportera le titre ?</p>
               <div className="finalshow-duel">
-                {finalists.map(player => <div className="finalshow-finalist" key={player.pseudo}>
+                {finalists.map(player => <div className="finalshow-finalist" key={player.uid || player.pseudo}>
                   <span className="finalshow-finalist-crown" aria-hidden="true">♛</span>
                   <strong>{player.pseudo}</strong>
                   <span>FINALISTE</span>
@@ -169,7 +172,7 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
               </h1>
               <p className="finalshow-name-enter" style={{ ...headline, fontSize: "clamp(23px,6.5vw,34px)", color: "#ffe0a0", margin: "0 0 28px", animationDelay: "1.8s" }}>ET RESTERA…</p>
               <div className="finalshow-duel">
-                {finalists.map(player => <div className="finalshow-finalist" key={player.pseudo}>
+                {finalists.map(player => <div className="finalshow-finalist" key={player.uid || player.pseudo}>
                   <span className="finalshow-finalist-crown" aria-hidden="true">♛</span>
                   <strong>{player.pseudo}</strong>
                   <span>FINALISTE</span>
@@ -182,11 +185,11 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
           {scene === "winner" && winner && (
             <div className="finalshow-center">
               <div style={smallCap}>Miss France 2027</div>
-              <div className="finalshow-ribbon">GRAND GAGNANT</div>
+              <div className="finalshow-ribbon">{winners.length>1?"GRANDS GAGNANTS EX ÆQUO":"GRAND GAGNANT"}</div>
               <div className="finalshow-medallion finalshow-medallion-winner" aria-hidden="true">♛</div>
-              <h1 className="finalshow-winner">{winner.pseudo}</h1>
+              <h1 className="finalshow-winner">{winners.map(p=>p.pseudo).join(" · ")}</h1>
               <div className="finalshow-points">{winner.points} points</div>
-              <p style={{ color: "#edd6ad", fontSize: 13, marginTop: 25 }}>Félicitations à notre champion !</p>
+              <p style={{ color: "#edd6ad", fontSize: 13, marginTop: 25 }}>{winners.length>1?"Félicitations aux champions !":"Félicitations à notre champion !"}</p>
             </div>
           )}
 
@@ -194,17 +197,17 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
             <div className="finalshow-center">
               <div style={smallCap}>La cérémonie des récompenses</div>
               <h2 style={{ ...headline, color: "#ffe1a0", fontSize: "clamp(30px,8vw,46px)", margin: "18px 0 35px" }}>LE PODIUM FINAL</h2>
-              <div className="finalshow-podium">
+              {tied?<div className="finalshow-ranking">{ranking.filter(p=>p.rank<=3).map(p=><div className="finalshow-ranking-row" key={p.uid||p.pseudo}><strong>{p.rank}</strong><span>{p.pseudo}</span><span>{p.points} pts</span></div>)}</div>:<div className="finalshow-podium">
                 {[1, 0, 2].map((index) => {
                   const player = ranking[index];
                   if (!player) return <div key={index} style={{ flex: 1 }} />;
-                  return <div key={player.pseudo} className="finalshow-podium-person">
+                  return <div key={player.uid || player.pseudo} className="finalshow-podium-person">
                     <div className="finalshow-podium-name">{player.pseudo}</div>
                     <div className="finalshow-podium-points">{player.points} pts</div>
                     <div className={`finalshow-podium-column place-${index + 1}`}>{index + 1}</div>
                   </div>;
                 })}
-              </div>
+              </div>}
               <p style={{ color: "#edcf97", marginTop: 25, fontSize: 13 }}>Bravo aux trois premiers !</p>
             </div>
           )}
@@ -215,13 +218,15 @@ export default function FinalShow({ players, adminSelections, isAdmin }) {
               <h2 style={{ ...headline, textAlign: "center", color: "#ffe1a0", fontSize: "clamp(29px,8vw,42px)", margin: "14px 0 26px" }}>Classement final</h2>
               <div className="finalshow-ranking">
                 {ranking.map(player => (
-                  <div className="finalshow-ranking-row" key={player.pseudo}>
+                  <div className="finalshow-ranking-row" key={player.uid || player.pseudo}>
                     <span className={`finalshow-rank-number rank-${player.rank}`}>{player.rank}</span>
                     <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere", fontWeight: player.rank === 1 ? 700 : 400 }}>{player.pseudo}</span>
                     <span style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{player.points} pts</span>
                   </div>
                 ))}
               </div>
+              {!ranking.length&&<p>Aucun pronostic enregistré dans cette salle.</p>}
+              {national&&<section style={{marginTop:24,textAlign:"center"}}><h2>Classement national</h2>{national.personal?<p>Ton rang : <strong>{national.personal.nationalRank} / {national.personal.nationalTotal}</strong> · {national.personal.points} points</p>:<p>Aucun pronostic enregistré pour toi.</p>}<div className="finalshow-ranking">{(national.nationalTop||[]).map((p,i)=><div className="finalshow-ranking-row" key={i}><span>{p.rank}</span><span>{p.pseudo}</span><strong>{p.points} pts</strong></div>)}</div></section>}
               <p style={{ textAlign: "center", color: "#a8a09b", fontSize: 12, marginTop: 20 }}>Merci à tous d'avoir joué !</p>
             </div>
           )}

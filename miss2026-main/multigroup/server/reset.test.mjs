@@ -29,9 +29,9 @@ test("registration reset refuses an ongoing game and preserves settings after ga
  assert.equal(r.rooms.miss2027.tour,game.rooms.miss2027.tour);
  assert.deepEqual(r.other,root.other);
 });
-test("invalid reset and absent room are rejected",()=>{
+test("invalid reset and registration reset without initialized room are rejected",()=>{
  assert.equal(resetContest(root,"other","x").code,"invalid_reset");
- assert.equal(resetContest(null,"game","x").code,"room_not_initialized");
+ assert.equal(resetContest(null,"registrations","x").code,"room_not_initialized");
 });
 
 test("registration reset clears the same registry used by search and recovery",()=>{

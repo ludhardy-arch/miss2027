@@ -130,7 +130,7 @@ export default function Login({ setUser }) {
       </header>
       <div style={{width:"min(100%,600px)",margin:"0 auto 16px"}}>
         <button type="button" aria-expanded={showRules} aria-controls="howto-rules" onClick={() => setShowRules(open => !open)}
-          style={{display:"flex",alignItems:"center",justifyContent:"center",position:"relative",boxSizing:"border-box",width:"100%",minHeight:48,padding:"12px 42px",borderRadius:13,border:"1px solid #bd8fdb",background:"linear-gradient(135deg,#432068,#6f378f,#432068)",color:"#fff",fontSize:15,fontWeight:800,boxShadow:"0 0 14px rgba(187,111,233,.25)"}}>
+          style={{display:"flex",alignItems:"center",justifyContent:"center",position:"relative",boxSizing:"border-box",width:"100%",minHeight:58,padding:"15px 42px",borderRadius:13,border:"1px solid #bd8fdb",background:"linear-gradient(135deg,#432068,#6f378f,#432068)",color:"#fff",fontSize:16,fontWeight:800,boxShadow:"0 0 14px rgba(187,111,233,.25)"}}>
           Comment jouer ?
           <span aria-hidden="true" style={{position:"absolute",right:18,fontSize:20,lineHeight:1,transform:showRules?"rotate(180deg)":"rotate(0deg)",transition:"transform .18s ease"}}>⌄</span>
         </button>

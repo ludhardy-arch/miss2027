@@ -11,25 +11,24 @@ function fixture() {
     players:{uidA:{pseudo:"Gérard"},uidB:{pseudo:"Gérard"},uidC:{pseudo:"Sophie"}},
     votesByUid:{uidA:perfect,uidB:perfect,uidC:{tour1,favorite:1}},
     groups:{family:{type:"private"},friends:{type:"private"},public1:{type:"public"}},
-    membershipsByGroup:{family:{uidA:true,uidB:true},friends:{uidA:true,uidC:true},public1:{uidC:true}},
+    membershipsByGroup:{family:{uidA:true,uidB:true},friends:{},public1:{uidC:true}},
     eligibleUids:["uidA","uidB","uidC","uidA"],adminSelections:official
   };
 }
-test("one national entry per UID, same points in each group, duplicate pseudos allowed",()=>{
+test("one national entry and one group per UID, duplicate pseudos allowed",()=>{
   const r=buildFinalResults(fixture());
   assert.equal(r.national.length,3);
   assert.equal(r.perPlayer.uidA.points,401);
   assert.equal(r.local.family.find(x=>x.uid==="uidA").points,401);
-  assert.equal(r.local.friends.find(x=>x.uid==="uidA").points,401);
-  assert.deepEqual(Object.keys(r.perPlayer.uidA.groups).sort(),["family","friends"]);
+  assert.deepEqual(r.perPlayer.uidA.group,{groupId:"family",rank:1,total:2});
   assert.deepEqual(r.national.map(x=>x.rank),[1,1,3]);
   assert.equal(r.national.filter(x=>x.pseudo==="Gérard").length,2);
 });
 test("same score can yield a different local rank",()=>{
-  const f=fixture(); f.membershipsByGroup.friends={uidC:true};
+  const f=fixture(); f.membershipsByGroup.friends={uidC:true}; f.membershipsByGroup.public1={};
   const r=buildFinalResults(f);
   assert.equal(r.perPlayer.uidC.nationalRank,3);
-  assert.equal(r.perPlayer.uidC.groups.friends.rank,1);
+  assert.equal(r.perPlayer.uidC.group.rank,1);
 });
 test("duplicate predictions rejected",()=>{
   const f=fixture(); f.votesByUid.uidA={...perfect,tour1:Array(12).fill(1)};
@@ -39,9 +38,17 @@ test("invalid favorite rejected",()=>{
   const f=fixture(); f.votesByUid.uidA={...perfect,favorite:31};
   assert.throws(()=>buildFinalResults(f),/Coup de cœur invalide/);
 });
-test("one public room per identity",()=>{
-  const f=fixture();f.groups.public2={type:"public"};f.membershipsByGroup.public2={uidC:true};
-  assert.throws(()=>buildFinalResults(f),/Deux salles publiques/);
+test("private and public group cannot be combined",()=>{
+  const f=fixture();f.membershipsByGroup.friends={uidC:true};
+  assert.throws(()=>buildFinalResults(f),/Deux groupes/);
+});
+test("two private groups forbidden",()=>{
+  const f=fixture(); f.membershipsByGroup.friends={uidA:true};
+  assert.throws(()=>buildFinalResults(f),/Deux groupes/);
+});
+test("eligible player must belong to a group",()=>{
+  const f=fixture(); f.membershipsByGroup.public1={};
+  assert.throws(()=>buildFinalResults(f),/sans groupe/);
 });
 test("public room maximum 30 members",()=>{
   const f=fixture(); f.membershipsByGroup.public1=Object.fromEntries(Array.from({length:31},(_,i)=>["uid"+i,true]));

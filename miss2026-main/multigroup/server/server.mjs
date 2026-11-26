@@ -8,6 +8,7 @@ import {createGroup,joinGroup,searchGroups,registerPublic,membershipView} from "
 import {locked,ownerView,manageGroup,invitationView,acceptInvitation} from "./management.mjs";
 import {chatView,chatAction} from "./chat.mjs";
 import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
+import {conditionalWrite} from "./conditional.mjs";
 import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal,setVoteOpening} from "./game.mjs";
 
 const PROJECT="miss2027-test-v2";
@@ -82,6 +83,28 @@ async function atomic(operation,target=registry,verify=null){
   if(!tx.committed||outcome?.code)return {status:409,body:{error:outcome?.code||"conflict",...(outcome?.reasons?{reasons:outcome.reasons}:{})}};
   if(verify){const snapshot=tx.snapshot.val();if(!verify(snapshot))return {status:409,body:{error:"reset_not_verified"}};return {status:200,body:{...outcome.result,verified:true,remaining:registrationCounts(snapshot)}};}
   return {status:200,body:outcome.result};
+}
+async function directReset(kind,id){
+  // The URL is fixed to the dedicated test project and cannot be supplied by the caller.
+  const url=DATABASE+"/.json";
+  const token=await app.options.credential.getAccessToken();
+  const headers={Authorization:"Bearer "+token.access_token};
+  const read=async()=>{
+    const response=await fetch(url,{headers:{...headers,"X-Firebase-ETag":"true"},cache:"no-store",signal:AbortSignal.timeout(12000),redirect:"error"});
+    if(!response.ok)throw Object.assign(Error("database_read_failed"),{status:503});
+    return {state:await response.json(),etag:response.headers.get("etag")};
+  };
+  const write=async(state,etag)=>{
+    const response=await fetch(url,{method:"PUT",headers:{...headers,"Content-Type":"application/json","If-Match":etag},body:JSON.stringify(state),signal:AbortSignal.timeout(12000),redirect:"error"});
+    if(response.status===412)return {ok:false};
+    if(!response.ok)throw Object.assign(Error("database_write_failed"),{status:503});
+    return {ok:true,state:await response.json()};
+  };
+  const outcome=await conditionalWrite({read,write,operation:state=>resetContest(state,kind,id),verify:state=>verifyReset(state,kind,id)});
+  if(outcome.status!==200)return outcome;
+  const after=await read();
+  if(!verifyReset(after.state,kind,id))return {status:409,body:{error:"reset_not_verified"}};
+  return {status:200,body:{...outcome.body,verified:true,remaining:registrationCounts(after.state)}};
 }
 const readiness={auth:"pending",databaseRead:"pending",databaseWrite:"pending"};
 async function check(label,work){
@@ -172,10 +195,7 @@ const server=http.createServer(async(req,res)=>{
       const word=b.kind==="game"?"JEU":b.kind==="registrations"?"INSCRIPTIONS":null;
       if(!word||b.confirmation!==word||b.confirmed!==true)return reply(res,400,{error:"invalid_reset"});
       const id=Date.now()+"-"+randomUUID();
-      const target=getDatabase(app).ref();
-      // Prime the snapshot before the transaction; never overwrite a missing root with stale data.
-      await target.get();
-      const result=await atomic(state=>resetContest(state,b.kind,id),target,state=>verifyReset(state,b.kind,id));
+      const result=await directReset(b.kind,id);
       if(result.status===200&&b.kind==="registrations")ownerGrants.clear();
       console.log("TEST_ADMIN_RESET "+b.kind+" "+JSON.stringify(result.status===200?{verified:result.body.verified,before:result.body.before,remaining:result.body.remaining}:{error:result.body.error,reasons:result.body.reasons||[]}));
       return reply(res,result.status,result.body);

@@ -76,7 +76,7 @@ export default function Login({ setUser }) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const activePseudo=screen==="create-group"?creatorPseudo:["public","invite","join-group"].includes(screen)?pseudo:"";
-  const pseudoKey=activePseudo.trim()?JSON.stringify([firebaseIdentity,gameId,activePseudo.trim()]):"";
+  const pseudoKey=activePseudo.trim()?JSON.stringify([firebaseIdentity,gameId,activePseudo.trim(),screen==="create-group"]):"";
   const [pseudoCheck,setPseudoCheck]=useState({key:"",status:""});
   const [pseudoRetry,setPseudoRetry]=useState(0);
   const pseudoStatus=!pseudoKey?"":pseudoCheck.key===pseudoKey?pseudoCheck.status:"checking";
@@ -87,7 +87,7 @@ export default function Login({ setUser }) {
     setPseudoCheck({key:pseudoKey,status:"checking"});
     const timer=setTimeout(async()=>{
       try{
-        const result=await groupRequest("/groups/pseudo",{pseudo:activePseudo.trim()});
+        const result=await groupRequest("/groups/pseudo",{pseudo:activePseudo.trim(),creating:screen==="create-group"});
         if(active)setPseudoCheck({key:pseudoKey,status:result.available===true?"available":"taken"});
       }catch{if(active)setPseudoCheck({key:pseudoKey,status:"error"});}
     },750);
@@ -112,6 +112,25 @@ export default function Login({ setUser }) {
     return()=>{active=false;clearTimeout(timer);};
   },[nameKey,nameRetry,firebaseIdentity]);
   const nameFeedback=()=>!nameStatus?null:<div aria-live="polite" style={{fontSize:13,fontWeight:600,color:nameStatus==="available"?"#78ffbd":nameStatus==="taken"||nameStatus==="error"?"#ff929a":"#c6d3ee"}}>{nameStatus==="available"?"✓ Nom du groupe disponible":nameStatus==="taken"?"✗ Nom du groupe déjà pris":nameStatus==="error"?<>Vérification indisponible. <button type="button" onClick={()=>setNameRetry(n=>n+1)} style={{fontSize:12,padding:"3px 8px"}}>Réessayer</button></>:"Vérification du nom du groupe…"}</div>;
+  const emailValid=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(creatorEmail.trim())&&creatorEmail.trim().length<=254;
+  const emailKey=screen==="create-group"&&!verifiedCreator&&emailValid?JSON.stringify([firebaseIdentity,gameId,creatorEmail.trim().toLowerCase()]):"";
+  const [emailCheck,setEmailCheck]=useState({key:"",status:""});
+  const [emailRetry,setEmailRetry]=useState(0);
+  const emailStatus=!emailKey?"":emailCheck.key===emailKey?emailCheck.status:"checking";
+  const emailReady=emailStatus==="available";
+  useEffect(()=>{
+    if(!emailKey||!firebaseIdentity)return;
+    let active=true;
+    setEmailCheck({key:emailKey,status:"checking"});
+    const timer=setTimeout(async()=>{
+      try{
+        const result=await groupRequest("/groups/email",{email:creatorEmail.trim()});
+        if(active)setEmailCheck({key:emailKey,status:result.available===true?"available":"taken"});
+      }catch{if(active)setEmailCheck({key:emailKey,status:"error"});}
+    },850);
+    return()=>{active=false;clearTimeout(timer);};
+  },[emailKey,emailRetry,firebaseIdentity]);
+  const emailFeedback=()=>!emailStatus?null:<div aria-live="polite" style={{fontSize:13,fontWeight:600,color:emailStatus==="available"?"#78ffbd":emailStatus==="taken"||emailStatus==="error"?"#ff929a":"#c6d3ee"}}>{emailStatus==="available"?"✓ E-mail disponible":emailStatus==="taken"?"✗ E-mail déjà utilisé":emailStatus==="error"?<>Vérification indisponible. <button type="button" onClick={()=>setEmailRetry(n=>n+1)} style={{fontSize:12,padding:"3px 8px"}}>Réessayer</button></>:"Vérification de l’e-mail…"}</div>;
   const [adminUid, setAdminUid] = useState("");
   const [remaining, setRemaining] = useState(getRemainingTime);
   useEffect(() => {
@@ -249,12 +268,12 @@ export default function Login({ setUser }) {
   }
   async function requestCreatorEmail(event,intent){
     event.preventDefault();
-    if(pending||!creatorEmail.trim()||(intent==="create"&&(!pseudoReady||!nameReady)))return;
+    if(pending||!creatorEmail.trim()||(intent==="create"&&(!pseudoReady||!nameReady||!emailReady)))return;
     setPending(true);setError("");setEmailNotice("");setCreatorPassword("");
     try{
-      if(intent==="create"&&auth.currentUser){
-        const membership=await groupRequest("/groups/me");
-        if(membership.group){showExistingMembership(membership.group);return;}
+      if(intent==="create"){
+        const availability=await groupRequest("/groups/email",{email:creatorEmail.trim()});
+        if(availability.available!==true){setEmailCheck({key:emailKey,status:"taken"});return;}
       }
       const draft={email:creatorEmail.trim(),name:creatorName.trim(),pseudo:creatorPseudo.trim(),intent,at:Date.now()};
       try{localStorage.setItem(CREATOR_DRAFT,JSON.stringify(draft));}catch{}
@@ -346,10 +365,6 @@ export default function Login({ setUser }) {
     if(pending)return;
     setError("");setPending(true);
     try{
-      if(mode==="create-group"){
-        const membership=await groupRequest("/groups/me");
-        if(membership.group){showExistingMembership(membership.group);return;}
-      }
       setCreatorName("");setCreatorPseudo("");setCreatorEmail("");setCreatorPassword("");setVerifiedCreator(null);setEmailNotice("");setOwnerGroup(null);setInviteLink("");setInviteStatus("");openEntry(mode);
     }catch(err){setError(err.message||"Impossible de vérifier ton inscription.");}
     finally{setPending(false);}
@@ -599,7 +614,8 @@ export default function Login({ setUser }) {
             {nameFeedback()}
           </label>
           <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton adresse e-mail
-            <input type="email" autoComplete="email" required placeholder="exemple@example.com" value={creatorEmail} onChange={e=>setCreatorEmail(e.target.value)} readOnly={!!verifiedCreator} disabled={pending} style={inputStyle}/>
+            <input type="email" autoComplete="email" required placeholder="exemple@example.com" value={creatorEmail} onChange={e=>{setCreatorEmail(e.target.value);setEmailNotice("");setError("");}} readOnly={!!verifiedCreator} disabled={pending} style={inputStyle}/>
+            {emailFeedback()}
           </label>
           {verifiedCreator?.intent==="create" ? <>
             <p style={{margin:0,color:"#78ffbd",fontSize:14}}>✓ E-mail vérifié</p>
@@ -610,7 +626,7 @@ export default function Login({ setUser }) {
             <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!nameReady||!pseudoReady||creatorPassword.length<6}>{pending?"Création…":"Créer mon groupe"}</button>
           </> : <>
             {notice("Vérifie d’abord ton e-mail pour protéger la gestion de ton groupe. Tu choisiras ensuite son mot de passe.")}
-            <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!nameReady||!pseudoReady||!creatorEmail.trim()}>{pending?"Envoi…":"Vérifier mon e-mail"}</button>
+            <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!nameReady||!pseudoReady||!emailReady}>{pending?"Envoi…":"Vérifier mon e-mail"}</button>
           </>}
           {emailNotice&&<p role="status" style={{margin:0,color:"#78ffbd",fontSize:14}}>{emailNotice}</p>}
           <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setVerifiedCreator(null);setCreatorPassword("");setEmailNotice("");openEntry("manage");}}>Retour</button>

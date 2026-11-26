@@ -19,10 +19,28 @@ export function searchGroups(state, query) {
   }).map(([id,g])=>({id,name:g.name})).sort((a,b)=>a.name.localeCompare(b.name,"fr")).slice(0,30);
 }
 const fail=code=>({code});
+// One display name throughout the contest; compare case, accents and repeated spaces.
+export const normalizePseudo=value=>typeof value==="string"?normalizeName(value.normalize("NFKC")):"";
+export function pseudoAvailable(state,pseudo,uid){
+  const key=normalizePseudo(pseudo);
+  if(!key||typeof pseudo!=="string"||pseudo.length>24)return false;
+  for(const group of Object.values(state?.groups||{})){
+    for(const [memberUid,member] of Object.entries(group.members||{})){
+      if(memberUid!==uid&&normalizePseudo(member?.pseudo)===key)return false;
+    }
+  }
+  return true;
+}
+function checkPseudo(state,pseudo,uid){
+  if(!normalizePseudo(pseudo)||typeof pseudo!=="string"||pseudo.length>24)return fail("invalid_fields");
+  if(!pseudoAvailable(state,pseudo,uid))return fail("pseudo_taken");
+  return null;
+}
 export function createGroup(state,{uid,id,name,pseudo,secret,now}) {
   const s=state||{};
   if(s.membership?.[uid])return fail("already_member");
   if(s.groups?.[id])return fail("conflict");
+  const invalid=checkPseudo(s,pseudo,uid);if(invalid)return invalid;
   const group={type:"private",name,ownerUid:uid,registrationsOpen:true,secret,createdAt:now,members:{[uid]:{pseudo,joinedAt:now}}};
   return {state:{...s,groups:{...s.groups,[id]:group},membership:{...s.membership,[uid]:id}},result:{id,name}};
 }
@@ -32,6 +50,7 @@ export function joinGroup(state,{uid,id,pseudo,verifiedSecret,now}) {
   if(s.membership?.[uid])return fail("already_member");
   if(!g||g.type==="public"||!g.registrationsOpen)return fail("unavailable");
   if(g.secret!==verifiedSecret)return fail("invalid_password");
+  const invalid=checkPseudo(s,pseudo,uid);if(invalid)return invalid;
   const group={...g,members:{...g.members,[uid]:{pseudo,joinedAt:now}}};
   return {state:{...s,groups:{...s.groups,[id]:group},membership:{...s.membership,[uid]:id}},result:{id,name:g.name}};
 }
@@ -53,6 +72,7 @@ export function registerPublic(root,{uid,pseudo,now}){
   const existing=membershipView(s,uid);
   if(existing)return {state:root,result:{group:existing,alreadyRegistered:true}};
   if(s.membership?.[uid])return fail("conflict");
+  const invalid=checkPseudo(s,pseudo,uid);if(invalid)return invalid;
   const groups=s.groups||{};
   const publicRooms=Object.entries(groups).filter(([,g])=>g.type==="public").sort((a,b)=>a[1].number-b[1].number);
   const available=publicRooms.find(([,g])=>g.registrationsOpen!==false&&Object.keys(g.members||{}).length<PUBLIC_CAPACITY);

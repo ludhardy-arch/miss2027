@@ -147,8 +147,9 @@ const server=http.createServer(async(req,res)=>{
       return reply(res,result.status,result.body);
     }
     if(req.method==="GET"&&url.pathname==="/groups/me"){
-      const state=(await registry.get()).val();
-      return reply(res,200,{group:membershipView(state,uid)});
+      const event=(await getDatabase(app).ref("events/miss2027").get()).val()||{};
+      const group=membershipView(event.registration,uid);
+      return reply(res,200,{group:group?{...group,entered:event.players?.[uid]?.groupId===group.id}:null});
     }
     if(req.method==="POST"&&url.pathname==="/groups/public"){
       if(limited("public:"+uid,5))return reply(res,429,{error:"too_many_requests"});

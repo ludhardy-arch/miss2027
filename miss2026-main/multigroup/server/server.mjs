@@ -4,7 +4,7 @@ import {promisify} from "node:util";
 import {initializeApp,cert} from "firebase-admin/app";
 import {getAuth} from "firebase-admin/auth";
 import {getDatabase} from "firebase-admin/database";
-import {createGroup,joinGroup,searchGroups} from "./registration.mjs";
+import {createGroup,joinGroup,searchGroups,registerPublic,membershipView} from "./registration.mjs";
 import {resetContest} from "./reset.mjs";
 
 const PROJECT="miss2027-test-v2";
@@ -131,11 +131,16 @@ const server=http.createServer(async(req,res)=>{
     }
     if(req.method==="GET"&&url.pathname==="/groups/me"){
       const state=(await registry.get()).val();
-      const id=state?.membership?.[uid];
-      const group=id&&state.groups?.[id];
-      const member=group?.members?.[uid];
-      if(!group||!member)return reply(res,200,{group:null});
-      return reply(res,200,{group:{id,name:group.name,pseudo:member.pseudo,isOwner:group.ownerUid===uid,memberCount:Object.keys(group.members).length}});
+      return reply(res,200,{group:membershipView(state,uid)});
+    }
+    if(req.method==="POST"&&url.pathname==="/groups/public"){
+      if(limited("public:"+uid,5))return reply(res,429,{error:"too_many_requests"});
+      const b=await body(req);
+      if(!validString(b.pseudo,1,24))return reply(res,400,{error:"invalid_fields"});
+      if(uid==="fma5bvfcCRYoS1kBf0CUFdBVowJ3")return reply(res,403,{error:"admin_cannot_register"});
+      const now=Date.now();
+      const result=await atomic(root=>registerPublic(root,{uid,pseudo:b.pseudo.trim(),now}),getDatabase(app).ref());
+      return reply(res,result.status,result.body);
     }
     if(req.method==="GET"&&url.pathname==="/groups/search"){
       const query=url.searchParams.get("q");
@@ -170,7 +175,7 @@ const server=http.createServer(async(req,res)=>{
       if(!validId(b.id)||!validString(b.pseudo,1,24)||!validString(b.password,6,128))return reply(res,400,{error:"invalid_fields"});
       if(limited("group:"+b.id,30))return reply(res,429,{error:"too_many_requests"});
       const group=(await registry.child("groups").child(b.id).get()).val();
-      if(!group||!group.registrationsOpen||!await matches(b.password,group.secret))return reply(res,403,{error:"group_or_password_invalid"});
+      if(!group||group.type==="public"||!group.registrationsOpen||!await matches(b.password,group.secret))return reply(res,403,{error:"group_or_password_invalid"});
       const now=Date.now();
       const result=await atomic(s=>joinGroup(s,{uid,id:b.id,pseudo:b.pseudo.trim(),verifiedSecret:group.secret,now}));
       return reply(res,result.status,result.body);

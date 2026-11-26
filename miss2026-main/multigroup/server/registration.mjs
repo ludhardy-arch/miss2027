@@ -13,12 +13,13 @@ export function searchGroups(state, query) {
   const q=normalizeName(query);
   if(!q)return [];
   return Object.entries(state?.groups||{}).filter(([,g])=>{
-    if(g.type==="public"||!g.registrationsOpen)return false;
+    if(g.type==="public"||g.registrationsOpen===false)return false;
     const n=normalizeName(g.name);
     return n.includes(q)||q.split(" ").every(w=>n.split(" ").some(c=>c.includes(w)||(w.length>=4&&distance(w,c)<=(w.length>=7?2:1))));
   }).map(([id,g])=>({id,name:g.name})).sort((a,b)=>a.name.localeCompare(b.name,"fr")).slice(0,30);
 }
 const fail=code=>({code});
+export const PRIVATE_CAPACITY=30;
 // One display name throughout the contest; compare case, accents and repeated spaces.
 export const normalizePseudo=value=>typeof value==="string"?normalizeName(value.normalize("NFKC")):"";
 export function pseudoAvailable(state,pseudo,uid){
@@ -41,7 +42,7 @@ export function createGroup(state,{uid,id,name,pseudo,secret,now}) {
   if(s.membership?.[uid])return fail("already_member");
   if(s.groups?.[id])return fail("conflict");
   const invalid=checkPseudo(s,pseudo,uid);if(invalid)return invalid;
-  const group={type:"private",name,ownerUid:uid,registrationsOpen:true,secret,createdAt:now,members:{[uid]:{pseudo,joinedAt:now}}};
+  const group={type:"private",name,ownerUid:uid,capacity:PRIVATE_CAPACITY,registrationsOpen:true,secret,createdAt:now,members:{[uid]:{pseudo,joinedAt:now}}};
   return {state:{...s,groups:{...s.groups,[id]:group},membership:{...s.membership,[uid]:id}},result:{id,name}};
 }
 export function joinGroup(state,{uid,id,pseudo,verifiedSecret,now}) {
@@ -50,6 +51,7 @@ export function joinGroup(state,{uid,id,pseudo,verifiedSecret,now}) {
   if(s.membership?.[uid])return fail("already_member");
   if(!g||g.type==="public"||!g.registrationsOpen)return fail("unavailable");
   if(g.secret!==verifiedSecret)return fail("invalid_password");
+  if(Object.keys(g.members||{}).length>=PRIVATE_CAPACITY)return fail("group_full");
   const invalid=checkPseudo(s,pseudo,uid);if(invalid)return invalid;
   const group={...g,members:{...g.members,[uid]:{pseudo,joinedAt:now}}};
   return {state:{...s,groups:{...s.groups,[id]:group},membership:{...s.membership,[uid]:id}},result:{id,name:g.name}};

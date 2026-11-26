@@ -1,10 +1,11 @@
 import http from "node:http";
-import {randomBytes,randomUUID,scrypt,timingSafeEqual} from "node:crypto";
+import {randomBytes,randomUUID,createHash,scrypt,timingSafeEqual} from "node:crypto";
 import {promisify} from "node:util";
 import {initializeApp,cert} from "firebase-admin/app";
 import {getAuth} from "firebase-admin/auth";
 import {getDatabase} from "firebase-admin/database";
 import {createGroup,joinGroup,searchGroups,registerPublic,membershipView} from "./registration.mjs";
+import {locked,ownerView,manageGroup,invitationView,acceptInvitation} from "./management.mjs";
 import {chatView,chatAction} from "./chat.mjs";
 import {resetContest} from "./reset.mjs";
 import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal} from "./game.mjs";
@@ -31,6 +32,12 @@ catch { throw Error("Test Firebase credential could not be initialized"); }
 const auth=getAuth(app);
 const registry=getDatabase(app).ref("events/miss2027/registration");
 const derive=promisify(scrypt);
+const digestInvite=token=>createHash("sha256").update(token).digest("hex");
+const validInvite=token=>typeof token==="string"&&/^[a-f0-9]{64}$/.test(token);
+const ownerGrants=new Map();
+const grant=(uid,authTime)=>{for(const [id,g] of ownerGrants)if(g.expires<Date.now())ownerGrants.delete(id);ownerGrants.set(uid,{authTime,expires:Date.now()+900000});};
+const hasGrant=(uid,user)=>{const g=ownerGrants.get(uid);return !!g&&g.authTime===user.auth_time&&g.expires>Date.now()&&user.email_verified===true;};
+function registrationChange(root,operation){if(locked(root))return {code:"membership_locked"};const event=root?.events?.miss2027||{},out=operation(event.registration);if(out.code)return out;return {state:{...root,events:{...root.events,miss2027:{...event,registration:out.state}}},result:out.result};}
 const validString=(v,min,max)=>typeof v==="string"&&v.trim().length>=min&&v.length<=max;
 const validId=v=>typeof v==="string"&&/^[a-f0-9-]{36}$/.test(v);
 const rate=new Map();
@@ -179,6 +186,33 @@ const server=http.createServer(async(req,res)=>{
       const result=await atomic(root=>castVote(root,{uid,gameId:b.gameId,tour:b.tour,selection:b.selection,favorite:b.favorite,now}),getDatabase(app).ref());
       return reply(res,result.status,result.body);
     }
+    if(req.method==="POST"&&url.pathname==="/groups/invite/preview"){
+      const b=await body(req);
+      if(!validInvite(b.token))return reply(res,400,{error:"unavailable"});
+      const view=invitationView((await getDatabase(app).ref().get()).val(),digestInvite(b.token));
+      return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
+    }
+    if(req.method==="POST"&&url.pathname==="/groups/invite/join"){
+      if(uid==="fma5bvfcCRYoS1kBf0CUFdBVowJ3")return reply(res,403,{error:"admin_cannot_register"});
+      const b=await body(req);
+      if(!validInvite(b.token)||!validString(b.pseudo,1,24))return reply(res,400,{error:"invalid_fields"});
+      const digest=digestInvite(b.token),now=Date.now();
+      const result=await atomic(root=>acceptInvitation(root,{uid,digest,pseudo:b.pseudo.trim(),now}),getDatabase(app).ref());
+      return reply(res,result.status,result.body);
+    }
+    if(url.pathname==="/groups/owner/manage"){
+      if(!hasGrant(uid,user))return reply(res,403,{error:"owner_session_expired"});
+      if(req.method==="GET"){
+        const view=ownerView((await getDatabase(app).ref().get()).val(),uid);
+        return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
+      }
+      if(req.method==="POST"){
+        const b=await body(req),token=b.action==="invite"?randomBytes(32).toString("hex"):null;
+        const result=await atomic(root=>manageGroup(root,{uid,action:b.action,value:b.value,targetUid:b.targetUid,digest:token?digestInvite(token):undefined}),getDatabase(app).ref());
+        return reply(res,result.status,result.status===200&&token?{...result.body,token}:result.body);
+      }
+      return reply(res,405,{error:"method_not_allowed"});
+    }
     if(req.method==="GET"&&url.pathname==="/groups/me"){
       const event=(await getDatabase(app).ref("events/miss2027").get()).val()||{};
       const group=membershipView(event.registration,uid);
@@ -190,7 +224,7 @@ const server=http.createServer(async(req,res)=>{
       if(!validString(b.pseudo,1,24))return reply(res,400,{error:"invalid_fields"});
       if(uid==="fma5bvfcCRYoS1kBf0CUFdBVowJ3")return reply(res,403,{error:"admin_cannot_register"});
       const now=Date.now();
-      const result=await atomic(root=>registerPublic(root,{uid,pseudo:b.pseudo.trim(),now}),getDatabase(app).ref());
+      const result=await atomic(root=>locked(root)&&!membershipView(root?.events?.miss2027?.registration,uid)?{code:"membership_locked"}:registerPublic(root,{uid,pseudo:b.pseudo.trim(),now}),getDatabase(app).ref());
       return reply(res,result.status,result.body);
     }
     if(req.method==="GET"&&url.pathname==="/groups/search"){
@@ -208,7 +242,9 @@ const server=http.createServer(async(req,res)=>{
       const id=state?.membership?.[uid],group=id&&state.groups?.[id];
       if(!group||group.ownerUid!==uid||!group.members?.[uid])return reply(res,403,{error:"owner_required"});
       if(!await matches(b.password,group.secret))return reply(res,403,{error:"invalid_password"});
-      return reply(res,200,{group:{id,name:group.name,pseudo:group.members[uid].pseudo,isOwner:true,memberCount:Object.keys(group.members).length,registrationsOpen:group.registrationsOpen,members:Object.entries(group.members).map(([memberId,member])=>({id:memberId,pseudo:member.pseudo,isOwner:memberId===uid}))}});
+      grant(uid,user.auth_time);
+      const view=ownerView((await getDatabase(app).ref().get()).val(),uid);
+      return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
     }
     if(req.method==="POST"&&url.pathname==="/groups/create"){
       if(!user.email||!user.email_verified||!user.auth_time||Date.now()/1000-user.auth_time>900)return reply(res,403,{error:"verified_email_required"});
@@ -217,7 +253,8 @@ const server=http.createServer(async(req,res)=>{
       if(!validString(b.name,1,80)||!validString(b.pseudo,1,24)||!validString(b.password,6,128))return reply(res,400,{error:"invalid_fields"});
       const epoch=(await registry.child("epoch").get()).val()||null;
       const id=randomUUID(),secret=await hash(b.password),now=Date.now();
-      const result=await atomic(s=>(s?.epoch||null)!==epoch?{code:"registration_reset"}:createGroup(s,{uid,id,name:b.name.trim(),pseudo:b.pseudo.trim(),secret,now}));
+      const result=await atomic(root=>registrationChange(root,s=>(s?.epoch||null)!==epoch?{code:"registration_reset"}:createGroup(s,{uid,id,name:b.name.trim(),pseudo:b.pseudo.trim(),secret,now})),getDatabase(app).ref());
+      if(result.status===200)grant(uid,user.auth_time);
       return reply(res,result.status,result.body);
     }
     if(req.method==="POST"&&url.pathname==="/groups/join"){
@@ -228,7 +265,7 @@ const server=http.createServer(async(req,res)=>{
       const group=(await registry.child("groups").child(b.id).get()).val();
       if(!group||group.type==="public"||!group.registrationsOpen||!await matches(b.password,group.secret))return reply(res,403,{error:"group_or_password_invalid"});
       const now=Date.now();
-      const result=await atomic(s=>joinGroup(s,{uid,id:b.id,pseudo:b.pseudo.trim(),verifiedSecret:group.secret,now}));
+      const result=await atomic(root=>registrationChange(root,s=>joinGroup(s,{uid,id:b.id,pseudo:b.pseudo.trim(),verifiedSecret:group.secret,now})),getDatabase(app).ref());
       return reply(res,result.status,result.body);
     }
     return reply(res,404,{error:"not_found"});

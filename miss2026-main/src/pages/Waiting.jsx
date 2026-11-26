@@ -6,7 +6,7 @@ import SelectionBubble from "../components/SelectionBubble";
 import { CANDIDATES } from "../data/candidates";
 
 export default function Waiting({ user }) {
-  const { tour, players, votesOpen } = useContext(AppContext);
+  const { tour, players, votesOpen, groupTrend } = useContext(AppContext);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -19,9 +19,9 @@ export default function Waiting({ user }) {
 
   const key = `tour${tour}`;
   const { ranking, validatedVotes } = useMemo(() => {
-    const counts = new Map();
-    let validated = 0;
-    Object.values(players).forEach(player => {
+    const counts = new Map(Object.entries(groupTrend?.counts||{}).map(([id,count])=>[Number(id),count]));
+    let validated = groupTrend?.validated||0;
+    if(!groupTrend)Object.values(players).forEach(player => {
       const vote = player?.[key];
       if (!Array.isArray(vote) || vote.length === 0) return;
       validated++;
@@ -38,15 +38,15 @@ export default function Waiting({ user }) {
       .map(candidate => ({ ...candidate, votes: counts.get(candidate.id) }))
       .sort((a, b) => b.votes - a.votes || a.label.localeCompare(b.label, "fr"));
     return { ranking, validatedVotes: validated };
-  }, [players, key, tour]);
+  }, [players, key, tour, groupTrend]);
 
   const max = ranking[0]?.votes || 1;
-  const totalPlayers = Object.keys(players).length;
+  const totalPlayers = groupTrend?.total??Object.keys(players).length;
   const selection = Array.isArray(players[user?.pseudo]?.[key]) ? players[user.pseudo][key] : [];
 
   return (
     <main className="tv-page tv-waiting-page tv-show-v3">
-      <header className="tv-show-header"><span className="tv-kicker">✦ MISS FRANCE 2027 ✦</span><span className="tv-live-pill">● TENDANCES EN DIRECT</span><h1>LE CHOIX DU PUBLIC</h1><p>Les pronostics prennent vie à chaque vote</p></header>
+      <header className="tv-show-header"><span className="tv-kicker">✦ MISS FRANCE 2027 ✦</span><span className="tv-live-pill">● TENDANCES EN DIRECT</span><h1>LE CHOIX DU PUBLIC</h1><p>{user.groupName||"Les pronostics prennent vie à chaque vote"}</p></header>
       <div role="status" aria-live="polite" style={{
         background: votesOpen ? "#176b43" : "#8e303f", color: "white",
         borderRadius: 12, padding: 13, fontWeight: 700, textAlign: "center", marginBottom: 16
@@ -128,11 +128,11 @@ export default function Waiting({ user }) {
           </ol>
         )}
         <p style={{ margin: "21px 0 0", textAlign: "center", color: "#9bacc3", fontSize: 12 }}>
-          Actualisation automatique après chaque vote validé
+          Actualisation automatique des tendances de ta salle
           {tour === 3 ? " · 5 points pour la 1ère, jusqu’à 1 point pour la 5e" : ""}
         </p>
       </section>
-      <ChatBubble user={user} />
+      {!user.groupId&&<ChatBubble user={user} />}
       <SelectionBubble user={user} tour={tour} selection={selection} />
     </main>
   );

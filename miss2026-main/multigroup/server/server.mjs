@@ -6,7 +6,7 @@ import {getAuth} from "firebase-admin/auth";
 import {getDatabase} from "firebase-admin/database";
 import {createGroup,joinGroup,searchGroups,registerPublic,membershipView} from "./registration.mjs";
 import {resetContest} from "./reset.mjs";
-import {enterGame,gameView,castVote} from "./game.mjs";
+import {enterGame,gameView,castVote,adminGameView,advanceRound} from "./game.mjs";
 
 const PROJECT="miss2027-test-v2";
 const DATABASE="https://miss2027-test-v2-default-rtdb.europe-west1.firebasedatabase.app";
@@ -117,6 +117,16 @@ const server=http.createServer(async(req,res)=>{
     const uid=user.uid;
     if(!/^[a-zA-Z0-9_-]{1,128}$/.test(uid)||["__proto__","constructor","prototype"].includes(uid))return reply(res,403,{error:"unsupported_identity"});
     if(limited("user:"+uid,30))return reply(res,429,{error:"too_many_requests"});
+    if(url.pathname==="/admin/game"||url.pathname==="/admin/round"){
+      if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});
+      if(req.method==="GET"&&url.pathname==="/admin/game")return reply(res,200,adminGameView((await getDatabase(app).ref().get()).val()));
+      if(req.method==="POST"&&url.pathname==="/admin/round"){
+        const b=await body(req);
+        const result=await atomic(root=>advanceRound(root,{gameId:b.gameId,tour:b.tour,selection:b.selection}),getDatabase(app).ref());
+        return reply(res,result.status,result.body);
+      }
+      return reply(res,405,{error:"method_not_allowed"});
+    }
     if(req.method==="POST"&&url.pathname==="/admin/reset"){
       // Verify the same test administrator identity as Firebase RTDB rules.
       // Never trust a client role, a group password, or an email address.

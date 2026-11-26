@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {enterGame,gameView,castVote} from "./game.mjs";
+import {enterGame,gameView,castVote,adminGameView,advanceRound} from "./game.mjs";
 const fixture=()=>({rooms:{miss2027:{gameId:"g1",connectionsOpen:true,votesOpen:true,tour:1,adminSelections:{}}},events:{miss2027:{registration:{groups:{a:{name:"A",members:{u1:{pseudo:"X"},u2:{pseudo:"Y"}}},b:{name:"B",members:{u3:{pseudo:"X"}}}},membership:{u1:"a",u2:"a",u3:"b"}}}}});
 const ballot={uid:"u1",gameId:"g1",tour:1,selection:Array.from({length:12},(_,i)=>i+1),favorite:1,now:2};
 const enter=(root,uid)=>enterGame(root,{uid,now:1}).state;
@@ -40,4 +40,23 @@ test("round 2 uses official twelve and final uses official five; closed round re
  assert.equal(castVote(r,{...b,tour:3,selection:[5,4,3,2,1]}).code,"votes_closed");
  r.rooms.miss2027.votesOpen=true;
  assert.deepEqual(castVote(r,{...b,tour:3,selection:[5,4,3,2,1]}).state.events.miss2027.votes.u1.tour3,[5,4,3,2,1]);
+});
+
+test("national admin view counts registrations across rooms without merging identical pseudonyms",()=>{
+ const r=enter(enter(fixture(),"u1"),"u3");
+ const view=adminGameView(castVote(r,ballot).state);
+ assert.equal(Object.keys(view.players).length,3);
+ assert.equal(view.players.u1.pseudo,view.players.u3.pseudo);
+ assert.equal(view.players.u1.tour1.length,12);
+ assert.equal(view.players.u3.tour1,undefined);
+ assert.equal(view.groupCount,2);
+});
+test("official selection and round advance are atomic and forbidden during open votes",()=>{
+ const r=fixture(),params={gameId:"g1",tour:1,selection:ballot.selection};
+ assert.equal(advanceRound(r,params).code,"close_votes_first");
+ r.rooms.miss2027.votesOpen=false;
+ const next=advanceRound(r,params);
+ assert.equal(next.state.rooms.miss2027.tour,2);
+ assert.deepEqual(next.state.rooms.miss2027.adminSelections.tour1,ballot.selection);
+ assert.equal(advanceRound(next.state,params).code,"round_changed");
 });

@@ -106,6 +106,8 @@ export default function Login({ setUser }) {
     return () => { active = false; unsubscribe(); };
   }, []);
 
+  const searchGeneration=useRef(0);
+  useEffect(()=>{searchGeneration.current++;setGroupResults(null);setSelectedGroup(null);setRecoverableGroup(null);setJoinedGroup(null);setOwnerGroup(null);setInviteGroup(null);setInviteLink("");setEntryMode(mode=>["joined-group","join-group","creator-confirm","creator-dashboard"].includes(mode)?"home":mode);},[gameId]);
   // Recover from Firebase, not a cached group name or a pseudo. Do not redirect
   // automatically: the owner must remain free to manage the group or open the demo.
   useEffect(()=>{
@@ -135,7 +137,7 @@ export default function Login({ setUser }) {
     if(!invitation||!firebaseIdentity)return;
     groupRequest("/groups/invite/preview",{token:invitation}).then(r=>{if(active){setInviteGroup(r.group);setInviteStatus("ok");}}).catch(e=>{if(active)setInviteStatus(e.message);});
     return()=>{active=false;};
-  },[invitation,firebaseIdentity]);
+  },[invitation,firebaseIdentity,gameId]);
   async function acceptInvite(event){
     event.preventDefault();
     if(pending||!inviteGroup||!pseudo.trim())return;
@@ -179,11 +181,13 @@ export default function Login({ setUser }) {
     event.preventDefault();
     if(pending||!groupQuery.trim())return;
     setPending(true);setError("");setGroupResults(null);
+    const generation=searchGeneration.current;
     try{
       const membership=await groupRequest("/groups/me");
+      if(generation!==searchGeneration.current)return;
       if(membership.group){setJoinedGroup(membership.group);setEntryMode("joined-group");return;}
       const result=await groupRequest("/groups/search?q="+encodeURIComponent(groupQuery.trim()));
-      setGroupResults(result.groups);
+      if(generation===searchGeneration.current)setGroupResults(result.groups);
     }catch(err){setError(err.message||"Recherche impossible.");}
     finally{setPending(false);}
   }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal} from "./game.mjs";
+import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal,setVoteOpening} from "./game.mjs";
 const fixture=()=>({rooms:{miss2027:{gameId:"g1",connectionsOpen:true,votesOpen:true,tour:1,adminSelections:{}}},events:{miss2027:{registration:{groups:{a:{name:"A",members:{u1:{pseudo:"X"},u2:{pseudo:"Y"}}},b:{name:"B",members:{u3:{pseudo:"X"}}}},membership:{u1:"a",u2:"a",u3:"b"}}}}});
 const ballot={uid:"u1",gameId:"g1",tour:1,selection:Array.from({length:12},(_,i)=>i+1),favorite:1,now:2};
 const enter=(root,uid)=>enterGame(root,{uid,now:1}).state;
@@ -74,4 +74,13 @@ test("final publication locks game, is idempotent and exposes only the member's 
  assert.equal(view.final.personal.nationalRank,1);
  assert.equal(view.final.nationalTotal,2);
  assert.equal(publishFinal(result.state,{gameId:"g1"}).result.alreadyPublished,true);
+});
+
+test("registration lock survives closing the first vote window",()=>{
+ const root=fixture();root.rooms.miss2027.votesOpen=false;
+ const open=setVoteOpening(root,{gameId:"g1",open:true});
+ const closed=setVoteOpening(open.state,{gameId:"g1",open:false});
+ assert.equal(closed.state.rooms.miss2027.registrationLocked,true);
+ assert.equal(closed.state.rooms.miss2027.votesOpen,false);
+ assert.equal(setVoteOpening(root,{gameId:"old",open:true}).code,"game_changed");
 });

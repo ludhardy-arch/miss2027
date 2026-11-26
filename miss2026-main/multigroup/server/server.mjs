@@ -8,7 +8,7 @@ import {createGroup,joinGroup,searchGroups,registerPublic,membershipView} from "
 import {locked,ownerView,manageGroup,invitationView,acceptInvitation} from "./management.mjs";
 import {chatView,chatAction} from "./chat.mjs";
 import {resetContest} from "./reset.mjs";
-import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal} from "./game.mjs";
+import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal,setVoteOpening} from "./game.mjs";
 
 const PROJECT="miss2027-test-v2";
 const DATABASE="https://miss2027-test-v2-default-rtdb.europe-west1.firebasedatabase.app";
@@ -46,7 +46,7 @@ let cryptoJobs=0;
 function limited(key,max,period=60000) {
   const now=Date.now();
   if(globalRate.until<=now){globalRate.count=0;globalRate.until=now+60000;}
-  if(++globalRate.count>300)return true;
+  if(++globalRate.count>1500)return true; // Test-only ceiling; capacity still needs measuring.
   if(rate.size>10000)for(const [k,v] of rate)if(v.until<=now)rate.delete(k);
   if(rate.size>12000&&!rate.has(key))return true;
   let r=rate.get(key);
@@ -141,9 +141,14 @@ const server=http.createServer(async(req,res)=>{
       }
       return reply(res,405,{error:"method_not_allowed"});
     }
-    if(url.pathname==="/admin/game"||url.pathname==="/admin/round"||url.pathname==="/admin/finale"){
+    if(url.pathname==="/admin/game"||url.pathname==="/admin/round"||url.pathname==="/admin/finale"||url.pathname==="/admin/votes"){
       if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});
       if(req.method==="GET"&&url.pathname==="/admin/game")return reply(res,200,adminGameView((await getDatabase(app).ref().get()).val()));
+      if(req.method==="POST"&&url.pathname==="/admin/votes"){
+        const b=await body(req);
+        const result=await atomic(root=>setVoteOpening(root,{gameId:b.gameId,open:b.open}),getDatabase(app).ref());
+        return reply(res,result.status,result.body);
+      }
       if(req.method==="POST"&&url.pathname==="/admin/finale"){
         const b=await body(req);
         if(b.confirmed!==true)return reply(res,400,{error:"confirmation_required"});

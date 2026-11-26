@@ -7,7 +7,7 @@ import {getDatabase} from "firebase-admin/database";
 import {createGroup,joinGroup,searchGroups,registerPublic,membershipView} from "./registration.mjs";
 import {locked,ownerView,manageGroup,invitationView,acceptInvitation} from "./management.mjs";
 import {chatView,chatAction} from "./chat.mjs";
-import {resetContest} from "./reset.mjs";
+import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
 import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal,setVoteOpening} from "./game.mjs";
 
 const PROJECT="miss2027-test-v2";
@@ -71,7 +71,7 @@ async function body(req){
   for await(const chunk of req){size+=chunk.length;if(size>8192)throw Object.assign(Error("payload_too_large"),{status:413});chunks.push(chunk);}
   try{const parsed=JSON.parse(Buffer.concat(chunks).toString("utf8"));if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))throw Error();return parsed;}catch{throw Object.assign(Error("invalid_json"),{status:400});}
 }
-async function atomic(operation,target=registry){
+async function atomic(operation,target=registry,verify=null){
   let outcome;
   const tx=await target.transaction(current=>{
     outcome=operation(current);
@@ -79,7 +79,8 @@ async function atomic(operation,target=registry){
     // allows the server to detect conflicts and retry, without deleting state.
     return outcome.state===undefined?current:outcome.state;
   },undefined,false);
-  if(!tx.committed||outcome?.code)return {status:409,body:{error:outcome?.code||"conflict"}};
+  if(!tx.committed||outcome?.code)return {status:409,body:{error:outcome?.code||"conflict",...(outcome?.reasons?{reasons:outcome.reasons}:{})}};
+  if(verify){const snapshot=tx.snapshot.val();if(!verify(snapshot))return {status:409,body:{error:"reset_not_verified"}};return {status:200,body:{...outcome.result,verified:true,remaining:registrationCounts(snapshot)}};}
   return {status:200,body:outcome.result};
 }
 const readiness={auth:"pending",databaseRead:"pending",databaseWrite:"pending"};
@@ -171,8 +172,12 @@ const server=http.createServer(async(req,res)=>{
       const word=b.kind==="game"?"JEU":b.kind==="registrations"?"INSCRIPTIONS":null;
       if(!word||b.confirmation!==word||b.confirmed!==true)return reply(res,400,{error:"invalid_reset"});
       const id=Date.now()+"-"+randomUUID();
-      const result=await atomic(state=>resetContest(state,b.kind,id),getDatabase(app).ref());
-      console.log("TEST_ADMIN_RESET "+b.kind+" "+(result.status===200?"ok":"refused"));
+      const target=getDatabase(app).ref();
+      // Prime the snapshot before the transaction; never overwrite a missing root with stale data.
+      await target.get();
+      const result=await atomic(state=>resetContest(state,b.kind,id),target,state=>verifyReset(state,b.kind,id));
+      if(result.status===200&&b.kind==="registrations")ownerGrants.clear();
+      console.log("TEST_ADMIN_RESET "+b.kind+" "+JSON.stringify(result.status===200?{verified:result.body.verified,before:result.body.before,remaining:result.body.remaining}:{error:result.body.error,reasons:result.body.reasons||[]}));
       return reply(res,result.status,result.body);
     }
     if(req.method==="POST"&&url.pathname==="/game/enter"){

@@ -1,0 +1,15 @@
+{
+  "events": {
+    "test-v2-example": {
+      "control": {
+        "gameId": "test-v2-example",
+        "connectionsOpen": false,
+        "demoEnabled": true,
+        "tour": 1,
+        "votesOpen": false,
+        "finaleStarted": false,
+        "finalePhase": "idle"
+      }
+    }
+  }
+}

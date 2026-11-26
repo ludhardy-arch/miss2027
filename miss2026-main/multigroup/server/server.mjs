@@ -81,7 +81,7 @@ async function atomic(operation,target=registry,verify=null){
   if(verify){const snapshot=tx.snapshot.val();if(!verify(snapshot))return {status:409,body:{error:"reset_not_verified"}};return {status:200,body:{...outcome.result,verified:true,remaining:registrationCounts(snapshot)}};}
   return {status:200,body:outcome.result};
 }
-async function directReset(kind,id){
+async function directRootAccess(){
   // The URL is fixed to the dedicated test project and cannot be supplied by the caller.
   const url=DATABASE+"/.json";
   const token=await app.options.credential.getAccessToken();
@@ -97,6 +97,15 @@ async function directReset(kind,id){
     if(!response.ok)throw Object.assign(Error("database_write_failed"),{status:503});
     return {ok:true,state:await response.json()};
   };
+  return {read,write};
+}
+async function directRootRead(){return (await (await directRootAccess()).read()).state;}
+async function directRootChange(operation,verify){
+  const access=await directRootAccess();
+  return conditionalWrite({...access,operation,verify});
+}
+async function directReset(kind,id){
+  const {read,write}=await directRootAccess();
   const outcome=await conditionalWrite({read,write,operation:state=>resetContest(state,kind,id),verify:state=>verifyReset(state,kind,id)});
   if(outcome.status!==200)return outcome;
   const after=await read();
@@ -215,7 +224,7 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==="POST"&&url.pathname==="/groups/invite/preview"){
       const b=await body(req);
       if(!validInvite(b.token))return reply(res,400,{error:"unavailable"});
-      const view=invitationView((await getDatabase(app).ref().get()).val(),digestInvite(b.token));
+      const view=invitationView(await directRootRead(),digestInvite(b.token));
       return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
     }
     if(req.method==="POST"&&url.pathname==="/groups/invite/join"){
@@ -228,12 +237,13 @@ const server=http.createServer(async(req,res)=>{
     }
     if(url.pathname==="/groups/owner/manage"){
       if(req.method==="GET"){
-        const view=ownerView((await getDatabase(app).ref().get()).val(),uid);
+        const view=ownerView(await directRootRead(),uid);
         return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
       }
       if(req.method==="POST"){
         const b=await body(req),token=b.action==="invite"?randomBytes(32).toString("hex"):null;
-        const result=await atomic(root=>manageGroup(root,{uid,action:b.action,value:b.value,targetUid:b.targetUid,digest:token?digestInvite(token):undefined}),getDatabase(app).ref());
+        const result=await directRootChange(root=>manageGroup(root,{uid,action:b.action,value:b.value,targetUid:b.targetUid,digest:token?digestInvite(token):undefined}));
+        console.log("TEST_OWNER_ACTION "+JSON.stringify({action:["invite","remove","revoke"].includes(b.action)?b.action:"invalid",status:result.status,error:result.body?.error||null}));
         return reply(res,result.status,result.status===200&&token?{...result.body,token}:result.body);
       }
       return reply(res,405,{error:"method_not_allowed"});
@@ -251,7 +261,7 @@ const server=http.createServer(async(req,res)=>{
       return reply(res,200,{available:pseudoAvailable(state,b.pseudo,b.creating===true?null:uid)});
     }
     if(req.method==="GET"&&url.pathname==="/groups/me"){
-      const event=(await getDatabase(app).ref("events/miss2027").get()).val()||{};
+      const event=(await directRootRead())?.events?.miss2027||{};
       const group=membershipView(event.registration,uid);
       return reply(res,200,{group:group?{...group,entered:event.players?.[uid]?.groupId===group.id}:null});
     }
@@ -275,10 +285,20 @@ const server=http.createServer(async(req,res)=>{
       if(limited("create:"+uid,3))return reply(res,429,{error:"too_many_requests"});
       const b=await body(req);
       if(!validString(b.name,1,80)||!validString(b.pseudo,1,24)||!validString(b.password,6,128))return reply(res,400,{error:"invalid_fields"});
-      const epoch=(await registry.child("epoch").get()).val()||null;
+      const epoch=(await directRootRead())?.events?.miss2027?.registration?.epoch||null;
       const id=randomUUID(),secret=await hash(b.password),now=Date.now();
-      const result=await atomic(root=>registrationChange(root,s=>(s?.epoch||null)!==epoch?{code:"registration_reset"}:createGroup(s,{uid,id,name:b.name.trim(),pseudo:b.pseudo.trim(),secret,now})),getDatabase(app).ref());
-      return reply(res,result.status,result.body);
+      const result=await directRootChange(root=>registrationChange(root,s=>(s?.epoch||null)!==epoch?{code:"registration_reset"}:createGroup(s,{uid,id,name:b.name.trim(),pseudo:b.pseudo.trim(),secret,now})));
+      if(result.status!==200){
+        console.log("TEST_GROUP_CREATE "+JSON.stringify({status:result.status,error:result.body?.error||null}));
+        return reply(res,result.status,result.body);
+      }
+      const view=ownerView(await directRootRead(),uid);
+      if(view.code||view.result.group.id!==id){
+        console.log("TEST_GROUP_CREATE "+JSON.stringify({status:409,error:"creation_not_verified"}));
+        return reply(res,409,{error:"creation_not_verified"});
+      }
+      console.log("TEST_GROUP_CREATE "+JSON.stringify({status:200,verified:true}));
+      return reply(res,200,{...result.body,group:view.result.group});
     }
     if(req.method==="POST"&&url.pathname==="/groups/join"){
       if(limited("join:"+uid,5))return reply(res,429,{error:"too_many_requests"});

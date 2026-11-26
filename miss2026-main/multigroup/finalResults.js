@@ -76,9 +76,9 @@ export function buildFinalResults({
   const local = Object.create(null);
   const perPlayer = Object.create(null);
   for (const p of national) {
-    perPlayer[p.uid] = { points: p.points, nationalRank: p.rank, nationalTotal: national.length, groups: Object.create(null) };
+    perPlayer[p.uid] = { points: p.points, nationalRank: p.rank, nationalTotal: national.length, group: null };
   }
-  const publicMembership = new Set();
+  const assignedGroups = new Map();
   for (const [groupId, group] of Object.entries(groups)) {
     assertId(groupId);
     if (!["private", "public"].includes(group.type)) throw new Error("Type de groupe inconnu");
@@ -90,10 +90,8 @@ export function buildFinalResults({
     for (const uid of memberUids) {
       assertId(uid);
       if (!own(players, uid)) throw new Error("Membre sans identité");
-      if (group.type === "public") {
-        if (publicMembership.has(uid)) throw new Error("Deux salles publiques pour un même joueur");
-        publicMembership.add(uid);
-      }
+      if (assignedGroups.has(uid)) throw new Error("Deux groupes pour un même joueur");
+      assignedGroups.set(uid, groupId);
     }
     const ranking = rankPlayers(memberUids.filter(uid => byUid.has(uid)).map(uid => {
       const { rank, ...entry } = byUid.get(uid);
@@ -101,8 +99,9 @@ export function buildFinalResults({
     }));
     local[groupId] = ranking;
     for (const p of ranking) {
-      perPlayer[p.uid].groups[groupId] = { rank: p.rank, total: ranking.length };
+      perPlayer[p.uid].group = { groupId, rank: p.rank, total: ranking.length };
     }
   }
+  if (national.some(p => !assignedGroups.has(p.uid))) throw new Error("Joueur éligible sans groupe");
   return { national, local, perPlayer };
 }

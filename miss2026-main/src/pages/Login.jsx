@@ -136,6 +136,11 @@ export default function Login({ setUser }) {
         </button>
         <div id="howto-rules" hidden={!showRules}>
       <section className="tv-howto tv-howto-v3" aria-label="Comment jouer" style={{ background: "linear-gradient(160deg, #231131, #18112d)", border: "1px solid #bc79be", color: "white", borderRadius: 22, padding: "18px 12px", marginBottom: 0, marginTop: 10, boxShadow: "0 10px 28px rgba(37,12,56,.23)" }}>
+        <div style={{textAlign:"left",padding:"12px",marginBottom:14,borderRadius:14,background:"rgba(148,92,205,.17)",border:"1px solid #bc79be",fontSize:15,lineHeight:1.5}}>
+          <div style={{fontWeight:800,color:"#f7acd7",marginBottom:8,textAlign:"center"}}>Deux façons de jouer :</div>
+          <div style={{marginBottom:8}}>🌍 <strong>En salle publique :</strong> joue seul en rejoignant d’autres participants que tu ne connais pas.</div>
+          <div>👥 <strong>En groupe privé :</strong> crée ton groupe ou rejoins celui de tes amis ou de ta famille pour jouer ensemble.</div>
+        </div>
         {[
           { n: "01", text: "Premier tour : sélectionner 12 Miss et votre coup de cœur.", background: "#83283F", border: "#E66C8B", accent: "#FFD8E0" },
           { n: "02", text: "Deuxième tour : sélectionner 5 Miss.", background: "#205C99", border: "#64A9EA", accent: "#DAEEFF" },

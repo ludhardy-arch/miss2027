@@ -129,8 +129,19 @@ const server=http.createServer(async(req,res)=>{
       const snap=await registry.get();
       return reply(res,200,{groups:searchGroups(snap.val(),query)});
     }
+    if(req.method==="POST"&&url.pathname==="/groups/owner/access"){
+      if(!user.email||!user.email_verified||!user.auth_time||Date.now()/1000-user.auth_time>900)return reply(res,403,{error:"verified_email_required"});
+      if(limited("owner:"+uid,5))return reply(res,429,{error:"too_many_requests"});
+      const b=await body(req);
+      if(!validString(b.password,6,128))return reply(res,400,{error:"invalid_fields"});
+      const state=(await registry.get()).val();
+      const id=state?.membership?.[uid],group=id&&state.groups?.[id];
+      if(!group||group.ownerUid!==uid||!group.members?.[uid])return reply(res,403,{error:"owner_required"});
+      if(!await matches(b.password,group.secret))return reply(res,403,{error:"invalid_password"});
+      return reply(res,200,{group:{id,name:group.name,pseudo:group.members[uid].pseudo,isOwner:true,memberCount:Object.keys(group.members).length,registrationsOpen:group.registrationsOpen,members:Object.entries(group.members).map(([memberId,member])=>({id:memberId,pseudo:member.pseudo,isOwner:memberId===uid}))}});
+    }
     if(req.method==="POST"&&url.pathname==="/groups/create"){
-      if(!user.email||!user.email_verified)return reply(res,403,{error:"verified_email_required"});
+      if(!user.email||!user.email_verified||!user.auth_time||Date.now()/1000-user.auth_time>900)return reply(res,403,{error:"verified_email_required"});
       if(limited("create:"+uid,3))return reply(res,429,{error:"too_many_requests"});
       const b=await body(req);
       if(!validString(b.name,1,80)||!validString(b.pseudo,1,24)||!validString(b.password,6,128))return reply(res,400,{error:"invalid_fields"});

@@ -1,0 +1,30 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {createGroup,joinGroup,registerPublic,pseudoAvailable} from "./registration.mjs";
+import {manageGroup,acceptInvitation} from "./management.mjs";
+import {resetContest} from "./reset.mjs";
+const creator={uid:"u1",id:"g1",name:"Groupe 1",pseudo:"Ludo",secret:"hash",now:1};
+const fixture=()=>({rooms:{miss2027:{gameId:"g",tour:1,votesOpen:false,connectionsOpen:true}},events:{miss2027:{registration:createGroup(null,creator).state}}});
+test("pseudo uniqueness is global, case and accents ignored, while own name is available",()=>{
+ const root=fixture(),s=root.events.miss2027.registration;
+ assert.equal(pseudoAvailable(s," LÚDO ","u2"),false);
+ assert.equal(pseudoAvailable(s,"ludo","u1"),true);
+ assert.equal(pseudoAvailable(s,"Ludo2","u2"),true);
+ assert.equal(pseudoAvailable(s,"   ","u2"),false);
+ assert.equal(createGroup(s,{...creator,uid:"u2",id:"g2",pseudo:"LUDO"}).code,"pseudo_taken");
+ assert.equal(joinGroup(s,{uid:"u2",id:"g1",pseudo:"ludo",verifiedSecret:"hash",now:2}).code,"pseudo_taken");
+ assert.equal(registerPublic(root,{uid:"u2",pseudo:"Ludo",now:2}).code,"pseudo_taken");
+ const pub=registerPublic(root,{uid:"u2",pseudo:"Autre",now:2}).state;
+ assert.equal(createGroup(pub.events.miss2027.registration,{...creator,uid:"u3",id:"g3",pseudo:"autre"}).code,"pseudo_taken");
+});
+test("invited users cannot duplicate a pseudo; removing a member releases it",()=>{
+ const digest="a".repeat(64);
+ let root=manageGroup(fixture(),{uid:"u1",action:"invite",digest}).state;
+ assert.equal(acceptInvitation(root,{uid:"u2",digest,pseudo:"LUDO",now:2}).code,"pseudo_taken");
+ root=acceptInvitation(root,{uid:"u2",digest,pseudo:"Bob",now:2}).state;
+ assert.equal(pseudoAvailable(root.events.miss2027.registration,"bob","u3"),false);
+ root=manageGroup(root,{uid:"u1",action:"remove",targetUid:"u2"}).state;
+ assert.equal(pseudoAvailable(root.events.miss2027.registration,"bob","u3"),true);
+ assert.equal(pseudoAvailable(resetContest(root,"game","g2").state.events.miss2027.registration,"ludo","u3"),false);
+ assert.equal(pseudoAvailable(resetContest(root,"registrations","r").state.events.miss2027.registration,"ludo","u3"),true);
+});

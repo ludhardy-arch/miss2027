@@ -14,9 +14,11 @@ export function verifyReset(root,kind,id){
  return room.tour===1&&room.votesOpen===false&&room.finaleStarted===false&&!count(e.votes)&&!Object.values(room.adminSelections||{}).some(v=>count(v))&&!hasVotes(room.players)&&!e.results;
 }
 export function resetContest(root,kind,id){
-  if(!root||typeof root!=="object")return {code:"room_not_initialized"};
-  const room=root.rooms?.miss2027;
-  if(!room||typeof room!=="object")return {code:"room_not_initialized"};
+  if(root!==null&&(!root||typeof root!=="object"||Array.isArray(root)))return {code:"room_not_initialized"};
+  root=root||{};
+  // Only an explicitly confirmed GAME reset may initialize a genuinely absent room.
+  const room=root.rooms?.miss2027||(kind==="game"?{connectionsOpen:false,demoEnabled:true,votesOpen:false,tour:1,finaleStarted:false}:null);
+  if(!room||typeof room!=="object"||Array.isArray(room))return {code:"room_not_initialized"};
   const event=root.events?.miss2027||{};
   const control=event.control||{};
   let newRoom,newEvent;

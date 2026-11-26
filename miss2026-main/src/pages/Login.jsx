@@ -18,12 +18,44 @@ function getRemainingTime() {
 }
 
 
+// Temporary, explicitly labelled examples for testing the search interface.
+// Never use this list or a client-side password check to grant real membership.
+const PREVIEW_GROUPS = [
+  {id:"preview-1",name:"La famille des Miss"},
+  {id:"preview-2",name:"La famille Bretonne"},
+  {id:"preview-3",name:"Les amis de Bretagne"},
+  {id:"preview-4",name:"Les amis des Miss"},
+  {id:"preview-5",name:"Team Breizh"}
+];
+const normalizeGroupName = value => value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim().replace(/\s+/g," ");
+function groupMatches(name, query) {
+  const n = normalizeGroupName(name), q = normalizeGroupName(query);
+  if (!q) return false;
+  if (n.includes(q)) return true;
+  // Match individual words even when a small typing error is present.
+  const distance = (a,b) => {
+    let row = Array.from({length:b.length+1},(_,i)=>i);
+    for (let i=1;i<=a.length;i++) {
+      const next=[i];
+      for (let j=1;j<=b.length;j++) next[j]=Math.min(row[j]+1,next[j-1]+1,row[j-1]+(a[i-1]===b[j-1]?0:1));
+      row=next;
+    }
+    return row[b.length];
+  };
+  return q.split(" ").every(word => n.split(" ").some(candidate =>
+    candidate.includes(word) || (word.length>=4 && distance(word,candidate)<= (word.length>=7?2:1))
+  ));
+}
+
 export default function Login({ setUser }) {
   const { connectionsOpen, connectionsLoaded, connectionsError, demoEnabled, demoLoaded } = useContext(AppContext);
   const [showRules, setShowRules] = useState(false);
   const [pseudo, setPseudo] = useState("");
   const [entryMode, setEntryMode] = useState("home");
   const [groupQuery, setGroupQuery] = useState("");
+  const [groupResults, setGroupResults] = useState(null);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [groupPassword, setGroupPassword] = useState("");
   const [searchParams, setSearchParams] = useSearchParams();
   const invitation = searchParams.get("invite");
   const screen = invitation ? "invite" : entryMode;
@@ -54,7 +86,21 @@ export default function Login({ setUser }) {
   function openEntry(mode) { setError(""); setEntryMode(mode); }
   function backToHome() {
     setError(""); setEntryMode("home");
+    setGroupQuery(""); setGroupResults(null); setSelectedGroup(null); setGroupPassword("");
     if (invitation) setSearchParams({}, {replace:true});
+  }
+  function searchPreviewGroups(event) {
+    event.preventDefault();
+    setError("");
+    setGroupResults(PREVIEW_GROUPS.filter(group => groupMatches(group.name,groupQuery)));
+  }
+  function selectPreviewGroup(group) {
+    setSelectedGroup(group); setGroupPassword(""); setPseudo(""); setError(""); setEntryMode("join-group");
+  }
+  function submitPreviewGroup(event) {
+    event.preventDefault();
+    setGroupPassword("");
+    setError("Aperçu uniquement : le contrôle du mot de passe et l’inscription seront activés après raccordement sécurisé à la base de test.");
   }
   function enterPreview(event) {
     event.preventDefault();
@@ -203,11 +249,28 @@ export default function Login({ setUser }) {
           {accessControl(screen === "public", enterPreview, !pseudo.trim())}
           {screen === "invite" && notice("Le nom du groupe et la validité de l’invitation seront vérifiés à l’étape suivante.")}
         </>}
-        {screen === "join" && <form onSubmit={enterPreview} style={{display:"grid",gap:12}}>
+        {screen === "join" && <>
+          <form onSubmit={searchPreviewGroups} style={{display:"grid",gap:12}}>
+            <input aria-label="Nom du groupe" placeholder="Nom du groupe" maxLength={80} value={groupQuery} onChange={e => {setGroupQuery(e.target.value);setGroupResults(null);setError("");}} style={inputStyle}/>
+            <button type="submit" className="group-entry-blue" style={entryButton} disabled={!groupQuery.trim()}>Rechercher</button>
+          </form>
+          {groupResults !== null && <div aria-live="polite" style={{display:"grid",gap:10,textAlign:"left"}}>
+            <p style={{fontSize:12,color:"#ffd49c",margin:"4px 0"}}>Aperçu de test · groupes fictifs</p>
+            {groupResults.length === 0 ? notice("Aucun groupe correspondant. Essaie une autre recherche.") : <>
+              <p style={{margin:0,color:"#e0e8ff",fontWeight:700}}>Choisis ton groupe :</p>
+              {groupResults.map(group => <button key={group.id} type="button" className="group-entry-blue" style={{...entryButton,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}} onClick={() => selectPreviewGroup(group)}>
+                <span>{group.name}</span><span aria-hidden="true">›</span>
+              </button>)}
+            </>}
+          </div>}
+        </>}
+        {screen === "join-group" && selectedGroup && <form onSubmit={submitPreviewGroup} style={{display:"grid",gap:12}}>
+          <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Rejoindre {selectedGroup.name}</h2>
+          {notice("Aperçu de test · groupe fictif. Aucun mot de passe réel nécessaire.")}
           <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
-          <input aria-label="Nom du groupe" placeholder="Nom du groupe" value={groupQuery} onChange={e => setGroupQuery(e.target.value)} style={inputStyle}/>
-          <button type="submit" className="group-entry-blue" style={entryButton} disabled={!pseudo.trim() || !groupQuery.trim()}>Rechercher</button>
-          {notice("La recherche et le mot de passe du groupe seront raccordés à l’étape suivante.")}
+          <input type="password" aria-label="Mot de passe du groupe" autoComplete="off" placeholder="Mot de passe du groupe" maxLength={128} value={groupPassword} onChange={e => setGroupPassword(e.target.value)} style={inputStyle}/>
+          <button type="submit" className="group-entry-green" style={greenButton} disabled={!pseudo.trim() || !groupPassword.trim()}>Intégrer le groupe</button>
+          <button type="button" className="group-entry-back" onClick={() => {setGroupPassword("");setSelectedGroup(null);setError("");setEntryMode("join");}}>Retour aux résultats</button>
         </form>}
         {screen === "manage" && <>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Créer / Gérer son groupe</h2>

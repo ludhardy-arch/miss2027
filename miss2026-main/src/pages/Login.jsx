@@ -242,6 +242,11 @@ export default function Login({ setUser }) {
     }catch(err){setError(err.message||"Inscription impossible.");}
     finally{setGroupPassword("");setPending(false);}
   }
+  function showExistingMembership(group){
+    setJoinedGroup(group);setVerifiedCreator(null);setCreatorPassword("");setEmailNotice("");
+    setEntryMode("joined-group");
+    setError("Tu appartiens déjà à un groupe. Tu ne peux pas en créer un deuxième.");
+  }
   async function requestCreatorEmail(event,intent){
     event.preventDefault();
     if(pending||!creatorEmail.trim()||(intent==="create"&&(!pseudoReady||!nameReady)))return;
@@ -249,7 +254,7 @@ export default function Login({ setUser }) {
     try{
       if(intent==="create"&&auth.currentUser){
         const membership=await groupRequest("/groups/me");
-        if(membership.group){setJoinedGroup(membership.group);setEntryMode("joined-group");return;}
+        if(membership.group){showExistingMembership(membership.group);return;}
       }
       const draft={email:creatorEmail.trim(),name:creatorName.trim(),pseudo:creatorPseudo.trim(),intent,at:Date.now()};
       try{localStorage.setItem(CREATOR_DRAFT,JSON.stringify(draft));}catch{}
@@ -271,14 +276,35 @@ export default function Login({ setUser }) {
       await setPersistence(auth,browserLocalPersistence);
       const credential=await signInWithEmailLink(auth,email,emailLink);
       if(!credential.user.emailVerified)throw Error("L’adresse e-mail n’est pas vérifiée.");
-      setVerifiedCreator({uid:credential.user.uid,email:credential.user.email,intent});
+      setVerifiedCreator(null);
       setCreatorEmail(credential.user.email||email);
       if(intent==="create"&&draft?.email?.toLowerCase()===email.toLowerCase()){
         setCreatorName(draft.name||"");setCreatorPseudo(draft.pseudo||"");
       }
       try{localStorage.removeItem(CREATOR_DRAFT);}catch{}
       window.history.replaceState(window.history.state,"",window.location.pathname+"#/login");
-      setEmailLink("");setEmailNotice("");setEntryMode(intent==="manage"?"creator-login":"create-group");
+      setEmailLink("");setEmailNotice("");
+      // The email link has been consumed. Check the now-authenticated account
+      // before allowing a creation form, even on a different browser.
+      setEntryMode("home");
+      let membership;
+      try{membership=await groupRequest("/groups/me");}
+      catch(err){setError("Impossible de vérifier ton inscription. Retourne à l’accueil et réessaie.");return;}
+      if(intent==="create"&&membership.group){
+        if(membership.group.isOwner){
+          setVerifiedCreator({uid:credential.user.uid,email:credential.user.email,intent:"manage"});
+          setEntryMode("creator-login");
+          setEmailNotice("Tu as déjà créé le groupe "+membership.group.name+". Connecte-toi pour le gérer.");
+        }else showExistingMembership(membership.group);
+        return;
+      }
+      if(intent==="manage"&&!membership.group?.isOwner){
+        if(membership.group)showExistingMembership(membership.group);
+        else setError("Aucun groupe créé avec cette adresse e-mail.");
+        return;
+      }
+      setVerifiedCreator({uid:credential.user.uid,email:credential.user.email,intent});
+      setEntryMode(intent==="manage"?"creator-login":"create-group");
     }catch(err){setError(emailError(err));setEmailNeedsInput(true);}
     finally{setPending(false);}
   }
@@ -297,7 +323,13 @@ export default function Login({ setUser }) {
       const result=await groupRequest("/groups/create",{name:creatorName.trim(),pseudo:creatorPseudo.trim(),password:creatorPassword});
       setOwnerGroup({id:result.id,name:result.name,pseudo:creatorPseudo.trim(),memberCount:1,isOwner:true,registrationsOpen:true,locked:false,invitationActive:false,members:[{id:auth.currentUser.uid,pseudo:creatorPseudo.trim(),isOwner:true}]});
       setEntryMode("creator-confirm");
-    }catch(err){if(err.code==="verified_email_required")setVerifiedCreator(null);setError(err.message||"Création impossible.");}
+    }catch(err){
+      if(err.code==="already_member"){
+        try{const membership=await groupRequest("/groups/me");if(membership.group){showExistingMembership(membership.group);return;}}catch{}
+      }
+      if(err.code==="verified_email_required")setVerifiedCreator(null);
+      setError(err.message||"Création impossible.");
+    }
     finally{setCreatorPassword("");setPending(false);}
   }
   async function openRealCreator(event){
@@ -310,8 +342,17 @@ export default function Login({ setUser }) {
     }catch(err){if(err.code==="verified_email_required")setVerifiedCreator(null);setError(err.message||"Connexion impossible.");}
     finally{setCreatorPassword("");setPending(false);}
   }
-  function startCreatorFlow(mode){
-    setCreatorName("");setCreatorPseudo("");setCreatorEmail("");setCreatorPassword("");setVerifiedCreator(null);setEmailNotice("");setOwnerGroup(null);setInviteLink("");setInviteStatus("");openEntry(mode);
+  async function startCreatorFlow(mode){
+    if(pending)return;
+    setError("");setPending(true);
+    try{
+      if(mode==="create-group"){
+        const membership=await groupRequest("/groups/me");
+        if(membership.group){showExistingMembership(membership.group);return;}
+      }
+      setCreatorName("");setCreatorPseudo("");setCreatorEmail("");setCreatorPassword("");setVerifiedCreator(null);setEmailNotice("");setOwnerGroup(null);setInviteLink("");setInviteStatus("");openEntry(mode);
+    }catch(err){setError(err.message||"Impossible de vérifier ton inscription.");}
+    finally{setPending(false);}
   }
   async function registerPublicPlayer(event) {
     event.preventDefault();
@@ -533,10 +574,11 @@ export default function Login({ setUser }) {
           {notice("Tu es bien inscrit dans ce groupe sur la base de test, sous le pseudo "+joinedGroup.pseudo+".")}
           {joinedGroup.type==="public" && <p style={{margin:0,color:"#78ffbd",fontWeight:800}}>Salle publique · {joinedGroup.memberCount}/30 inscrits lors de ta connexion</p>}
           {accessControl(false,enterContest,false,joinedGroup.entered===true)}
+          {joinedGroup.isOwner&&<button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={()=>startCreatorFlow("creator-login")}>Gérer mon groupe</button>}
         </>}
         {screen === "manage" && <>
-          <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>startCreatorFlow("create-group")}>Créer un groupe</button>
-          <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>startCreatorFlow("creator-login")}>Gérer mon groupe</button>
+          <button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={()=>startCreatorFlow("create-group")}>Créer un groupe</button>
+          <button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={()=>startCreatorFlow("creator-login")}>Gérer mon groupe</button>
         </>}
         {screen === "email-verify" && <form onSubmit={e=>verifyCreatorEmail(e)} style={{display:"grid",gap:12,textAlign:"left"}}>
           {!emailNeedsInput||pending ? <p role="status" style={{margin:0,color:"#e0e8ff",textAlign:"center"}}>Vérification de ton e-mail…</p> : <>

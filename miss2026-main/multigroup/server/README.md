@@ -1,0 +1,11 @@
+# Serveur d'inscription — test uniquement
+
+Phase 1 : recherche, création et adhésion privées. Aucune modification du front, de la régie, des votes ou de Firebase de production. Le registre transitoire est events/miss2027/registration dans le projet strictement contrôlé miss2027-test-v2. Les clients ne doivent jamais avoir de lecture ou d'écriture sur ce registre. Le serveur Admin SDK est le seul écrivain. Les transactions atomiques sur ce registre empêchent la double appartenance entre groupes privés; l'attribution publique devra employer le même index avant son activation.
+
+Le serveur refuse de démarrer sans ENABLE_TEST_REGISTRATION=true et un compte de service du projet test. Ne jamais placer sa clé dans GitHub, VITE_*, ou dans le chat. Configurer le secret directement dans le service serveur Render, distinct du site statique. Ne pas modifier les règles existantes de la régie test. Prévoir une clé à privilèges limités, révocable.
+
+La création exige un ID token Firebase et une adresse e-mail vérifiée. Le secret du groupe est haché via scrypt et sel aléatoire; jamais exposé via la recherche. L'adresse e-mail n'est pas stockée dans le registre. Le mot de passe partagé ne doit PAS devenir le mot de passe Firebase du créateur. Pour la future gestion, authentifier le propriétaire avec un lien de connexion envoyé à son e-mail (ou une autre preuve indépendante de possession de l'e-mail), puis contrôler son UID côté serveur. Une simple propriété email_verified sur un compte à mot de passe partagé ne suffit pas. Gestion et invitations non implémentées à ce stade.
+
+API : GET /health; GET /groups/search?q=...; POST /groups/create {name,pseudo,password}; POST /groups/join {id,pseudo,password}. Les trois dernières exigent Authorization: Bearer <ID token Firebase>. Origine web limitée au site test; CORS n'est pas une authentification. Les limites de tentatives sont provisoires, en mémoire et non distribuées. Il faut tester les abus, la concurrence, les règles, la capacité et l'intégration avant ouverture. La transaction sur le registre entier est une approche de test, à mesurer avant montée en charge. L'index des votes et les projections de membres du contrat V2 restent à raccorder.
+
+Tests : npm test. Démarrage local : npm install puis npm start uniquement avec secrets de test et activation explicite. Aucun déploiement serveur à ce stade.

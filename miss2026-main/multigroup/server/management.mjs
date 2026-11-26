@@ -4,7 +4,7 @@ const eventOf=root=>root?.events?.miss2027||{};
 const replace=(root,event)=>({...root,events:{...root.events,miss2027:event}});
 export function locked(root){
  const room=root?.rooms?.miss2027,event=eventOf(root);
- return room?.votesOpen===true||room?.finaleStarted===true||Number(room?.tour||1)!==1||Object.keys(event.votes||{}).length>0;
+ return room?.registrationLocked===true||room?.votesOpen===true||room?.finaleStarted===true||Number(room?.tour||1)!==1||Object.keys(event.votes||{}).length>0;
 }
 export function ownerView(root,uid){
  const event=eventOf(root),reg=event.registration,view=membershipView(reg,uid);

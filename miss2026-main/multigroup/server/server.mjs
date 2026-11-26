@@ -5,6 +5,7 @@ import {initializeApp,cert} from "firebase-admin/app";
 import {getAuth} from "firebase-admin/auth";
 import {getDatabase} from "firebase-admin/database";
 import {createGroup,joinGroup,searchGroups} from "./registration.mjs";
+import {resetContest} from "./reset.mjs";
 
 const PROJECT="miss2027-test-v2";
 const DATABASE="https://miss2027-test-v2-default-rtdb.europe-west1.firebasedatabase.app";
@@ -61,9 +62,9 @@ async function body(req){
   for await(const chunk of req){size+=chunk.length;if(size>8192)throw Object.assign(Error("payload_too_large"),{status:413});chunks.push(chunk);}
   try{const parsed=JSON.parse(Buffer.concat(chunks).toString("utf8"));if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))throw Error();return parsed;}catch{throw Object.assign(Error("invalid_json"),{status:400});}
 }
-async function atomic(operation){
+async function atomic(operation,target=registry){
   let outcome;
-  const tx=await registry.transaction(current=>{
+  const tx=await target.transaction(current=>{
     outcome=operation(current);
     // A first local snapshot can be null even when remote data exists. A no-op
     // allows the server to detect conflicts and retry, without deleting state.
@@ -115,6 +116,19 @@ const server=http.createServer(async(req,res)=>{
     const uid=user.uid;
     if(!/^[a-zA-Z0-9_-]{1,128}$/.test(uid)||["__proto__","constructor","prototype"].includes(uid))return reply(res,403,{error:"unsupported_identity"});
     if(limited("user:"+uid,30))return reply(res,429,{error:"too_many_requests"});
+    if(req.method==="POST"&&url.pathname==="/admin/reset"){
+      // Verify the same test administrator identity as Firebase RTDB rules.
+      // Never trust a client role, a group password, or an email address.
+      if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});
+      if(limited("reset:"+uid,4))return reply(res,429,{error:"too_many_requests"});
+      const b=await body(req);
+      const word=b.kind==="game"?"JEU":b.kind==="registrations"?"INSCRIPTIONS":null;
+      if(!word||b.confirmation!==word||b.confirmed!==true)return reply(res,400,{error:"invalid_reset"});
+      const id=Date.now()+"-"+randomUUID();
+      const result=await atomic(state=>resetContest(state,b.kind,id),getDatabase(app).ref());
+      console.log("TEST_ADMIN_RESET "+b.kind+" "+(result.status===200?"ok":"refused"));
+      return reply(res,result.status,result.body);
+    }
     if(req.method==="GET"&&url.pathname==="/groups/me"){
       const state=(await registry.get()).val();
       const id=state?.membership?.[uid];
@@ -145,8 +159,9 @@ const server=http.createServer(async(req,res)=>{
       if(limited("create:"+uid,3))return reply(res,429,{error:"too_many_requests"});
       const b=await body(req);
       if(!validString(b.name,1,80)||!validString(b.pseudo,1,24)||!validString(b.password,6,128))return reply(res,400,{error:"invalid_fields"});
+      const epoch=(await registry.child("epoch").get()).val()||null;
       const id=randomUUID(),secret=await hash(b.password),now=Date.now();
-      const result=await atomic(s=>createGroup(s,{uid,id,name:b.name.trim(),pseudo:b.pseudo.trim(),secret,now}));
+      const result=await atomic(s=>(s?.epoch||null)!==epoch?{code:"registration_reset"}:createGroup(s,{uid,id,name:b.name.trim(),pseudo:b.pseudo.trim(),secret,now}));
       return reply(res,result.status,result.body);
     }
     if(req.method==="POST"&&url.pathname==="/groups/join"){

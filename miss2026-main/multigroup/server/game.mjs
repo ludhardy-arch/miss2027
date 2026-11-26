@@ -68,7 +68,7 @@ export function adminGameView(root){
    const group=membershipView(event.registration,uid);
    if(!group)continue;
    const own=event.votes?.[uid]||{};
-   const record={uid,pseudo:group.pseudo,groupName:group.name,groupId:group.id,entered:event.players?.[uid]?.groupId===group.id};
+   const record={uid,chatBlocked:event.chatModeration?.[uid]===true,pseudo:group.pseudo,groupName:group.name,groupId:group.id,entered:event.players?.[uid]?.groupId===group.id};
    for(const key of ["tour1","tour2","tour3","favorite"])if(own[key]!==undefined)record[key]=own[key];
    players[uid]=record;
  }

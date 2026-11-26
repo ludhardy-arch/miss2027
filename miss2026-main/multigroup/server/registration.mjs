@@ -13,7 +13,7 @@ export function searchGroups(state, query) {
   const q=normalizeName(query);
   if(!q)return [];
   return Object.entries(state?.groups||{}).filter(([,g])=>{
-    if(g.type==="public"||g.registrationsOpen===false)return false;
+    if(g.type==="public")return false;
     const n=normalizeName(g.name);
     return n.includes(q)||q.split(" ").every(w=>n.split(" ").some(c=>c.includes(w)||(w.length>=4&&distance(w,c)<=(w.length>=7?2:1))));
   }).map(([id,g])=>({id,name:g.name})).sort((a,b)=>a.name.localeCompare(b.name,"fr")).slice(0,30);
@@ -49,7 +49,7 @@ export function joinGroup(state,{uid,id,pseudo,verifiedSecret,now}) {
   const s=state||{};
   const g=s.groups?.[id];
   if(s.membership?.[uid])return fail("already_member");
-  if(!g||g.type==="public"||!g.registrationsOpen)return fail("unavailable");
+  if(!g||g.type==="public")return fail("unavailable");
   if(g.secret!==verifiedSecret)return fail("invalid_password");
   if(Object.keys(g.members||{}).length>=PRIVATE_CAPACITY)return fail("group_full");
   const invalid=checkPseudo(s,pseudo,uid);if(invalid)return invalid;

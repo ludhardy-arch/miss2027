@@ -109,7 +109,12 @@ export default function Admin({ user, setUser }) {
       const token=await current.getIdToken();
       const response=await fetch("https://miss2027-test-api.onrender.com/admin/reset",{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({kind:resetKind,confirmation:resetConfirmation,confirmed:true}),signal:AbortSignal.timeout(90000),cache:"no-store"});
       const result=await response.json();
-      if(!response.ok){const why=(result.reasons||[]).map(code=>({votes_open:"votes ouverts",finale:"finale lancée",round:"tour déjà avancé",votes_exist:"votes enregistrés",official_selections:"sélections officielles enregistrées",results_exist:"résultats existants"})[code]||code).join(", ");throw Error(({reset_not_verified:"Impossible de confirmer la suppression dans Firebase.",conflict:"Conflit de données : aucune confirmation de suppression.",reset_game_first:"Remets d’abord le jeu à zéro avant de supprimer les inscriptions.",admin_required:"Compte administrateur non autorisé.",room_not_initialized:"La régie n’est pas encore initialisée.",too_many_requests:"Réessaie dans une minute.",test_registration_disabled:"Serveur test indisponible."})[result.error]||"Réinitialisation refusée.")+(why?" ("+why+")":""));}
+      if(!response.ok){
+        const labels={votes_open:"votes ouverts",finale:"finale lancée",round:"tour déjà avancé",votes_exist:"votes enregistrés",official_selections:"sélections officielles enregistrées",results_exist:"résultats existants"};
+        const why=(result.reasons||[]).map(code=>labels[code]||code).join(", ");
+        const messages={reset_not_verified:"Impossible de confirmer la suppression dans Firebase.",conflict:"Conflit de données : aucune confirmation de suppression.",reset_game_first:"Remets d’abord le jeu à zéro avant de supprimer les inscriptions.",admin_required:"Compte administrateur non autorisé.",room_not_initialized:"La régie n’est pas encore initialisée.",too_many_requests:"Réessaie dans une minute.",test_registration_disabled:"Serveur test indisponible."};
+        throw Error((messages[result.error]||"Réinitialisation refusée.")+(why?" ("+why+")":""));
+      }
       if(result.kind!==resetKind||!result.gameId||result.verified!==true||(resetKind==="registrations"&&(result.remaining?.groups!==0||result.remaining?.players!==0)))throw Error("Réponse inattendue : vérifie les données avant de recommencer.");
       setResetFeedback(resetKind==="game"?"Jeu remis à zéro. Joueurs et groupes conservés.":`${result.before?.groups??0} groupe(s) et ${result.before?.players??0} inscription(s) supprimés. Vérification Firebase : 0 groupe, 0 joueur.`);
       setResetKind("");setResetConfirmation("");

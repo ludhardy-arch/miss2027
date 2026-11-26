@@ -31,7 +31,7 @@ function emailError(err){
   return err.message||"Opération impossible.";
 }
 
-const groupErrors={verified_email_required:"Vérifie de nouveau ton adresse e-mail avant de continuer.",owner_required:"Cette adresse e-mail n’est pas celle du créateur de ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
+const groupErrors={public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",verified_email_required:"Vérifie de nouveau ton adresse e-mail avant de continuer.",owner_required:"Cette adresse e-mail n’est pas celle du créateur de ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
 async function groupRequest(path,body) {
   if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Ce service est réservé au site test.");
   const user=auth.currentUser;
@@ -187,6 +187,18 @@ export default function Login({ setUser }) {
   function startCreatorFlow(mode){
     setCreatorName("");setCreatorPseudo("");setCreatorEmail("");setCreatorPassword("");setVerifiedCreator(null);setEmailNotice("");setOwnerGroup(null);openEntry(mode);
   }
+  async function registerPublicPlayer(event) {
+    event.preventDefault();
+    if(pending||!pseudo.trim()||!connectionsLoaded||!connectionsOpen||connectionsError)return;
+    setPending(true);setError("");
+    try {
+      const result=await groupRequest("/groups/public",{pseudo:pseudo.trim()});
+      if(!result.group?.id||!result.group?.name)throw Error("Inscription non confirmée. Réessaie.");
+      setJoinedGroup(result.group);
+      setEntryMode("joined-group");
+    }catch(err){setError(err.message||"Inscription impossible.");}
+    finally{setPending(false);}
+  }
   function enterPreview(event) {
     event.preventDefault();
     setError("Cette fonction sera raccordée à la nouvelle base de test à l’étape suivante.");
@@ -340,8 +352,10 @@ export default function Login({ setUser }) {
         </>}
         {(screen === "public" || screen === "invite") && <>
           {screen === "invite" && <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Bienvenue dans le groupe</h2>}
-          <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
-          {accessControl(screen === "public", enterPreview, !pseudo.trim())}
+          <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} disabled={pending} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
+          {screen === "public" && notice("Tu seras automatiquement inscrit dans une salle publique de 30 joueurs maximum. Si tu appartiens déjà à un groupe, tu retrouveras ton groupe actuel.")}
+          {accessControl(screen === "public", screen === "public" ? registerPublicPlayer : enterPreview, !pseudo.trim())}
+          {pending && notice("Inscription en cours…")}
           {screen === "invite" && notice("Le nom du groupe et la validité de l’invitation seront vérifiés à l’étape suivante.")}
         </>}
         {screen === "join" && <>
@@ -370,8 +384,9 @@ export default function Login({ setUser }) {
         {screen === "joined-group" && joinedGroup && <>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:21}}>Bienvenue dans {joinedGroup.name} !</h2>
           {notice("Tu es bien inscrit dans ce groupe sur la base de test, sous le pseudo "+joinedGroup.pseudo+".")}
+          {joinedGroup.type==="public" && <p style={{margin:0,color:"#78ffbd",fontWeight:800}}>Salle publique · {joinedGroup.memberCount}/30 inscrits lors de ta connexion</p>}
           {accessControl(false,enterPreview)}
-          {notice("Les votes et le chat privés seront raccordés à l’étape suivante.")}
+          {notice("Les votes et le chat de cette salle seront raccordés à l’étape suivante.")}
         </>}
         {screen === "manage" && <>
           <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>startCreatorFlow("create-group")}>Créer un groupe</button>

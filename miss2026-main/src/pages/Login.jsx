@@ -20,6 +20,7 @@ function getRemainingTime() {
 
 export default function Login({ setUser }) {
   const { connectionsOpen, connectionsLoaded, connectionsError, demoEnabled, demoLoaded } = useContext(AppContext);
+  const [showRules, setShowRules] = useState(false);
   const [pseudo, setPseudo] = useState("");
   const [entryMode, setEntryMode] = useState("home");
   const [groupQuery, setGroupQuery] = useState("");
@@ -127,8 +128,14 @@ export default function Login({ setUser }) {
         <div style={{ width: 76, height: 1, margin: "20px auto", background: "linear-gradient(90deg,transparent,#e9c487,transparent)" }} />
         <p style={{ margin: "0 auto", maxWidth: 330, fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic", fontSize: "clamp(21px, 5.5vw, 27px)", lineHeight: 1.35, color: "#fff9ee" }}>Qui aura le <span style={{ color: "#f2c784" }}>meilleur pronostic ?</span></p>
       </header>
-      <section className="tv-howto tv-howto-v3" aria-label="Comment jouer" style={{ background: "linear-gradient(160deg, #231131, #18112d)", border: "1px solid #bc79be", color: "white", borderRadius: 22, padding: "18px 12px", marginBottom: 20, boxShadow: "0 10px 28px rgba(37,12,56,.23)" }}>
-        <div style={{ color: "#f7acd7", letterSpacing: ".12em", fontWeight: 800, fontSize: 13, marginBottom: 6 }}>✦ ✨ COMMENT JOUER ✨ ✦</div>
+      <div style={{width:"min(100%,600px)",margin:"0 auto 16px"}}>
+        <button type="button" aria-expanded={showRules} aria-controls="howto-rules" onClick={() => setShowRules(open => !open)}
+          style={{display:"flex",alignItems:"center",justifyContent:"center",position:"relative",boxSizing:"border-box",width:"100%",minHeight:48,padding:"12px 42px",borderRadius:13,border:"1px solid #bd8fdb",background:"linear-gradient(135deg,#432068,#6f378f,#432068)",color:"#fff",fontSize:15,fontWeight:800,boxShadow:"0 0 14px rgba(187,111,233,.25)"}}>
+          Comment jouer
+          <span aria-hidden="true" style={{position:"absolute",right:18,fontSize:20,lineHeight:1,transform:showRules?"rotate(180deg)":"rotate(0deg)",transition:"transform .18s ease"}}>⌄</span>
+        </button>
+        <div id="howto-rules" hidden={!showRules}>
+      <section className="tv-howto tv-howto-v3" aria-label="Comment jouer" style={{ background: "linear-gradient(160deg, #231131, #18112d)", border: "1px solid #bc79be", color: "white", borderRadius: 22, padding: "18px 12px", marginBottom: 0, marginTop: 10, boxShadow: "0 10px 28px rgba(37,12,56,.23)" }}>
         {[
           { n: "01", text: "Premier tour : sélectionner 12 Miss et votre coup de cœur.", background: "#83283F", border: "#E66C8B", accent: "#FFD8E0" },
           { n: "02", text: "Deuxième tour : sélectionner 5 Miss.", background: "#205C99", border: "#64A9EA", accent: "#DAEEFF" },
@@ -144,6 +151,8 @@ export default function Login({ setUser }) {
         </div>
         <p style={{ color: "#ffd49c", margin: "17px 7px 5px", fontSize: 14 }}>✨ Attends l'ouverture des votes à chaque tour.</p>
       </section>
+        </div>
+      </div>
       <div className="tv-entry tv-entry-v3 group-entry-panel" style={{display:"grid",gap:12}}>
         <style>{`
           .tv-login-shell .group-entry-panel button { margin-top:0; }

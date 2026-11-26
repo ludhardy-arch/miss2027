@@ -6,6 +6,7 @@ import {getAuth} from "firebase-admin/auth";
 import {getDatabase} from "firebase-admin/database";
 import {createGroup,joinGroup,searchGroups,registerPublic,membershipView} from "./registration.mjs";
 import {resetContest} from "./reset.mjs";
+import {enterGame,gameView,castVote} from "./game.mjs";
 
 const PROJECT="miss2027-test-v2";
 const DATABASE="https://miss2027-test-v2-default-rtdb.europe-west1.firebasedatabase.app";
@@ -127,6 +128,22 @@ const server=http.createServer(async(req,res)=>{
       const id=Date.now()+"-"+randomUUID();
       const result=await atomic(state=>resetContest(state,b.kind,id),getDatabase(app).ref());
       console.log("TEST_ADMIN_RESET "+b.kind+" "+(result.status===200?"ok":"refused"));
+      return reply(res,result.status,result.body);
+    }
+    if(req.method==="POST"&&url.pathname==="/game/enter"){
+      if(uid==="fma5bvfcCRYoS1kBf0CUFdBVowJ3")return reply(res,403,{error:"admin_cannot_register"});
+      const now=Date.now();
+      const result=await atomic(root=>enterGame(root,{uid,now}),getDatabase(app).ref());
+      return reply(res,result.status,result.body);
+    }
+    if(req.method==="GET"&&url.pathname==="/game/state"){
+      const view=gameView((await getDatabase(app).ref().get()).val(),uid);
+      return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
+    }
+    if(req.method==="POST"&&url.pathname==="/game/vote"){
+      if(limited("vote:"+uid,8))return reply(res,429,{error:"too_many_requests"});
+      const b=await body(req),now=Date.now();
+      const result=await atomic(root=>castVote(root,{uid,gameId:b.gameId,tour:b.tour,selection:b.selection,favorite:b.favorite,now}),getDatabase(app).ref());
       return reply(res,result.status,result.body);
     }
     if(req.method==="GET"&&url.pathname==="/groups/me"){

@@ -1,4 +1,4 @@
-// Test-only private registration state. Server-owned; never exposed as a whole.
+// Test-only private and public registration state. Server-owned; never exposed as a whole.
 export const normalizeName = value => value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim().replace(/\s+/g," ");
 export function distance(a,b) {
   let row=Array.from({length:b.length+1},(_,i)=>i);
@@ -13,7 +13,7 @@ export function searchGroups(state, query) {
   const q=normalizeName(query);
   if(!q)return [];
   return Object.entries(state?.groups||{}).filter(([,g])=>{
-    if(!g.registrationsOpen)return false;
+    if(g.type==="public"||!g.registrationsOpen)return false;
     const n=normalizeName(g.name);
     return n.includes(q)||q.split(" ").every(w=>n.split(" ").some(c=>c.includes(w)||(w.length>=4&&distance(w,c)<=(w.length>=7?2:1))));
   }).map(([id,g])=>({id,name:g.name})).sort((a,b)=>a.name.localeCompare(b.name,"fr")).slice(0,30);
@@ -23,15 +23,47 @@ export function createGroup(state,{uid,id,name,pseudo,secret,now}) {
   const s=state||{};
   if(s.membership?.[uid])return fail("already_member");
   if(s.groups?.[id])return fail("conflict");
-  const group={name,ownerUid:uid,registrationsOpen:true,secret,createdAt:now,members:{[uid]:{pseudo,joinedAt:now}}};
+  const group={type:"private",name,ownerUid:uid,registrationsOpen:true,secret,createdAt:now,members:{[uid]:{pseudo,joinedAt:now}}};
   return {state:{...s,groups:{...s.groups,[id]:group},membership:{...s.membership,[uid]:id}},result:{id,name}};
 }
 export function joinGroup(state,{uid,id,pseudo,verifiedSecret,now}) {
   const s=state||{};
   const g=s.groups?.[id];
   if(s.membership?.[uid])return fail("already_member");
-  if(!g||!g.registrationsOpen)return fail("unavailable");
+  if(!g||g.type==="public"||!g.registrationsOpen)return fail("unavailable");
   if(g.secret!==verifiedSecret)return fail("invalid_password");
   const group={...g,members:{...g.members,[uid]:{pseudo,joinedAt:now}}};
   return {state:{...s,groups:{...s.groups,[id]:group},membership:{...s.membership,[uid]:id}},result:{id,name:g.name}};
+}
+
+export const PUBLIC_CAPACITY=30;
+export function membershipView(state,uid){
+  const id=state?.membership?.[uid];
+  const group=id&&state.groups?.[id];
+  const member=group?.members?.[uid];
+  if(!group||!member)return null;
+  return {id,name:group.name,pseudo:member.pseudo,type:group.type==="public"?"public":"private",isOwner:group.ownerUid===uid,memberCount:Object.keys(group.members).length};
+}
+export function registerPublic(root,{uid,pseudo,now}){
+  // Root transaction checks the real national opening flag atomically with
+  // the shared membership index and the 30-player capacity.
+  if(root?.rooms?.miss2027?.connectionsOpen!==true)return fail("public_closed");
+  const event=root.events?.miss2027||{};
+  const s=event.registration||{};
+  const existing=membershipView(s,uid);
+  if(existing)return {state:root,result:{group:existing,alreadyRegistered:true}};
+  if(s.membership?.[uid])return fail("conflict");
+  const groups=s.groups||{};
+  const publicRooms=Object.entries(groups).filter(([,g])=>g.type==="public").sort((a,b)=>a[1].number-b[1].number);
+  const available=publicRooms.find(([,g])=>g.registrationsOpen!==false&&Object.keys(g.members||{}).length<PUBLIC_CAPACITY);
+  let id,group;
+  if(available){[id,group]=available;}
+  else{
+    const number=Math.max(0,...publicRooms.map(([,g])=>Number(g.number)||0))+1;
+    id="public-"+number;
+    if(groups[id])return fail("conflict");
+    group={type:"public",number,name:"Salle publique "+number,capacity:PUBLIC_CAPACITY,registrationsOpen:true,createdAt:now,members:{}};
+  }
+  const next={...s,groups:{...groups,[id]:{...group,members:{...group.members,[uid]:{pseudo,joinedAt:now}}}},membership:{...s.membership,[uid]:id}};
+  return {state:{...root,events:{...root.events,miss2027:{...event,registration:next}}},result:{group:membershipView(next,uid),alreadyRegistered:false}};
 }

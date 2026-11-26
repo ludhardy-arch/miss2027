@@ -31,7 +31,7 @@ function emailError(err){
   return err.message||"Opération impossible.";
 }
 
-const groupErrors={public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",verified_email_required:"Vérifie de nouveau ton adresse e-mail avant de continuer.",owner_required:"Cette adresse e-mail n’est pas celle du créateur de ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
+const groupErrors={not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",verified_email_required:"Vérifie de nouveau ton adresse e-mail avant de continuer.",owner_required:"Cette adresse e-mail n’est pas celle du créateur de ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
 async function groupRequest(path,body) {
   if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Ce service est réservé au site test.");
   const user=auth.currentUser;
@@ -236,6 +236,19 @@ export default function Login({ setUser }) {
     }catch(err){setError(err.message||"Inscription impossible.");}
     finally{setPending(false);}
   }
+  async function enterContest(event){
+    event.preventDefault();
+    if(pending)return;
+    setPending(true);setError("");
+    try{
+      const result=await groupRequest("/game/enter",{});
+      const uid=auth.currentUser?.uid;
+      if(!uid||!result.group?.id||!result.gameId)throw Error("Entrée dans le concours non confirmée.");
+      setUser({role:"player",uid,pseudo:result.group.pseudo,groupId:result.group.id,groupName:result.group.name,gameId:result.gameId});
+      navigate("/player",{replace:true});
+    }catch(err){setError(err.message||"Accès impossible.");}
+    finally{setPending(false);}
+  }
   function enterPreview(event) {
     event.preventDefault();
     setError("Cette fonction sera raccordée à la nouvelle base de test à l’étape suivante.");
@@ -256,9 +269,9 @@ export default function Login({ setUser }) {
   };
   const notice = message => <p role="status" style={{margin:0,color:"#e0e8ff",fontSize:14,lineHeight:1.5}}>{message}</p>;
   const canEnter = connectionsLoaded && connectionsOpen && !connectionsError;
-  function accessControl(isPublic, action, disabled=false) {
+  function accessControl(isPublic, action, disabled=false, resume=false) {
     const label = isPublic ? "Accéder au groupe public" : "Accéder au concours";
-    if (canEnter) return <button type="button" className="group-entry-green" onClick={action} disabled={disabled || pending}
+    if (canEnter || (resume && connectionsLoaded && !connectionsError)) return <button type="button" className="group-entry-green" onClick={action} disabled={disabled || pending}
       style={{...greenButton,opacity:disabled || pending ? .55 : 1}}>{label}</button>;
     return <button type="button" className="group-entry-green group-entry-countdown" disabled
       aria-label={connectionsError ? "Impossible de vérifier les connexions" : !connectionsLoaded ? "Connexion au serveur en cours" : remaining.total > 0 ? label + " dans " + remaining.days + " jours, " + remaining.hours + " heures, " + remaining.minutes + " minutes et " + remaining.seconds + " secondes" : "En attente de l’administrateur"}>
@@ -428,8 +441,7 @@ export default function Login({ setUser }) {
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:21}}>Bienvenue dans {joinedGroup.name} !</h2>
           {notice("Tu es bien inscrit dans ce groupe sur la base de test, sous le pseudo "+joinedGroup.pseudo+".")}
           {joinedGroup.type==="public" && <p style={{margin:0,color:"#78ffbd",fontWeight:800}}>Salle publique · {joinedGroup.memberCount}/30 inscrits lors de ta connexion</p>}
-          {accessControl(false,enterPreview)}
-          {notice("Les votes et le chat de cette salle seront raccordés à l’étape suivante.")}
+          {accessControl(false,enterContest,false,joinedGroup.entered===true)}
         </>}
         {screen === "manage" && <>
           <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>startCreatorFlow("create-group")}>Créer un groupe</button>
@@ -492,7 +504,7 @@ export default function Login({ setUser }) {
             <p style={{margin:"8px 0 0",color:"#c6d3ee"}}>{ownerGroup.memberCount} participant{ownerGroup.memberCount>1?"s":""} · {ownerGroup.pseudo} (créateur)</p>
           </div>
           <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>setError("Le lien d’invitation sera raccordé ensuite. Pour l’instant, tes amis peuvent rechercher le nom du groupe et saisir son mot de passe.")}>Inviter mes amis</button>
-          {accessControl(false,enterPreview)}
+          {accessControl(false,enterContest,false,ownerGroup.entered===true)}
           {screen==="creator-confirm"?<button type="button" className="group-entry-blue" style={entryButton} onClick={()=>{setCreatorPassword("");openEntry("creator-dashboard");}}>Gérer mon groupe</button>:<>
             <section style={{display:"grid",gap:10,padding:12,border:"1px solid #64a9ea",borderRadius:13,background:"rgba(84,118,189,.13)",textAlign:"left"}}>
               <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Participants ({ownerGroup.memberCount})</h3>

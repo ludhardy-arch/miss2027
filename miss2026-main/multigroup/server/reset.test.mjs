@@ -56,3 +56,14 @@ test("blocked reset identifies the reason without altering data",()=>{
  assert.equal(r.reasons.includes("votes_exist"),true);
  assert.equal(r.state,undefined);
 });
+
+test("confirmed game reset initializes missing room without deleting registered groups",()=>{
+ const original={events:{miss2027:{registration:root.events.miss2027.registration}},other:{keep:true}};
+ const out=resetContest(original,"game","fresh");
+ assert.equal(verifyReset(out.state,"game","fresh"),true);
+ assert.equal(out.state.rooms.miss2027.connectionsOpen,false);
+ assert.deepEqual(out.state.events.miss2027.registration,original.events.miss2027.registration);
+ assert.deepEqual(out.state.other,original.other);
+ assert.equal(resetContest(original,"registrations","fresh").code,"room_not_initialized");
+ assert.equal(verifyReset(resetContest(null,"game","new").state,"game","new"),true);
+});

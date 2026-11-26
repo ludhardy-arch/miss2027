@@ -2,7 +2,7 @@ import React, { useContext, useState, useEffect } from "react";
 import { AppContext } from "../context/AppContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { auth } from "../firebase";
-import { GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
  
 // 12 décembre 2026, 20 h 40 à Paris (heure d'hiver : UTC+1).
 const REGISTRATION_OPEN_AT = new Date("2026-12-12T20:40:00+01:00").getTime();
@@ -45,7 +45,7 @@ async function groupRequest(path,body) {
 }
 
 export default function Login({ setUser }) {
-  const { connectionsOpen, connectionsLoaded, connectionsError, demoEnabled, demoLoaded } = useContext(AppContext);
+  const { connectionsOpen, connectionsLoaded, connectionsError, demoEnabled, demoLoaded, gameId } = useContext(AppContext);
   const [showRules, setShowRules] = useState(false);
   const [pseudo, setPseudo] = useState("");
   const [entryMode, setEntryMode] = useState("home");
@@ -54,6 +54,9 @@ export default function Login({ setUser }) {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [groupPassword, setGroupPassword] = useState("");
   const [joinedGroup, setJoinedGroup] = useState(null);
+  const [firebaseIdentity,setFirebaseIdentity]=useState(null);
+  const [recoverableGroup,setRecoverableGroup]=useState(null);
+  const [recoveryStatus,setRecoveryStatus]=useState("idle");
   const [creatorName, setCreatorName] = useState("");
   const [creatorPseudo, setCreatorPseudo] = useState("");
   const [creatorEmail,setCreatorEmail]=useState(()=>readCreatorDraft()?.email||"");
@@ -79,14 +82,47 @@ export default function Login({ setUser }) {
   useEffect(() => {
     let active = true;
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (!firebaseUser && active && !isSignInWithEmailLink(auth,window.location.href)) {
-        signInAnonymously(auth).catch((error) => {
-          if (active) setError("Connexion au serveur impossible : " + (error?.code || error?.message));
-        });
+      if(!active)return;
+      setFirebaseIdentity(firebaseUser?.uid||null);
+      if(firebaseUser&&firebaseUser.uid!==import.meta.env.VITE_ADMIN_UID){
+        // Preserve the existing identity, including users upgraded from tab-only storage.
+        setPersistence(auth,browserLocalPersistence).catch(()=>{});
+      }else if (!firebaseUser && !isSignInWithEmailLink(auth,window.location.href)) {
+        (async()=>{
+          try{
+            try{await setPersistence(auth,browserLocalPersistence);}catch{}
+            if(active&&!auth.currentUser)await signInAnonymously(auth);
+          }catch(error){
+            if(active)setError("Connexion au serveur impossible : "+(error?.code||error?.message));
+          }
+        })();
       }
     });
     return () => { active = false; unsubscribe(); };
   }, []);
+
+  // Recover from Firebase, not a cached group name or a pseudo. Do not redirect
+  // automatically: the owner must remain free to manage the group or open the demo.
+  useEffect(()=>{
+    let active=true;
+    if(screen!=="home"||!firebaseIdentity||firebaseIdentity===import.meta.env.VITE_ADMIN_UID)return;
+    setRecoverableGroup(null);setRecoveryStatus("loading");
+    groupRequest("/groups/me").then(result=>{
+      if(active){setRecoverableGroup(result.group||null);setRecoveryStatus("done");}
+    }).catch(()=>{if(active)setRecoveryStatus("failed");});
+    return()=>{active=false;};
+  },[screen,firebaseIdentity,gameId]);
+  async function recoverGroup(){
+    if(pending)return;
+    setPending(true);setError("");
+    try{
+      const result=await groupRequest("/groups/me");
+      setRecoverableGroup(result.group||null);setRecoveryStatus("done");
+      if(result.group){setJoinedGroup(result.group);setEntryMode("joined-group");}
+      else setError("Aucune inscription retrouvée sur cette session.");
+    }catch(err){setError(err.message||"Impossible de retrouver ton groupe.");}
+    finally{setPending(false);}
+  }
 
   // No fallback to legacy pseudo-based entry before V2 group assignment exists.
   function openEntry(mode) {
@@ -150,6 +186,7 @@ export default function Login({ setUser }) {
       const flow=new URL(emailLink).searchParams.get("creatorFlow");
       const intent=flow==="manage"?"manage":flow==="create"?"create":draft?.email?.toLowerCase()===email.toLowerCase()&&draft.intent==="manage"?"manage":"create";
       // The email address is entered locally, never taken from the sign-in URL.
+      await setPersistence(auth,browserLocalPersistence);
       const credential=await signInWithEmailLink(auth,email,emailLink);
       if(!credential.user.emailVerified)throw Error("L’adresse e-mail n’est pas vérifiée.");
       setVerifiedCreator({uid:credential.user.uid,email:credential.user.email,intent});
@@ -247,6 +284,9 @@ export default function Login({ setUser }) {
   async function loginAdmin() {
     setPending(true); setError(""); setAdminUid("");
     try {
+      // Admin sessions are deliberately not persisted across browser restarts.
+      if(recoverableGroup&&!window.confirm("Cette session appartient déjà à un joueur. Pour conserver son identité, ouvre la régie dans un autre navigateur. Continuer quand même ?"))return;
+      await setPersistence(auth,browserSessionPersistence);
       const credential = await signInWithPopup(auth, new GoogleAuthProvider());
       const uid = credential.user.uid;
       // This check only controls the interface. Firebase DB rules MUST enforce it server-side.
@@ -259,6 +299,7 @@ export default function Login({ setUser }) {
       setUser(userObj);
       navigate("/admin");
     } catch (err) {
+      if(auth.currentUser&&auth.currentUser.uid!==import.meta.env.VITE_ADMIN_UID)await setPersistence(auth,browserLocalPersistence).catch(()=>{});
       setError("Connexion Google impossible : " + (err?.code || err?.message));
     } finally { setPending(false); }
   }
@@ -346,6 +387,8 @@ export default function Login({ setUser }) {
           }
         `}</style>
         {screen === "home" && <>
+          {recoverableGroup&&firebaseIdentity===auth.currentUser?.uid&&<button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={recoverGroup}>Retrouver mon groupe · {recoverableGroup.name}</button>}
+          {recoveryStatus==="failed"&&<button type="button" className="group-entry-back" disabled={pending} onClick={recoverGroup}>Retrouver une inscription existante</button>}
           {accessControl(true, () => openEntry("public"))}
           <button type="button" className="group-entry-blue" style={entryButton} onClick={() => openEntry("join")}>Rejoindre un groupe</button>
           <button type="button" className="group-entry-blue" style={entryButton} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>

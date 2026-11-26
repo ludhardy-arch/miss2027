@@ -37,10 +37,19 @@ function checkPseudo(state,pseudo,uid){
   if(!pseudoAvailable(state,pseudo,uid))return fail("pseudo_taken");
   return null;
 }
+export function groupNameAvailable(state,name){
+  const key=normalizePseudo(name);
+  if(!key||typeof name!=="string"||name.length>80)return false;
+  // Reserve system-generated public room names, including future rooms.
+  if(/^salle publique [0-9]+$/.test(key))return false;
+  return !Object.values(state?.groups||{}).some(group=>normalizePseudo(group?.name)===key);
+}
 export function createGroup(state,{uid,id,name,pseudo,secret,now}) {
   const s=state||{};
   if(s.membership?.[uid])return fail("already_member");
   if(s.groups?.[id])return fail("conflict");
+  if(!normalizePseudo(name)||typeof name!=="string"||name.length>80)return fail("invalid_fields");
+  if(!groupNameAvailable(s,name))return fail("group_name_taken");
   const invalid=checkPseudo(s,pseudo,uid);if(invalid)return invalid;
   const group={type:"private",name,ownerUid:uid,capacity:PRIVATE_CAPACITY,registrationsOpen:true,secret,createdAt:now,members:{[uid]:{pseudo,joinedAt:now}}};
   return {state:{...s,groups:{...s.groups,[id]:group},membership:{...s.membership,[uid]:id}},result:{id,name}};

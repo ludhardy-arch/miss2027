@@ -1,0 +1,20 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {manageGroup,invitationView,acceptInvitation,ownerView} from "./management.mjs";
+const d="a".repeat(64),d2="b".repeat(64);
+const root=()=>({rooms:{miss2027:{tour:1,votesOpen:false}},events:{miss2027:{registration:{groups:{g:{type:"private",name:"G",ownerUid:"u1",registrationsOpen:true,secret:"hash",members:{u1:{pseudo:"Owner"}}}},membership:{u1:"g"}}}}});
+test("owner issues and rotates direct invitation, no secret exposed",()=>{
+ let r=root();assert.equal(manageGroup(r,{uid:"x",action:"invite",digest:d}).code,"owner_required");
+ r=manageGroup(r,{uid:"u1",action:"invite",digest:d}).state;
+ assert.deepEqual(invitationView(r,d).result.group,{id:"g",name:"G"});
+ r=manageGroup(r,{uid:"u1",action:"invite",digest:d2}).state;
+ assert.equal(invitationView(r,d).code,"unavailable");
+ r=acceptInvitation(r,{uid:"u2",digest:d2,pseudo:"A",now:1}).state;
+ assert.equal(ownerView(r,"u1").result.group.memberCount,2);
+ assert.equal(acceptInvitation(r,{uid:"u2",digest:d2,pseudo:"B",now:2}).result.alreadyRegistered,true);
+ r=manageGroup(r,{uid:"u1",action:"remove",targetUid:"u2"}).state;
+ assert.equal(ownerView(r,"u1").result.group.memberCount,1);
+ r.rooms.miss2027.votesOpen=true;
+ assert.equal(manageGroup(r,{uid:"u1",action:"remove",targetUid:"u1"}).code,"membership_locked");
+ assert.equal(invitationView(r,d2).code,"unavailable");
+});

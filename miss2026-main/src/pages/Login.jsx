@@ -18,33 +18,18 @@ function getRemainingTime() {
 }
 
 
-// Temporary, explicitly labelled examples for testing the search interface.
-// Never use this list or a client-side password check to grant real membership.
-const PREVIEW_GROUPS = [
-  {id:"preview-1",name:"La famille des Miss"},
-  {id:"preview-2",name:"La famille Bretonne"},
-  {id:"preview-3",name:"Les amis de Bretagne"},
-  {id:"preview-4",name:"Les amis des Miss"},
-  {id:"preview-5",name:"Team Breizh"}
-];
-const normalizeGroupName = value => value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim().replace(/\s+/g," ");
-function groupMatches(name, query) {
-  const n = normalizeGroupName(name), q = normalizeGroupName(query);
-  if (!q) return false;
-  if (n.includes(q)) return true;
-  // Match individual words even when a small typing error is present.
-  const distance = (a,b) => {
-    let row = Array.from({length:b.length+1},(_,i)=>i);
-    for (let i=1;i<=a.length;i++) {
-      const next=[i];
-      for (let j=1;j<=b.length;j++) next[j]=Math.min(row[j]+1,next[j-1]+1,row[j-1]+(a[i-1]===b[j-1]?0:1));
-      row=next;
-    }
-    return row[b.length];
-  };
-  return q.split(" ").every(word => n.split(" ").some(candidate =>
-    candidate.includes(word) || (word.length>=4 && distance(word,candidate)<= (word.length>=7?2:1))
-  ));
+const GROUP_API="https://miss2027-test-api.onrender.com";
+const groupErrors={already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
+async function groupRequest(path,body) {
+  if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Ce service est réservé au site test.");
+  const user=auth.currentUser;
+  if(!user)throw Error("Connexion en cours. Réessaie dans quelques instants.");
+  const token=await user.getIdToken();
+  const response=await fetch(GROUP_API+path,{method:body===undefined?"GET":"POST",headers:{Authorization:"Bearer "+token,...(body===undefined?{}:{"Content-Type":"application/json"})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(90000),cache:"no-store"});
+  const data=await response.json();
+  if(!response.ok)throw Error(groupErrors[data.error]||"Le serveur n’a pas pu terminer l’opération.");
+  if(auth.currentUser?.uid!==user.uid)throw Error("La session a changé. Recommence l’opération.");
+  return data;
 }
 
 export default function Login({ setUser }) {
@@ -56,6 +41,7 @@ export default function Login({ setUser }) {
   const [groupResults, setGroupResults] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [groupPassword, setGroupPassword] = useState("");
+  const [joinedGroup, setJoinedGroup] = useState(null);
   const [creatorName, setCreatorName] = useState("");
   const [creatorPseudo, setCreatorPseudo] = useState("");
   const [previewCreatedGroup, setPreviewCreatedGroup] = useState(null);
@@ -65,12 +51,6 @@ export default function Login({ setUser }) {
   const [removeMemberId, setRemoveMemberId] = useState(null);
   const [creatorMessage, setCreatorMessage] = useState("");
 
-  // Dashboard preview only: no group, membership, invitation or credential writes.
-  const [previewMembers, setPreviewMembers] = useState([]);
-  const [previewRegistrationOpen, setPreviewRegistrationOpen] = useState(true);
-  const [previewRename, setPreviewRename] = useState(null);
-  const [previewRemoveId, setPreviewRemoveId] = useState(null);
-  const [previewInviteOpen, setPreviewInviteOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const invitation = searchParams.get("invite");
   const screen = invitation ? "invite" : entryMode;
@@ -99,27 +79,39 @@ export default function Login({ setUser }) {
 
   // No fallback to legacy pseudo-based entry before V2 group assignment exists.
   function openEntry(mode) {
-    setError(""); setPreviewRename(null); setPreviewRemoveId(null); setPreviewInviteOpen(false); setEntryMode(mode);
+    setError(""); setEntryMode(mode);
   }
   function backToHome() {
     setError(""); setEntryMode("home");
     setGroupQuery(""); setGroupResults(null); setSelectedGroup(null); setGroupPassword("");
     resetCreatorPanel();
-    setPreviewRename(null); setPreviewRemoveId(null); setPreviewInviteOpen(false);
     if (invitation) setSearchParams({}, {replace:true});
   }
-  function searchPreviewGroups(event) {
+  async function searchRealGroups(event) {
     event.preventDefault();
-    setError("");
-    setGroupResults(PREVIEW_GROUPS.filter(group => groupMatches(group.name,groupQuery)));
+    if(pending||!groupQuery.trim())return;
+    setPending(true);setError("");setGroupResults(null);
+    try{
+      const membership=await groupRequest("/groups/me");
+      if(membership.group){setJoinedGroup(membership.group);setEntryMode("joined-group");return;}
+      const result=await groupRequest("/groups/search?q="+encodeURIComponent(groupQuery.trim()));
+      setGroupResults(result.groups);
+    }catch(err){setError(err.message||"Recherche impossible.");}
+    finally{setPending(false);}
   }
   function selectPreviewGroup(group) {
     setSelectedGroup(group); setGroupPassword(""); setPseudo(""); setError(""); setEntryMode("join-group");
   }
-  function submitPreviewGroup(event) {
+  async function submitRealGroup(event) {
     event.preventDefault();
-    setGroupPassword("");
-    setError("Aperçu uniquement : le contrôle du mot de passe et l’inscription seront activés après raccordement sécurisé à la base de test.");
+    if(pending||!selectedGroup||!pseudo.trim()||groupPassword.length<6)return;
+    setPending(true);setError("");
+    try{
+      const result=await groupRequest("/groups/join",{id:selectedGroup.id,pseudo:pseudo.trim(),password:groupPassword});
+      setJoinedGroup({id:result.id,name:result.name,pseudo:pseudo.trim(),isOwner:false});
+      setEntryMode("joined-group");
+    }catch(err){setError(err.message||"Inscription impossible.");}
+    finally{setGroupPassword("");setPending(false);}
   }
   function createGroupPreview(event) {
     event.preventDefault();
@@ -127,7 +119,6 @@ export default function Login({ setUser }) {
     // Only fictitious display information stays in memory; no credentials or writes.
     setPreviewCreatedGroup({name:creatorName.trim(),pseudo:creatorPseudo.trim(),members:[],registrationsOpen:true,inviteVersion:1});
     resetCreatorPanel();
-    setPreviewMembers([]); setPreviewRegistrationOpen(true); setPreviewRename(null); setPreviewRemoveId(null); setPreviewInviteOpen(false);
     event.currentTarget.reset();
     setCreatorName(""); setCreatorPseudo(""); setError(""); setEntryMode("creator-confirm");
   }
@@ -136,22 +127,7 @@ export default function Login({ setUser }) {
     event.currentTarget.reset();
     setPreviewCreatedGroup(group => group || {name:"La famille des Miss",pseudo:"Créateur test",members:[{id:"preview-member-1",pseudo:"Camille"},{id:"preview-member-2",pseudo:"Alex"},{id:"preview-member-3",pseudo:"Sophie"}],registrationsOpen:true,inviteVersion:1});
     resetCreatorPanel();
-    setPreviewRename(null); setPreviewRemoveId(null); setPreviewInviteOpen(false);
     setError(""); setEntryMode("creator-dashboard");
-  }
-  function renamePreviewGroup(event) {
-    event.preventDefault();
-    if (!previewRename?.trim()) return;
-    setPreviewCreatedGroup(group => group ? {...group,name:previewRename.trim()} : group);
-    setPreviewRename(null);
-  }
-  function addPreviewMembers() {
-    const examples = [{id:"test-1",pseudo:"Camille (test)"},{id:"test-2",pseudo:"Alex (test)"},{id:"test-3",pseudo:"Morgan (test)"}];
-    setPreviewMembers(current => [...current,...examples.filter(member => !current.some(existing => existing.id===member.id))]);
-  }
-  function removePreviewMember(id) {
-    setPreviewMembers(current => current.filter(member => member.id!==id));
-    setPreviewRemoveId(null);
   }
   // All management actions below are local previews, not authenticated operations.
   function resetCreatorPanel() {
@@ -342,12 +318,12 @@ export default function Login({ setUser }) {
           {screen === "invite" && notice("Le nom du groupe et la validité de l’invitation seront vérifiés à l’étape suivante.")}
         </>}
         {screen === "join" && <>
-          <form onSubmit={searchPreviewGroups} style={{display:"grid",gap:12}}>
-            <input aria-label="Nom du groupe" placeholder="Nom du groupe" maxLength={80} value={groupQuery} onChange={e => {setGroupQuery(e.target.value);setGroupResults(null);setError("");}} style={inputStyle}/>
-            <button type="submit" className="group-entry-blue" style={entryButton} disabled={!groupQuery.trim()}>Rechercher</button>
+          <form onSubmit={searchRealGroups} style={{display:"grid",gap:12}}>
+            <input aria-label="Nom du groupe" placeholder="Nom du groupe" maxLength={80} value={groupQuery} disabled={pending} onChange={e => {setGroupQuery(e.target.value);setGroupResults(null);setError("");}} style={inputStyle}/>
+            <button type="submit" className="group-entry-blue" style={entryButton} disabled={pending||!groupQuery.trim()}>{pending?"Recherche en cours…":"Rechercher"}</button>
           </form>
           {groupResults !== null && <div aria-live="polite" style={{display:"grid",gap:10,textAlign:"left"}}>
-            <p style={{fontSize:12,color:"#ffd49c",margin:"4px 0"}}>Aperçu de test · groupes fictifs</p>
+            <p style={{fontSize:12,color:"#ffd49c",margin:"4px 0"}}>Groupes enregistrés dans Firebase test</p>
             {groupResults.length === 0 ? notice("Aucun groupe correspondant. Essaie une autre recherche.") : <>
               <p style={{margin:0,color:"#e0e8ff",fontWeight:700}}>Choisis ton groupe :</p>
               {groupResults.map(group => <button key={group.id} type="button" className="group-entry-blue" style={{...entryButton,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}} onClick={() => selectPreviewGroup(group)}>
@@ -356,21 +332,27 @@ export default function Login({ setUser }) {
             </>}
           </div>}
         </>}
-        {screen === "join-group" && selectedGroup && <form onSubmit={submitPreviewGroup} style={{display:"grid",gap:12}}>
+        {screen === "join-group" && selectedGroup && <form onSubmit={submitRealGroup} style={{display:"grid",gap:12}}>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Rejoindre {selectedGroup.name}</h2>
-          {notice("Aperçu de test · groupe fictif. Aucun mot de passe réel nécessaire.")}
+          {notice("Inscription réelle dans Firebase test. Utilise un mot de passe réservé au groupe de test.")}
           <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
           <input type="password" aria-label="Mot de passe du groupe" autoComplete="off" placeholder="Mot de passe du groupe" maxLength={128} value={groupPassword} onChange={e => setGroupPassword(e.target.value)} style={inputStyle}/>
-          <button type="submit" className="group-entry-green" style={greenButton} disabled={!pseudo.trim() || !groupPassword.trim()}>Intégrer le groupe</button>
-          <button type="button" className="group-entry-back" onClick={() => {setGroupPassword("");setSelectedGroup(null);setError("");setEntryMode("join");}}>Retour aux résultats</button>
+          <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!pseudo.trim()||groupPassword.length<6}>{pending?"Inscription en cours…":"Intégrer le groupe"}</button>
+          <button type="button" className="group-entry-back" disabled={pending} onClick={() => {setGroupPassword("");setSelectedGroup(null);setError("");setEntryMode("join");}}>Retour aux résultats</button>
         </form>}
+        {screen === "joined-group" && joinedGroup && <>
+          <h2 style={{margin:0,color:"#ffe5ad",fontSize:21}}>Bienvenue dans {joinedGroup.name} !</h2>
+          {notice("Tu es bien inscrit dans ce groupe sur la base de test, sous le pseudo "+joinedGroup.pseudo+".")}
+          {accessControl(false,enterPreview)}
+          {notice("Les votes et le chat privés seront raccordés à l’étape suivante.")}
+        </>}
         {screen === "manage" && <>
           <button type="button" className="group-entry-blue" style={entryButton} onClick={() => {setCreatorName("");setCreatorPseudo("");openEntry("create-group");}}>Créer un groupe</button>
           <button type="button" className="group-entry-blue" style={entryButton} onClick={() => openEntry("creator-login")}>Gérer mon groupe</button>
         </>}
         {screen === "create-group" && <form onSubmit={createGroupPreview} style={{display:"grid",gap:12,textAlign:"left"}}>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:19,textAlign:"center"}}>Créer ton groupe</h2>
-          {notice("Aperçu de test : utilise des informations fictives. Rien n’est enregistré ni envoyé.")}
+          {notice("Aperçu de création : la vérification par e-mail doit encore être activée. Ce groupe ne sera pas enregistré ni visible dans la recherche.")}
           <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton pseudo
             <input autoComplete="off" maxLength={24} required placeholder="Mon pseudo" value={creatorPseudo} onChange={e=>setCreatorPseudo(e.target.value)} style={inputStyle}/>
           </label>
@@ -453,7 +435,7 @@ export default function Login({ setUser }) {
           </>}
           {creatorMessage && <p role="status" style={{margin:0,color:"#c6ffd9",fontSize:14}}>{creatorMessage}</p>}
         </>}
-        {screen !== "home" && <button type="button" className="group-entry-back" onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}
+        {screen !== "home" && <button type="button" className="group-entry-back" disabled={pending} onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}
         {error && <p role="alert" style={{color:"#ffd0cf",margin:0}}>{error}</p>}
         {adminUid && <p>Ton UID Firebase : <code>{adminUid}</code> — à renseigner dans Render et dans les règles Firebase.</p>}
       </div>

@@ -55,7 +55,6 @@ export default function Admin({ user, setUser }) {
     updateTour,
     adminSelections,
     updateAdminSelections,
-    resetGame,
     players,
     finaleStarted,
     updateFinaleStarted,
@@ -63,7 +62,10 @@ export default function Admin({ user, setUser }) {
 
   const [selection, setSelection] = useState([]);
   const [showDangerZone, setShowDangerZone] = useState(false);
-  const [resetConfirmation, setResetConfirmation] = useState("");
+  const [resetKind,setResetKind]=useState("");
+  const [resetConfirmation,setResetConfirmation]=useState("");
+  const [resetBusy,setResetBusy]=useState(false);
+  const [resetFeedback,setResetFeedback]=useState("");
   const [ranking, setRanking] = useState({});
   const [savingFinalRanking, setSavingFinalRanking] = useState(false);
   const [advancingTour, setAdvancingTour] = useState(false);
@@ -71,6 +73,24 @@ export default function Admin({ user, setUser }) {
   const [rankExpanded, setRankExpanded] = useState(false);
   const [playersExpanded, setPlayersExpanded] = useState(false);
   const [moderationBusy, setModerationBusy] = useState("");
+  const resetWord=resetKind==="game"?"JEU":"INSCRIPTIONS";
+  async function confirmReset(){
+    if(resetBusy||!resetKind||resetConfirmation!==resetWord)return;
+    if(!window.confirm(resetKind==="game"?"Dernière confirmation : effacer les votes et résultats, sans supprimer les inscriptions ?":"Dernière confirmation : supprimer tous les joueurs, groupes et invitations ?"))return;
+    setResetBusy(true);setResetFeedback("");
+    try{
+      const current=auth.currentUser;
+      if(window.location.origin!=="https://miss2027-test.onrender.com"||!current||current.uid!==import.meta.env.VITE_ADMIN_UID)throw Error("Action réservée à la régie test.");
+      const token=await current.getIdToken();
+      const response=await fetch("https://miss2027-test-api.onrender.com/admin/reset",{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({kind:resetKind,confirmation:resetConfirmation,confirmed:true}),signal:AbortSignal.timeout(90000),cache:"no-store"});
+      const result=await response.json();
+      if(!response.ok)throw Error(({reset_game_first:"Remets d’abord le jeu à zéro avant de supprimer les inscriptions.",admin_required:"Compte administrateur non autorisé.",room_not_initialized:"La régie n’est pas encore initialisée.",too_many_requests:"Réessaie dans une minute.",test_registration_disabled:"Serveur test indisponible."})[result.error]||"Réinitialisation refusée.");
+      if(result.kind!==resetKind||!result.gameId)throw Error("Réponse inattendue : vérifie les données avant de recommencer.");
+      setResetFeedback(resetKind==="game"?"Jeu remis à zéro. Joueurs et groupes conservés.":"Inscriptions remises à zéro. Joueurs, groupes et invitations supprimés.");
+      setResetKind("");setResetConfirmation("");
+    }catch(err){setResetFeedback("Attention : "+(err.message||"réponse inconnue")+". Vérifie l’état du concours avant toute nouvelle tentative.");}
+    finally{setResetBusy(false);}
+  }
 
   useEffect(() => {
     const current = adminSelections[`tour${tour}`];
@@ -321,14 +341,28 @@ export default function Admin({ user, setUser }) {
       </div>
 
       <details className="regie-danger" open={showDangerZone} onToggle={event=>setShowDangerZone(event.currentTarget.open)}>
-        <summary>⚠️ Zone sensible — Réinitialiser la partie</summary>
-        <p>Cette action efface tous les joueurs, votes et résultats du jeu. Elle est irréversible.</p>
-        <label htmlFor="reset-confirm">Écris <strong>RESET</strong> pour confirmer :</label>
-        <input id="reset-confirm" value={resetConfirmation} onChange={event=>setResetConfirmation(event.target.value)} autoComplete="off" />
-        <button disabled={resetConfirmation!=="RESET"} onClick={()=>{
-          if(!window.confirm("Dernière confirmation : effacer définitivement toute la partie ?"))return;
-          safely(async()=>{await resetGame();setResetConfirmation("");setShowDangerZone(false);});
-        }}>Supprimer la partie et recommencer</button>
+        <summary>⚠️ Zone sensible — Réinitialisation</summary>
+        <div style={{display:"grid",gap:12,marginTop:12}}>
+          <div style={{border:"1px solid #dd9b48",borderRadius:12,padding:12,background:"rgba(172,106,28,.12)"}}>
+            <button type="button" disabled={resetBusy} style={{width:"100%",background:"#986020",border:"1px solid #ffc87e",color:"#fff",fontWeight:800}} onClick={()=>{setResetKind("game");setResetConfirmation("");setResetFeedback("");}}>Remettre le jeu à zéro</button>
+            <p>Efface les votes, coups de cœur, sélections officielles et résultats. Retour au premier tour, votes fermés.</p>
+            <p style={{color:"#8fffc1"}}>✓ Conserve les joueurs, les groupes, les invitations et le chat.</p>
+          </div>
+          <div style={{border:"1px solid #f26c77",borderRadius:12,padding:12,background:"rgba(160,40,65,.14)"}}>
+            <button type="button" disabled={resetBusy||votesOpen||finaleStarted||tour!==1} style={{width:"100%",background:"#a42b43",border:"1px solid #ff8793",color:"#fff",fontWeight:800}} onClick={()=>{setResetKind("registrations");setResetConfirmation("");setResetFeedback("");}}>Remettre les inscriptions à zéro</button>
+            <p>Supprime les joueurs inscrits, groupes, invitations et chats. Ferme les connexions publiques.</p>
+            <p style={{color:"#8fffc1"}}>✓ Conserve le compte administrateur et les paramètres du concours.</p>
+            <small>Si la partie a commencé, remets d’abord le jeu à zéro.</small>
+          </div>
+          {resetKind&&<div style={{border:"2px solid #ff8793",borderRadius:12,padding:12,display:"grid",gap:10}}>
+            <strong>Attention : {resetKind==="game"?"réinitialisation du jeu":"suppression des inscriptions"}</strong>
+            <label htmlFor="reset-confirm">Écris <strong>{resetWord}</strong> pour confirmer :</label>
+            <input id="reset-confirm" value={resetConfirmation} onChange={event=>setResetConfirmation(event.target.value)} autoComplete="off" autoCapitalize="characters" disabled={resetBusy}/>
+            <button type="button" disabled={resetBusy||resetConfirmation!==resetWord} onClick={confirmReset}>{resetBusy?"Réinitialisation en cours…":"Confirmer définitivement"}</button>
+            <button type="button" disabled={resetBusy} onClick={()=>{setResetKind("");setResetConfirmation("");}}>Annuler</button>
+          </div>}
+          {resetFeedback&&<p role="status" style={{color:resetFeedback.startsWith("Attention")?"#ffb3b3":"#8fffc1"}}>{resetFeedback}</p>}
+        </div>
       </details>
 
       <h2 className="regie-selection-heading">♛ SÉLECTION OFFICIELLE DES MISS</h2>

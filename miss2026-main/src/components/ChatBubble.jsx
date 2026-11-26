@@ -8,7 +8,7 @@ const isAdminMessage = (message) => {
   return author === "admin" || author === "hardy ludo" || author === "ludo hardy";
 };
 
-export default function ChatBubble({ user, demoMessages = null, onDemoSend = null }) {
+export default function ChatBubble({ user, demoMessages = null, onDemoSend = null, groupRequest = null, groupName = null }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const inDemo = Array.isArray(demoMessages);
@@ -26,7 +26,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
 
   // Charger messages Firebase
   useEffect(() => {
-    if (inDemo) return;
+    if (inDemo || groupRequest) return;
     const chatRef = ref(database, "rooms/miss2027/chat");
 
     const unsubscribe = onValue(chatRef, (snap) => {
@@ -61,17 +61,36 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
     });
 
     return () => unsubscribe();
-  }, [open, user.pseudo, inDemo]);
+  }, [open, user.pseudo, inDemo, groupRequest]);
 
   // Restriction du chat mise à jour en temps réel.
   useEffect(() => {
-    if (inDemo || !user?.pseudo) return;
+    if (inDemo || groupRequest || !user?.pseudo) return;
     return onValue(ref(database, `rooms/miss2027/players/${user.pseudo}/chatBlocked`),
       snap => setChatBlocked(snap.val() === true),
       error => setChatError("Modération indisponible : " + (error?.code || error?.message))
     );
-  }, [inDemo, user?.pseudo]);
+  }, [inDemo, user?.pseudo, groupRequest]);
 
+  useEffect(() => {
+    if (!groupRequest) return;
+    let active=true,busy=false;
+    lastMessageRef.current=null;setMessages([]);setUnread(0);setChatBlocked(false);
+    async function poll(){
+      if(!active||busy||document.visibilityState==="hidden")return;
+      busy=true;
+      try{
+        const data=await groupRequest();
+        if(!active)return;
+        const next=data.messages||[],last=next.at(-1);
+        if(lastMessageRef.current&&last&&last.id!==lastMessageRef.current&&!open&&last.uid!==user.uid)setUnread(u=>u+1);
+        lastMessageRef.current=last?.id||null;setMessages(next);setChatBlocked(data.blocked===true);setChatError("");
+      }catch(e){if(active)setChatError(e.message);}
+      finally{busy=false;}
+    }
+    void poll();const timer=setInterval(poll,open?8000:15000);
+    return()=>{active=false;clearInterval(timer);};
+  },[groupRequest,open,user.uid]);
   // Scroll auto
   useEffect(() => {
     if (open && messagesEndRef.current) {
@@ -91,6 +110,12 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
     setSending(true);
     setChatError("");
     try {
+      if (groupRequest) {
+        await groupRequest({text:message});
+        const data=await groupRequest();setMessages(data.messages||[]);setChatBlocked(data.blocked===true);setText("");return;
+      }
+      if (inDemo && onDemoSend) { await onDemoSend(message);setText("");return; }
+      if (inDemo) {setText("");return;}
       if (!inDemo) {
         const restriction = await get(ref(database, `rooms/miss2027/players/${user.pseudo}/chatBlocked`));
         if (restriction.val() === true) { setChatBlocked(true); throw new Error("Accès à l’écriture bloqué par l’administrateur."); }
@@ -182,7 +207,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
               fontWeight: "bold",
             }}
           >
-            💬 Chat Miss2027{inDemo ? " · Démo" : ""}
+            💬 {groupName || "Chat Miss2027"}{inDemo ? " · Démo" : ""}
           </div>
 
           {/* Messages */}
@@ -197,12 +222,12 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
             }}
           >
             {visibleMessages.map((m, i) => {
-              const isMe = !isAdminMessage(m) && m.author === user.pseudo;
-              const isAdmin = isAdminMessage(m);
+              const isAdmin = groupRequest ? m.admin === true : isAdminMessage(m);
+              const isMe = !isAdmin && (groupRequest ? m.uid === user.uid : m.author === user.pseudo);
 
               return (
                 <div
-                  key={i}
+                  key={m.id || i}
                   style={{
                     alignSelf: isMe ? "flex-end" : "flex-start",
 

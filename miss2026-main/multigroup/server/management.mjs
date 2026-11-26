@@ -18,13 +18,7 @@ export function manageGroup(root,{uid,action,value,targetUid,digest}){
  const event=eventOf(root),reg=event.registration,id=initial.result.group.id,g=reg.groups[id];
  if(locked(root)&&action!=="revoke")return fail("membership_locked");
  let group={...g},membership=reg.membership,players=event.players;
- if(action==="rename"){
-   if(typeof value!=="string"||!value.trim()||value.length>80)return fail("invalid_fields");
-   group.name=value.trim();
- }else if(action==="open"){
-   if(typeof value!=="boolean")return fail("invalid_fields");
-   group.registrationsOpen=value;
- }else if(action==="invite"){
+ if(action==="invite"){
    if(!/^[a-f0-9]{64}$/.test(digest||""))return fail("invalid_fields");
    group.inviteDigest=digest;
  }else if(action==="revoke"){delete group.inviteDigest;}

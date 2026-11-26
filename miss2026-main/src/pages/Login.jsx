@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext, useState, useEffect, useRef } from "react";
 import { AppContext } from "../context/AppContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { auth } from "../firebase";
@@ -39,7 +39,7 @@ async function groupRequest(path,body) {
   const token=await user.getIdToken();
   const response=await fetch(GROUP_API+path,{method:body===undefined?"GET":"POST",headers:{Authorization:"Bearer "+token,...(body===undefined?{}:{"Content-Type":"application/json"})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(90000),cache:"no-store"});
   const data=await response.json();
-  if(!response.ok)throw Error(groupErrors[data.error]||"Le serveur n’a pas pu terminer l’opération.");
+  if(!response.ok)throw Object.assign(Error(groupErrors[data.error]||"Le serveur n’a pas pu terminer l’opération ("+response.status+")."),{code:data.error});
   if(auth.currentUser?.uid!==user.uid)throw Error("La session a changé. Recommence l’opération.");
   return data;
 }
@@ -64,6 +64,8 @@ export default function Login({ setUser }) {
   const [verifiedCreator,setVerifiedCreator]=useState(null);
   const [emailLink,setEmailLink]=useState(()=>isSignInWithEmailLink(auth,window.location.href)?window.location.href:"");
   const [emailNotice,setEmailNotice]=useState("");
+  const automaticEmailLink=useRef("");
+  const [emailNeedsInput,setEmailNeedsInput]=useState(()=>!readCreatorDraft()?.email);
   const [ownerGroup,setOwnerGroup]=useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const invitation = searchParams.get("invite");
@@ -215,15 +217,16 @@ export default function Login({ setUser }) {
     }catch(err){setError(emailError(err));}
     finally{setPending(false);}
   }
-  async function verifyCreatorEmail(event){
-    event.preventDefault();
-    if(pending||!emailLink||!creatorEmail.trim())return;
+  async function verifyCreatorEmail(event,emailOverride){
+    event?.preventDefault();
+    const address=(emailOverride||creatorEmail).trim();
+    if(pending||!emailLink||!address)return;
     setPending(true);setError("");setCreatorPassword("");
     try{
-      const email=creatorEmail.trim(),draft=readCreatorDraft();
+      const email=address,draft=readCreatorDraft();
       const flow=new URL(emailLink).searchParams.get("creatorFlow");
       const intent=flow==="manage"?"manage":flow==="create"?"create":draft?.email?.toLowerCase()===email.toLowerCase()&&draft.intent==="manage"?"manage":"create";
-      // The email address is entered locally, never taken from the sign-in URL.
+      // Use the local draft or a manually supplied address, never an address in the URL.
       await setPersistence(auth,browserLocalPersistence);
       const credential=await signInWithEmailLink(auth,email,emailLink);
       if(!credential.user.emailVerified)throw Error("L’adresse e-mail n’est pas vérifiée.");
@@ -235,9 +238,16 @@ export default function Login({ setUser }) {
       try{localStorage.removeItem(CREATOR_DRAFT);}catch{}
       window.history.replaceState(window.history.state,"",window.location.pathname+"#/login");
       setEmailLink("");setEmailNotice("");setEntryMode(intent==="manage"?"creator-login":"create-group");
-    }catch(err){setError(emailError(err));}
+    }catch(err){setError(emailError(err));setEmailNeedsInput(true);}
     finally{setPending(false);}
   }
+  useEffect(()=>{
+    if(!emailLink||automaticEmailLink.current===emailLink)return;
+    automaticEmailLink.current=emailLink;
+    const draft=readCreatorDraft();
+    if(draft?.email){setEmailNeedsInput(false);void verifyCreatorEmail(null,draft.email);}
+    else setEmailNeedsInput(true);
+  },[emailLink]);
   async function createRealGroup(event){
     event.preventDefault();
     if(!verifiedCreator||verifiedCreator.intent!=="create"||verifiedCreator.uid!==auth.currentUser?.uid||pending||!creatorName.trim()||!creatorPseudo.trim()||creatorPassword.length<6)return;
@@ -246,7 +256,7 @@ export default function Login({ setUser }) {
       const result=await groupRequest("/groups/create",{name:creatorName.trim(),pseudo:creatorPseudo.trim(),password:creatorPassword});
       setOwnerGroup({id:result.id,name:result.name,pseudo:creatorPseudo.trim(),memberCount:1,isOwner:true,registrationsOpen:true,locked:false,invitationActive:false,members:[{id:auth.currentUser.uid,pseudo:creatorPseudo.trim(),isOwner:true}]});
       setEntryMode("creator-confirm");
-    }catch(err){setError(err.message||"Création impossible.");}
+    }catch(err){if(err.code==="verified_email_required")setVerifiedCreator(null);setError(err.message||"Création impossible.");}
     finally{setCreatorPassword("");setPending(false);}
   }
   async function openRealCreator(event){
@@ -256,7 +266,7 @@ export default function Login({ setUser }) {
     try{
       const result=await groupRequest("/groups/owner/access",{password:creatorPassword});
       setOwnerGroup(result.group);setEntryMode("creator-dashboard");
-    }catch(err){setError(err.message||"Connexion impossible.");}
+    }catch(err){if(err.code==="verified_email_required")setVerifiedCreator(null);setError(err.message||"Connexion impossible.");}
     finally{setCreatorPassword("");setPending(false);}
   }
   function startCreatorFlow(mode){
@@ -485,11 +495,13 @@ export default function Login({ setUser }) {
           <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>startCreatorFlow("create-group")}>Créer un groupe</button>
           <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>startCreatorFlow("creator-login")}>Gérer mon groupe</button>
         </>}
-        {screen === "email-verify" && <form onSubmit={verifyCreatorEmail} style={{display:"grid",gap:12,textAlign:"left"}}>
-          <h2 style={{margin:0,color:"#ffe5ad",fontSize:19,textAlign:"center"}}>Vérifier mon adresse e-mail</h2>
-          {notice("Confirme l’adresse e-mail à laquelle le lien a été envoyé.")}
-          <input type="email" aria-label="Adresse e-mail" autoComplete="email" required value={creatorEmail} onChange={e=>setCreatorEmail(e.target.value)} style={inputStyle}/>
-          <button type="submit" className="group-entry-green" style={greenButton} disabled={pending}>{pending?"Vérification…":"Valider mon adresse e-mail"}</button>
+        {screen === "email-verify" && <form onSubmit={e=>verifyCreatorEmail(e)} style={{display:"grid",gap:12,textAlign:"left"}}>
+          {!emailNeedsInput||pending ? <p role="status" style={{margin:0,color:"#e0e8ff",textAlign:"center"}}>Vérification de ton e-mail…</p> : <>
+            <h2 style={{margin:0,color:"#ffe5ad",fontSize:19,textAlign:"center"}}>Confirme ton adresse e-mail</h2>
+            {notice("Pour ta sécurité, indique l’adresse utilisée pour recevoir ce lien.")}
+            <input type="email" aria-label="Adresse e-mail" autoComplete="email" required value={creatorEmail} onChange={e=>setCreatorEmail(e.target.value)} style={inputStyle}/>
+            <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!creatorEmail.trim()}>Continuer</button>
+          </>}
         </form>}
         {screen === "create-group" && <form onSubmit={verifiedCreator?.intent==="create"?createRealGroup:e=>requestCreatorEmail(e,"create")} style={{display:"grid",gap:12,textAlign:"left"}}>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:19,textAlign:"center"}}>Créer ton groupe</h2>
@@ -503,13 +515,12 @@ export default function Login({ setUser }) {
             <input type="email" autoComplete="email" required placeholder="exemple@example.com" value={creatorEmail} onChange={e=>setCreatorEmail(e.target.value)} readOnly={!!verifiedCreator} disabled={pending} style={inputStyle}/>
           </label>
           {verifiedCreator?.intent==="create" ? <>
-            <p style={{margin:0,color:"#78ffbd",fontSize:14}}>✓ Adresse e-mail vérifiée</p>
+            <p style={{margin:0,color:"#78ffbd",fontSize:14}}>✓ E-mail vérifié</p>
             <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Mot de passe du groupe
               <input type="password" autoComplete="new-password" minLength={6} maxLength={128} required placeholder="Mot de passe (6 caractères minimum)" value={creatorPassword} onChange={e=>setCreatorPassword(e.target.value)} disabled={pending} style={inputStyle}/>
             </label>
             <p style={{fontSize:12,color:"#c6d3ee",margin:0,lineHeight:1.5}}>Un seul mot de passe pour le groupe. La gestion est réservée au créateur dont l’e-mail est vérifié. N’utilise pas un mot de passe personnel.</p>
             <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!creatorName.trim()||!creatorPseudo.trim()||creatorPassword.length<6}>{pending?"Création…":"Créer mon groupe"}</button>
-            <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setVerifiedCreator(null);setCreatorPassword("");setError("");}}>Vérifier de nouveau mon e-mail</button>
           </> : <>
             {notice("Vérifie d’abord ton e-mail pour protéger la gestion de ton groupe. Tu choisiras ensuite son mot de passe.")}
             <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!creatorName.trim()||!creatorPseudo.trim()||!creatorEmail.trim()}>{pending?"Envoi…":"Vérifier mon e-mail"}</button>
@@ -523,13 +534,12 @@ export default function Login({ setUser }) {
             <input type="email" autoComplete="email" required placeholder="Adresse e-mail" value={creatorEmail} onChange={e=>setCreatorEmail(e.target.value)} readOnly={!!verifiedCreator} disabled={pending} style={inputStyle}/>
           </label>
           {verifiedCreator ? <>
-            <p style={{margin:0,color:"#78ffbd",fontSize:14}}>✓ Adresse e-mail vérifiée</p>
+            <p style={{margin:0,color:"#78ffbd",fontSize:14}}>✓ E-mail vérifié</p>
             <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Mot de passe du groupe
               <input type="password" autoComplete="off" required minLength={6} maxLength={128} value={creatorPassword} onChange={e=>setCreatorPassword(e.target.value)} disabled={pending} placeholder="Mot de passe du groupe" style={inputStyle}/>
             </label>
             <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||creatorPassword.length<6}>{pending?"Connexion…":"Se connecter"}</button>
             <button type="button" className="group-entry-back" disabled={pending} onClick={()=>setError("La récupération du mot de passe du groupe sera raccordée après les premiers essais.")}>Mot de passe oublié ?</button>
-            <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setVerifiedCreator(null);setCreatorPassword("");setError("");}}>Vérifier de nouveau mon e-mail</button>
           </> : <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!creatorEmail.trim()}>{pending?"Envoi…":"Vérifier mon e-mail"}</button>}
           {emailNotice&&<p role="status" style={{margin:0,color:"#78ffbd",fontSize:14}}>{emailNotice}</p>}
           <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setVerifiedCreator(null);setCreatorPassword("");setEmailNotice("");openEntry("manage");}}>Retour</button>

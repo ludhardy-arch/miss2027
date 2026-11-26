@@ -40,3 +40,5 @@ export const auth = initializeAuth(app, {
   popupRedirectResolver: browserPopupRedirectResolver,
 });
 
+// French-language Firebase authentication emails and flows on the test site.
+auth.languageCode = "fr";

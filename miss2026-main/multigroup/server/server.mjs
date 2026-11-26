@@ -243,6 +243,18 @@ const server=http.createServer(async(req,res)=>{
       }
       return reply(res,405,{error:"method_not_allowed"});
     }
+    if(req.method==="POST"&&url.pathname==="/groups/email"){
+      // Availability only: never return account identifiers, group names or personal data.
+      // Limited to the test contest, not a general Firebase account existence check.
+      if(limited("email-check:"+uid,12))return reply(res,429,{error:"too_many_requests"});
+      const b=await body(req);
+      if(!validString(b.email,3,254)||!/^\S+@[^\s@]+\.[^\s@]+$/.test(b.email.trim())||b.email.trim().split("@").length!==2)return reply(res,400,{error:"invalid_fields"});
+      let account;
+      try{account=await auth.getUserByEmail(b.email.trim().toLowerCase());}
+      catch(err){if(err.code==="auth/user-not-found")return reply(res,200,{available:true});throw err;}
+      const state=(await registry.get()).val();
+      return reply(res,200,{available:!state?.membership?.[account.uid]});
+    }
     if(req.method==="POST"&&url.pathname==="/groups/name"){
       const b=await body(req);
       if(!validString(b.name,1,80)||!normalizePseudo(b.name))return reply(res,400,{error:"invalid_fields"});
@@ -253,7 +265,7 @@ const server=http.createServer(async(req,res)=>{
       const b=await body(req);
       if(!validString(b.pseudo,1,24)||!normalizePseudo(b.pseudo))return reply(res,400,{error:"invalid_fields"});
       const state=(await registry.get()).val();
-      return reply(res,200,{available:pseudoAvailable(state,b.pseudo,uid)});
+      return reply(res,200,{available:pseudoAvailable(state,b.pseudo,b.creating===true?null:uid)});
     }
     if(req.method==="GET"&&url.pathname==="/groups/me"){
       const event=(await getDatabase(app).ref("events/miss2027").get()).val()||{};

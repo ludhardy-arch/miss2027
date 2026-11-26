@@ -18,12 +18,12 @@ test("one group per UID, no duplicate membership",()=>{
  assert.equal(joinGroup(r.state,join).code,"already_member");
  assert.equal(createGroup(r.state,{...creator,uid:"u2",id:"g2"}).code,"already_member");
 });
-test("closed group and stale or invalid password are rejected",()=>{
+test("invalid password is rejected; obsolete private closure no longer blocks registrations",()=>{
  const s=createGroup(null,creator).state;
  assert.equal(joinGroup(s,{...join,verifiedSecret:"wrong"}).code,"invalid_password");
  const closed={...s,groups:{g1:{...s.groups.g1,registrationsOpen:false}}};
- assert.equal(joinGroup(closed,join).code,"unavailable");
- assert.deepEqual(searchGroups(closed,"famille"),[]);
+ assert.equal(joinGroup(closed,join).result.id,"g1");
+ assert.equal(searchGroups(closed,"famille").length,1);
 });
 
 const publicRoot=(registration={},open=true)=>({rooms:{miss2027:{connectionsOpen:open,demoEnabled:false}},events:{miss2027:{registration,control:{tour:1},keep:"preserved"}},unrelated:{keep:true}});

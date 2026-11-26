@@ -299,7 +299,7 @@ const server=http.createServer(async(req,res)=>{
       if(!validId(b.id)||!validString(b.pseudo,1,24)||!validString(b.password,6,128))return reply(res,400,{error:"invalid_fields"});
       if(limited("group:"+b.id,30))return reply(res,429,{error:"too_many_requests"});
       const group=(await registry.child("groups").child(b.id).get()).val();
-      if(!group||group.type==="public"||!group.registrationsOpen||!await matches(b.password,group.secret))return reply(res,403,{error:"group_or_password_invalid"});
+      if(!group||group.type==="public"||!await matches(b.password,group.secret))return reply(res,403,{error:"group_or_password_invalid"});
       const now=Date.now();
       const result=await atomic(root=>registrationChange(root,s=>joinGroup(s,{uid,id:b.id,pseudo:b.pseudo.trim(),verifiedSecret:group.secret,now})),getDatabase(app).ref());
       return reply(res,result.status,result.body);

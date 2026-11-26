@@ -7,6 +7,7 @@ import "./AdminRegie.css";
 
 import { CANDIDATES } from "../data/candidates";
 import { auth } from "../firebase";
+import ChatBubble from "../components/ChatBubble";
 import { signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { database } from "../firebase";
@@ -58,6 +59,13 @@ export default function Admin({ user, setUser }) {
   const [nationalView,setNationalView]=useState(null);
   const [nationalError,setNationalError]=useState("");
   const players=nationalView?.players||{};
+  const [chatGroup,setChatGroup]=useState("");
+  const chatRooms=[...new Map(Object.values(players).map(p=>[p.groupId,p.groupName])).entries()];
+  const chatRequest=React.useCallback(body=>body===undefined?adminRequest("/admin/chat?groupId="+encodeURIComponent(chatGroup)):adminRequest("/admin/chat",{...body,groupId:chatGroup}),[chatGroup,user.uid]);
+  async function moderate(player,action){
+    if(!window.confirm((action==="warn"?"Avertir ":action==="block"?"Bloquer ":"Débloquer ")+player.pseudo+" ?"))return;
+    try{await adminRequest("/admin/chat",{groupId:player.groupId,targetUid:player.uid,action});setNationalView(await adminRequest("/admin/game"));}catch(e){reportActionError(e);}
+  }
   async function adminRequest(path,body){
     const current=auth.currentUser;
     if(window.location.origin!=="https://miss2027-test.onrender.com"||!current||current.uid!==import.meta.env.VITE_ADMIN_UID)throw Error("Action réservée à la régie test.");
@@ -308,8 +316,8 @@ export default function Admin({ user, setUser }) {
             <div key={pseudo} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap",padding:"12px",background:"rgba(18,35,75,.8)",border:"1px solid rgba(128,175,245,.35)",borderRadius:12}}>
               <strong style={{overflowWrap:"anywhere"}}>{player.pseudo} · {player.groupName} {player?.chatBlocked===true && <span style={{color:"#ffb4b4",fontSize:12}}>· Chat bloqué</span>}</strong>
               <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-                <button type="button" disabled title="Modération par groupe à raccorder" style={{background:"#7d4310",padding:"9px 11px",fontSize:12}}>⚠️ Avertir</button>
-                <button type="button" disabled title="Modération par groupe à raccorder" style={{background:player?.chatBlocked===true?"#176849":"#8a2038",padding:"9px 11px",fontSize:12}}>{player?.chatBlocked===true?"🔓 Débloquer":"🔇 Bloquer chat"}</button>
+                <button type="button" onClick={()=>void moderate(player,"warn")} style={{background:"#7d4310",padding:"9px 11px",fontSize:12}}>⚠️ Avertir</button>
+                <button type="button" onClick={()=>void moderate(player,player.chatBlocked?"unblock":"block")} style={{background:player?.chatBlocked===true?"#176849":"#8a2038",padding:"9px 11px",fontSize:12}}>{player?.chatBlocked===true?"🔓 Débloquer":"🔇 Bloquer chat"}</button>
               </div>
             </div>
           ))}
@@ -327,7 +335,7 @@ export default function Admin({ user, setUser }) {
       </div></section>
 
       <div className="regie-info-grid">
-        <section className="regie-panel"><h3>Chat des salles</h3><p>Le chat multigroupes et sa modération seront raccordés à l’étape suivante.</p></section>
+        <section className="regie-panel"><h3>Chat des salles</h3><label>Choisir la salle <select value={chatGroup} onChange={e=>setChatGroup(e.target.value)}><option value="">Sélectionner…</option>{chatRooms.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>{chatGroup&&chatRooms.some(([id])=>id===chatGroup)&&<ChatBubble key={chatGroup} user={user} groupRequest={chatRequest} groupName={chatRooms.find(([id])=>id===chatGroup)?.[1]}/>}</section>
         <section className="regie-panel"><div className="regie-panel-heading"><h3>⭐ MISS FAVORITES</h3><span>TOUR {tour}</span></div>
           {popularity.map(m=><div className="regie-popularity" key={m.id}><div><span>{m.label}</span><strong>{m.count} pts</strong></div><div className="regie-meter"><span style={{width:(100*m.count/maxPopularity)+"%"}} /></div><small>Cumul des sélections · tours 1, 2 et finale</small></div>)}
           {!popularity.length&&<p>Aucune candidate à afficher.</p>}

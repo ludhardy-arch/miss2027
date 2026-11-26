@@ -9,7 +9,13 @@ import {createGroup,joinGroup,searchGroups} from "./registration.mjs";
 const PROJECT="miss2027-test-v2";
 const DATABASE="https://miss2027-test-v2-default-rtdb.europe-west1.firebasedatabase.app";
 const ORIGIN="https://miss2027-test.onrender.com";
-if(process.env.ENABLE_TEST_REGISTRATION!=="true") throw Error("Test registration is not enabled");
+if(process.env.ENABLE_TEST_REGISTRATION!=="true") {
+  // Dormant service: never initializes Firebase or accepts registration requests.
+  http.createServer((req,res)=>{
+    res.writeHead(req.url==="/health"?200:503,{"Content-Type":"application/json","Cache-Control":"no-store"});
+    res.end(JSON.stringify({testOnly:true,registrationEnabled:false}));
+  }).listen(Number(process.env.PORT||3000),"0.0.0.0");
+} else {
 const credentials=JSON.parse(process.env.FIREBASE_TEST_SERVICE_ACCOUNT_JSON||"{}");
 if(credentials.project_id!==PROJECT || !credentials.client_email?.endsWith("@"+PROJECT+".iam.gserviceaccount.com")) throw Error("Only the test Firebase service account is allowed");
 const app=initializeApp({credential:cert(credentials),projectId:PROJECT,databaseURL:DATABASE});
@@ -113,3 +119,5 @@ const server=http.createServer(async(req,res)=>{
 server.requestTimeout=15000;
 server.headersTimeout=10000;
 server.listen(Number(process.env.PORT||3000),"0.0.0.0");
+
+}

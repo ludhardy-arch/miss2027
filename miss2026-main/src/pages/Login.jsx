@@ -56,6 +56,9 @@ export default function Login({ setUser }) {
   const [groupResults, setGroupResults] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [groupPassword, setGroupPassword] = useState("");
+  const [creatorName, setCreatorName] = useState("");
+  const [creatorPseudo, setCreatorPseudo] = useState("");
+  const [previewCreatedGroup, setPreviewCreatedGroup] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const invitation = searchParams.get("invite");
   const screen = invitation ? "invite" : entryMode;
@@ -101,6 +104,20 @@ export default function Login({ setUser }) {
     event.preventDefault();
     setGroupPassword("");
     setError("Aperçu uniquement : le contrôle du mot de passe et l’inscription seront activés après raccordement sécurisé à la base de test.");
+  }
+  function createGroupPreview(event) {
+    event.preventDefault();
+    if (!creatorName.trim() || !creatorPseudo.trim()) return;
+    // Only fictitious display information stays in memory; no credentials or writes.
+    setPreviewCreatedGroup({name:creatorName.trim(),pseudo:creatorPseudo.trim()});
+    event.currentTarget.reset();
+    setCreatorName(""); setCreatorPseudo(""); setError(""); setEntryMode("creator-confirm");
+  }
+  function openCreatorPreview(event) {
+    event.preventDefault();
+    event.currentTarget.reset();
+    setPreviewCreatedGroup(group => group || {name:"La famille des Miss",pseudo:"Créateur test"});
+    setError(""); setEntryMode("creator-dashboard");
   }
   function enterPreview(event) {
     event.preventDefault();
@@ -273,8 +290,54 @@ export default function Login({ setUser }) {
           <button type="button" className="group-entry-back" onClick={() => {setGroupPassword("");setSelectedGroup(null);setError("");setEntryMode("join");}}>Retour aux résultats</button>
         </form>}
         {screen === "manage" && <>
-          <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Créer / Gérer son groupe</h2>
-          {notice("La création et la gestion des groupes seront développées à l’étape suivante.")}
+          <button type="button" className="group-entry-blue" style={entryButton} onClick={() => {setCreatorName("");setCreatorPseudo("");openEntry("create-group");}}>Créer un groupe</button>
+          <button type="button" className="group-entry-blue" style={entryButton} onClick={() => openEntry("creator-login")}>Gérer mon groupe</button>
+        </>}
+        {screen === "create-group" && <form onSubmit={createGroupPreview} style={{display:"grid",gap:12,textAlign:"left"}}>
+          <h2 style={{margin:0,color:"#ffe5ad",fontSize:19,textAlign:"center"}}>Créer ton groupe</h2>
+          {notice("Aperçu de test : utilise des informations fictives. Rien n’est enregistré ni envoyé.")}
+          <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton pseudo
+            <input autoComplete="off" maxLength={24} required placeholder="Mon pseudo" value={creatorPseudo} onChange={e=>setCreatorPseudo(e.target.value)} style={inputStyle}/>
+          </label>
+          <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Nom du groupe
+            <input autoComplete="off" maxLength={80} required placeholder="Nom du groupe" value={creatorName} onChange={e=>setCreatorName(e.target.value)} style={inputStyle}/>
+          </label>
+          <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton adresse e-mail
+            <input type="email" autoComplete="off" required placeholder="exemple@example.com" style={inputStyle}/>
+          </label>
+          <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton mot de passe personnel
+            <input type="password" autoComplete="new-password" minLength={6} maxLength={128} required placeholder="Pour gérer ton groupe" style={inputStyle}/>
+          </label>
+          <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Mot de passe du groupe
+            <input type="password" autoComplete="new-password" minLength={4} maxLength={128} required placeholder="À partager avec tes invités" style={inputStyle}/>
+          </label>
+          <p style={{fontSize:12,color:"#c6d3ee",margin:0,lineHeight:1.5}}>Ton mot de passe personnel reste privé. Seul le mot de passe du groupe est destiné à tes amis ou à ta famille.</p>
+          <button type="submit" className="group-entry-green" style={greenButton} disabled={!creatorName.trim() || !creatorPseudo.trim()}>Créer mon groupe</button>
+          <button type="button" className="group-entry-back" onClick={()=>openEntry("manage")}>Retour</button>
+        </form>}
+        {screen === "creator-login" && <form onSubmit={openCreatorPreview} style={{display:"grid",gap:12,textAlign:"left"}}>
+          <h2 style={{margin:0,color:"#ffe5ad",fontSize:19,textAlign:"center"}}>Gérer mon groupe</h2>
+          {notice("Aperçu de test : aucune authentification réelle. Utilise des informations fictives.")}
+          <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton adresse e-mail
+            <input type="email" autoComplete="off" required placeholder="Adresse e-mail" style={inputStyle}/>
+          </label>
+          <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton mot de passe personnel
+            <input type="password" autoComplete="off" required placeholder="Mot de passe" style={inputStyle}/>
+          </label>
+          <button type="submit" className="group-entry-green" style={greenButton}>Se connecter</button>
+          <button type="button" className="group-entry-back" onClick={()=>setError("Aperçu : la réinitialisation du mot de passe sera raccordée à Firebase Auth. Aucun e-mail envoyé.")}>Mot de passe oublié ?</button>
+          <button type="button" className="group-entry-back" onClick={()=>openEntry("manage")}>Retour</button>
+        </form>}
+        {(screen === "creator-confirm" || screen === "creator-dashboard") && previewCreatedGroup && <>
+          <p style={{fontSize:12,color:"#ffd49c",margin:0}}>Aperçu de test · aucun groupe réel créé</p>
+          <h2 style={{margin:0,color:"#ffe5ad",fontSize:21}}>{screen === "creator-confirm" ? "Ton groupe est créé !" : "Mon groupe"}</h2>
+          <div style={{padding:"16px 12px",background:"rgba(84,118,189,.17)",border:"1px solid #64a9ea",borderRadius:13}}>
+            <div style={{fontSize:20,fontWeight:800,color:"#fff",overflowWrap:"anywhere"}}>{previewCreatedGroup.name}</div>
+            <p style={{margin:"8px 0 0",color:"#c6d3ee"}}>1 participant · {previewCreatedGroup.pseudo} (créateur)</p>
+          </div>
+          <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>setError("Aperçu : le lien d’invitation sera généré lorsque les groupes seront raccordés au serveur.")}>Inviter mes amis</button>
+          {accessControl(false, enterPreview)}
+          {screen === "creator-confirm" ? <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>openEntry("creator-dashboard")}>Gérer mon groupe</button> : notice("La gestion des invitations, des participants et des inscriptions sera raccordée à l’étape suivante.")}
         </>}
         {screen !== "home" && <button type="button" className="group-entry-back" onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}
         {error && <p role="alert" style={{color:"#ffd0cf",margin:0}}>{error}</p>}

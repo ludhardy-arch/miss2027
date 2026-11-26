@@ -3,16 +3,14 @@
 import React, { useContext, useState, useEffect } from "react";
 import { AppContext } from "../context/AppContext";
 import { calculatePoints } from "../services/points";
-import AdminLiveChat from "../components/AdminLiveChat";
 import "./AdminRegie.css";
-import FinaleOverlay from "../components/FinaleOverlay";
 
 import { CANDIDATES } from "../data/candidates";
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { database } from "../firebase";
-import { ref, push, set, get } from "firebase/database";
+import { ref, get } from "firebase/database";
 
 const votePulseKeyframes = `
 @keyframes votePulse {
@@ -52,14 +50,34 @@ export default function Admin({ user, setUser }) {
     updateDemoEnabled,
     updateVotesOpen,
     tour,
-    updateTour,
     adminSelections,
-    updateAdminSelections,
-    players,
+    gameId,
     finaleStarted,
-    updateFinaleStarted,
   } = useContext(AppContext);
 
+  const [nationalView,setNationalView]=useState(null);
+  const [nationalError,setNationalError]=useState("");
+  const players=nationalView?.players||{};
+  async function adminRequest(path,body){
+    const current=auth.currentUser;
+    if(window.location.origin!=="https://miss2027-test.onrender.com"||!current||current.uid!==import.meta.env.VITE_ADMIN_UID)throw Error("Action réservée à la régie test.");
+    const token=await current.getIdToken();
+    const res=await fetch("https://miss2027-test-api.onrender.com"+path,{method:body===undefined?"GET":"POST",headers:{Authorization:"Bearer "+token,...(body===undefined?{}:{"Content-Type":"application/json"})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(45000),cache:"no-store"});
+    const data=await res.json();
+    if(!res.ok)throw Error(({close_votes_first:"Ferme les votes avant de valider.",game_changed:"La partie a changé.",round_changed:"Le tour a changé.",invalid_vote:"Sélection officielle non valide."})[data.error]||"Serveur de la régie indisponible.");
+    return data;
+  }
+  useEffect(()=>{
+    let active=true,busy=false;
+    const poll=async()=>{
+      if(!active||busy)return;busy=true;
+      try{const data=await adminRequest("/admin/game");if(active){setNationalView(data);setNationalError("");}}
+      catch(err){if(active)setNationalError(err.message);}
+      finally{busy=false;}
+    };
+    void poll();const timer=setInterval(poll,10000);
+    return()=>{active=false;clearInterval(timer);};
+  },[user.uid,gameId,tour]);
   const [selection, setSelection] = useState([]);
   const [showDangerZone, setShowDangerZone] = useState(false);
   const [resetKind,setResetKind]=useState("");
@@ -72,7 +90,6 @@ export default function Admin({ user, setUser }) {
   const [votesExpanded, setVotesExpanded] = useState(false);
   const [rankExpanded, setRankExpanded] = useState(false);
   const [playersExpanded, setPlayersExpanded] = useState(false);
-  const [moderationBusy, setModerationBusy] = useState("");
   const resetWord=resetKind==="game"?"JEU":"INSCRIPTIONS";
   async function confirmReset(){
     if(resetBusy||!resetKind||resetConfirmation!==resetWord)return;
@@ -88,6 +105,7 @@ export default function Admin({ user, setUser }) {
       if(result.kind!==resetKind||!result.gameId)throw Error("Réponse inattendue : vérifie les données avant de recommencer.");
       setResetFeedback(resetKind==="game"?"Jeu remis à zéro. Joueurs et groupes conservés.":"Inscriptions remises à zéro. Joueurs, groupes et invitations supprimés.");
       setResetKind("");setResetConfirmation("");
+      setNationalView(await adminRequest("/admin/game"));
     }catch(err){setResetFeedback("Attention : "+(err.message||"réponse inconnue")+". Vérifie l’état du concours avant toute nouvelle tentative.");}
     finally{setResetBusy(false);}
   }
@@ -173,16 +191,19 @@ export default function Admin({ user, setUser }) {
           return;
         }
 
-        const missingPlayers = Object.entries(players || {})
+        const latest=await adminRequest("/admin/game");
+        if(latest.gameId!==String(gameId)||latest.tour!==tour||latest.votesOpen)throw Error("Le concours a changé. Actualise avant de continuer.");
+        setNationalView(latest);
+        const missingPlayers = Object.entries(latest.players || {})
           .filter(([, player]) => {
             const vote = player?.[`tour${tour}`];
             return !(Array.isArray(vote) ? vote.length > 0 : vote && Object.keys(vote).length > 0);
-          }).map(([pseudo]) => pseudo);
+          }).map(([,p]) => p.pseudo+" · "+p.groupName);
 
         if (missingPlayers.length > 0) {
           const names = missingPlayers.slice(0, 8).join(", ");
           const extra = missingPlayers.length > 8 ? "…" : "";
-          const message = `⚠️ ${missingPlayers.length} joueur(s) sur ${Object.keys(players || {}).length} n'ont pas voté au tour ${tour}.\n${names}${extra}\n\nPasser au tour suivant malgré les votes manquants ?`;
+          const message = `⚠️ ${missingPlayers.length} joueur(s) sur ${Object.keys(latest.players || {}).length} n'ont pas voté au tour ${tour}.\n${names}${extra}\n\nPasser au tour suivant malgré les votes manquants ?`;
           if (!window.confirm(message)) return;
         }
 
@@ -194,8 +215,8 @@ export default function Admin({ user, setUser }) {
           alert("⛔ Les votes ont été rouverts. Passage de tour annulé.");
           return;
         }
-        await updateAdminSelections(tour, selection);
-        await updateTour(tour + 1);
+        await adminRequest("/admin/round",{gameId:String(gameId),tour,selection});
+        setNationalView(await adminRequest("/admin/game"));
       } catch (error) {
         reportActionError(error);
       } finally {
@@ -223,7 +244,7 @@ export default function Admin({ user, setUser }) {
 
     setSavingFinalRanking(true);
     try {
-      await updateAdminSelections(3, ordered);
+      await adminRequest("/admin/round",{gameId:String(gameId),tour:3,selection:ordered});
     } catch (error) {
       reportActionError(error);
     } finally {
@@ -243,32 +264,8 @@ export default function Admin({ user, setUser }) {
   const usedRanks = Object.values(ranking).filter(Boolean);
   const playerEntries = Object.entries(players || {});
   const totalPlayers = playerEntries.length;
-  const warnPlayer = async (pseudo, player) => {
-    if (!player?.uid) return alert("Impossible d’identifier le joueur Firebase.");
-    if (!window.confirm(`Envoyer un dernier avertissement à ${pseudo} ?`)) return;
-    setModerationBusy(pseudo);
-    try {
-      await push(ref(database, "rooms/miss2027/chat"), {
-        author: "admin",
-        targetUid: player.uid,
-        text: `❌ ${pseudo}, tu dépasses les limites, dernier avertissement !!!`,
-        date: Date.now()
-      });
-    } catch (error) { reportActionError(error); }
-    finally { setModerationBusy(""); }
-  };
-  const toggleChatBlock = async (pseudo, player) => {
-    if (!player?.uid) return alert("Impossible d’identifier le joueur Firebase.");
-    const blocked = player.chatBlocked === true;
-    if (!window.confirm(blocked ? `Rétablir le chat pour ${pseudo} ?` : `Empêcher ${pseudo} d’écrire dans le chat ?`)) return;
-    setModerationBusy(pseudo);
-    try {
-      await set(ref(database, `rooms/miss2027/players/${pseudo}/chatBlocked`), !blocked);
-    } catch (error) { reportActionError(error); }
-    finally { setModerationBusy(""); }
-  };
   const votedCount = playerEntries.filter(([, player]) => playerHasVoted(player)).length;
-  const standings = playerEntries.map(([pseudo, player]) => ({ pseudo, points: calculatePoints(player, adminSelections) }))
+  const standings = playerEntries.map(([uid, player]) => ({ uid, pseudo:player.pseudo+" · "+player.groupName, points: calculatePoints(player, adminSelections) }))
     .sort((a,b) => b.points-a.points || a.pseudo.localeCompare(b.pseudo,"fr"));
   // Cumulative popularity: 1 point per selection in rounds 1 and 2;
   // in the final, ordered predictions award 5 to Miss France, then 4, 3, 2, 1.
@@ -288,22 +285,19 @@ export default function Admin({ user, setUser }) {
     <div className="tv-page tv-admin-page tv-show-v3">
       <style>{votePulseKeyframes}</style>
 
-      {finaleStarted && (
-        <FinaleOverlay
-          players={players}
-          adminSelections={adminSelections}
-          isAdmin={true}
-        />
-      )}
+      {finaleStarted && <p role="status">Show national en préparation sur cette version test.</p>}
 
       <header className="regie-header">
         <div><span className="regie-eyebrow">♛ MISS FRANCE 2027</span><h1>RÉGIE DU DIRECT</h1><p>PILOTAGE DU CONCOURS <strong>TOUR {tour} / 3</strong></p></div>
         <div className="regie-header-right"><span className="regie-live">● LIVE</span><button type="button" className="regie-logout" disabled={loggingOut} onClick={handleLogout}>↪ {loggingOut?"Déconnexion…":"Se déconnecter"}</button></div>
       </header>
 
+      {nationalError&&<p role="alert" style={{color:"#ffb3b3"}}>Statistiques non actualisées : {nationalError}</p>}
+      {!nationalView&&!nationalError&&<p role="status">Chargement des inscriptions…</p>}
+      {nationalView&&<p className="regie-muted">{nationalView.groupCount} salles et groupes · suivi national</p>}
       <section className="regie-kpis" aria-label="Statistiques du concours">
-        <button type="button" className="regie-kpi" aria-expanded={playersExpanded} onClick={()=>setPlayersExpanded(x=>!x)}><span className="regie-kpi-icon">♙</span><strong>{totalPlayers}</strong><span>JOUEURS {playersExpanded?"⌃":"⌄"}</span></button>
-        <button type="button" className="regie-kpi" aria-expanded={votesExpanded} onClick={()=>setVotesExpanded(x=>!x)}><span className="regie-kpi-icon green">✓</span><strong>{votedCount}/{totalPlayers}</strong><span>VOTES VALIDÉS {votesExpanded?"⌃":"⌄"}</span></button>
+        <button type="button" className="regie-kpi" aria-expanded={playersExpanded} onClick={()=>setPlayersExpanded(x=>!x)}><span className="regie-kpi-icon">♙</span><strong>{nationalView?totalPlayers:"…"}</strong><span>JOUEURS {playersExpanded?"⌃":"⌄"}</span></button>
+        <button type="button" className="regie-kpi" aria-expanded={votesExpanded} onClick={()=>setVotesExpanded(x=>!x)}><span className="regie-kpi-icon green">✓</span><strong>{nationalView?`${votedCount}/${totalPlayers}`:"…"}</strong><span>VOTES VALIDÉS {votesExpanded?"⌃":"⌄"}</span></button>
         <button type="button" className="regie-kpi" aria-expanded={rankExpanded} onClick={()=>setRankExpanded(x=>!x)}><span className="regie-kpi-icon gold">🏆</span><strong>TOP</strong><span>CLASSEMENT {rankExpanded?"⌃":"⌄"}</span></button>
       </section>
       {playersExpanded && <section className="regie-expand" aria-label="Modération des joueurs">
@@ -312,28 +306,28 @@ export default function Admin({ user, setUser }) {
         <div style={{display:"grid",gap:10}}>
           {playerEntries.map(([pseudo,player])=>(
             <div key={pseudo} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap",padding:"12px",background:"rgba(18,35,75,.8)",border:"1px solid rgba(128,175,245,.35)",borderRadius:12}}>
-              <strong style={{overflowWrap:"anywhere"}}>{pseudo} {player?.chatBlocked===true && <span style={{color:"#ffb4b4",fontSize:12}}>· Chat bloqué</span>}</strong>
+              <strong style={{overflowWrap:"anywhere"}}>{player.pseudo} · {player.groupName} {player?.chatBlocked===true && <span style={{color:"#ffb4b4",fontSize:12}}>· Chat bloqué</span>}</strong>
               <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-                <button type="button" disabled={moderationBusy===pseudo || !player?.uid} onClick={()=>warnPlayer(pseudo,player)} style={{background:"#7d4310",padding:"9px 11px",fontSize:12}}>⚠️ Avertir</button>
-                <button type="button" disabled={moderationBusy===pseudo || !player?.uid} onClick={()=>toggleChatBlock(pseudo,player)} style={{background:player?.chatBlocked===true?"#176849":"#8a2038",padding:"9px 11px",fontSize:12}}>{player?.chatBlocked===true?"🔓 Débloquer":"🔇 Bloquer chat"}</button>
+                <button type="button" disabled title="Modération par groupe à raccorder" style={{background:"#7d4310",padding:"9px 11px",fontSize:12}}>⚠️ Avertir</button>
+                <button type="button" disabled title="Modération par groupe à raccorder" style={{background:player?.chatBlocked===true?"#176849":"#8a2038",padding:"9px 11px",fontSize:12}}>{player?.chatBlocked===true?"🔓 Débloquer":"🔇 Bloquer chat"}</button>
               </div>
             </div>
           ))}
           {totalPlayers===0 && <p className="regie-muted">Aucun joueur inscrit.</p>}
         </div>
       </section>}
-      {votesExpanded && <section className="regie-expand"><h3>SUIVI DES VOTES · TOUR {tour}</h3><div className="regie-player-grid">{playerEntries.map(([pseudo,player])=><div key={pseudo} className={"regie-player-status "+(playerHasVoted(player)?"yes":"no")}><span>{pseudo}</span><b>{playerHasVoted(player)?"✓ VOTÉ":"✕ PAS VOTÉ"}</b></div>)}</div>{totalPlayers===0&&<p>Aucun joueur enregistré.</p>}</section>}
-      {rankExpanded && <section className="regie-expand"><h3>CLASSEMENT DES JOUEURS</h3><div className="regie-standing-list">{standings.map((p,i)=><div key={p.pseudo}><strong>{i===0?"👑":String(i+1).padStart(2,"0")}</strong><span>{p.pseudo}</span><b>{p.points} pts</b></div>)}</div>{!standings.length&&<p>Aucun score pour le moment.</p>}</section>}
+      {votesExpanded && <section className="regie-expand"><h3>SUIVI DES VOTES · TOUR {tour}</h3><div className="regie-player-grid">{playerEntries.map(([pseudo,player])=><div key={pseudo} className={"regie-player-status "+(playerHasVoted(player)?"yes":"no")}><span>{player.pseudo} · {player.groupName}</span><b>{playerHasVoted(player)?"✓ VOTÉ":"✕ PAS VOTÉ"}</b></div>)}</div>{totalPlayers===0&&<p>Aucun joueur enregistré.</p>}</section>}
+      {rankExpanded && <section className="regie-expand"><h3>CLASSEMENT DES JOUEURS</h3><div className="regie-standing-list">{standings.map((p,i)=><div key={p.uid}><strong>{i===0?"👑":String(i+1).padStart(2,"0")}</strong><span>{p.pseudo}</span><b>{p.points} pts</b></div>)}</div>{!standings.length&&<p>Aucun score pour le moment.</p>}</section>}
 
       <section className="regie-controls"><h2>COMMANDES DE LA RÉGIE</h2><div className="regie-control-grid">
         <button type="button" className={"regie-switch "+(connectionsOpen?"is-on":"is-off")} onClick={()=>safely(()=>updateConnectionsOpen(!connectionsOpen))}><span>⇥</span><b>CONNEXIONS</b><strong>{connectionsOpen?"ON":"OFF"}</strong></button>
         <button type="button" className={"regie-switch "+(votesOpen?"is-on":"is-off")} onClick={()=>safely(()=>updateVotesOpen(!votesOpen))}><span>✉</span><b>VOTES</b><strong>{votesOpen?"ON":"OFF"}</strong></button>
         <button type="button" disabled={!demoLoaded} className={"regie-switch "+(demoEnabled?"is-on":"is-off")} onClick={()=>safely(()=>updateDemoEnabled(!demoEnabled))}><span>▣</span><b>MODE DÉMO</b><strong>{!demoLoaded?"…":demoEnabled?"ON":"OFF"}</strong></button>
-        <button type="button" className="regie-show" disabled={tour!==3 || finaleStarted || !finalRankingValidated || savingFinalRanking} onClick={()=>{if(window.confirm("Lancer le show final maintenant ?"))safely(()=>updateFinaleStarted(true));}}><span>♛</span><b>SHOW FINAL</b><strong>{finaleStarted?"SHOW LANCÉ":"LANCER LE SHOW"}</strong></button>
+        <button type="button" className="regie-show" disabled title="Publication multigroupes à raccorder"><span>♛</span><b>SHOW FINAL</b><strong>{finaleStarted?"SHOW LANCÉ":"LANCER LE SHOW"}</strong></button>
       </div></section>
 
       <div className="regie-info-grid">
-        <AdminLiveChat user={user} />
+        <section className="regie-panel"><h3>Chat des salles</h3><p>Le chat multigroupes et sa modération seront raccordés à l’étape suivante.</p></section>
         <section className="regie-panel"><div className="regie-panel-heading"><h3>⭐ MISS FAVORITES</h3><span>TOUR {tour}</span></div>
           {popularity.map(m=><div className="regie-popularity" key={m.id}><div><span>{m.label}</span><strong>{m.count} pts</strong></div><div className="regie-meter"><span style={{width:(100*m.count/maxPopularity)+"%"}} /></div><small>Cumul des sélections · tours 1, 2 et finale</small></div>)}
           {!popularity.length&&<p>Aucune candidate à afficher.</p>}

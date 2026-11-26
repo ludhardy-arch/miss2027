@@ -1,6 +1,6 @@
 import React, { useContext, useState, useEffect } from "react";
 import { AppContext } from "../context/AppContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { auth } from "../firebase";
 import { GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged } from "firebase/auth";
  
@@ -19,8 +19,13 @@ function getRemainingTime() {
 
 
 export default function Login({ setUser }) {
-  const { addPlayer, connectionsOpen, connectionsLoaded, connectionsError, gameId, demoEnabled, demoLoaded } = useContext(AppContext);
+  const { connectionsOpen, connectionsLoaded, connectionsError, demoEnabled, demoLoaded } = useContext(AppContext);
   const [pseudo, setPseudo] = useState("");
+  const [entryMode, setEntryMode] = useState("home");
+  const [groupQuery, setGroupQuery] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const invitation = searchParams.get("invite");
+  const screen = invitation ? "invite" : entryMode;
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [adminUid, setAdminUid] = useState("");
@@ -44,27 +49,54 @@ export default function Login({ setUser }) {
     return () => { active = false; unsubscribe(); };
   }, []);
 
-  async function loginPlayer() {
-    if (!connectionsLoaded || !connectionsOpen) { setError("Les connexions sont fermées. Attends que l’administrateur les ouvre."); return; }
-    const p = pseudo.trim().replace(/\s+/g, " ");
-    if (!/^[a-zA-ZÀ-ÖØ-öø-ÿ0-9_ -]{2,24}$/.test(p)) {
-      setError("Choisis un pseudo de 2 à 24 caractères : lettres (accents acceptés), chiffres, espaces, _ ou -.");
-      return;
-    }
-    setPending(true); setError("");
-    try {
-      // Anonymous Firebase identity, rather than a shared password in source code.
-      const credential = await signInAnonymously(auth);
-      // The database security rules must bind the pseudo to this UID.
-      // Check the current opening state again after Firebase authentication.
-      if (!connectionsLoaded || !connectionsOpen) throw new Error("Les connexions sont fermées.");
-      await addPlayer(p, credential.user.uid);
-      const userObj = { pseudo: p, role: "player", uid: credential.user.uid, gameId };
-      setUser(userObj);
-      navigate("/player");
-    } catch (err) {
-      setError("Impossible de rejoindre la partie : " + (err?.code || err?.message));
-    } finally { setPending(false); }
+  // No fallback to legacy pseudo-based entry before V2 group assignment exists.
+  function openEntry(mode) { setError(""); setEntryMode(mode); }
+  function backToHome() {
+    setError(""); setEntryMode("home");
+    if (invitation) setSearchParams({}, {replace:true});
+  }
+  function enterPreview(event) {
+    event.preventDefault();
+    setError("Cette fonction sera raccordée à la nouvelle base de test à l’étape suivante.");
+  }
+  const entryButton = {
+    width:"100%", minHeight:52, boxSizing:"border-box", borderRadius:13,
+    padding:"13px 12px", color:"white", fontSize:16, fontWeight:800, lineHeight:1.35, cursor:"pointer",
+    background:"linear-gradient(110deg,#143b87,#2862bb)", border:"1px solid #64a9ea",
+    boxShadow:"0 0 12px rgba(39,131,255,.25)"
+  };
+  const greenButton = {
+    ...entryButton, background:"linear-gradient(110deg,#003b26,#006f42,#009e63)",
+    border:"2px solid #15ef98", boxShadow:"0 0 9px #00e58a,0 0 20px rgba(0,235,137,.35)"
+  };
+  const inputStyle = {
+    width:"100%",minHeight:48,padding:"12px",boxSizing:"border-box",
+    border:"1px solid #6a82bb",borderRadius:12,fontSize:16
+  };
+  const notice = message => <p role="status" style={{margin:0,color:"#e0e8ff",fontSize:14,lineHeight:1.5}}>{message}</p>;
+  const canEnter = connectionsLoaded && connectionsOpen && !connectionsError;
+  function accessControl(isPublic, action, disabled=false) {
+    const label = isPublic ? "Accéder au concours en salle publique" : "Accéder au concours";
+    if (canEnter) return <button type="button" onClick={action} disabled={disabled || pending}
+      style={{...greenButton,opacity:disabled || pending ? .55 : 1}}>{label}</button>;
+    return <div role="status" style={{padding:"15px 12px",borderRadius:13,
+      background:"linear-gradient(145deg,#192b50,#101b40)",border:"1px solid #d6b674",
+      color:"white",fontWeight:800,textAlign:"center"}}>
+      {connectionsError ? "⚠️ Impossible de vérifier les connexions"
+        : !connectionsLoaded ? "⏳ Connexion au serveur en cours…"
+        : remaining.total > 0 ? <>
+          <div style={{fontFamily:"Georgia, serif",fontSize:"clamp(17px,4.8vw,23px)",color:"#fff0d0",marginBottom:14}}>{label} dans :</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:7,fontVariantNumeric:"tabular-nums"}}>
+            {[["Jours",remaining.days],["Heures",remaining.hours],["Min",remaining.minutes],["Sec",remaining.seconds]].map(([unit,value]) => (
+              <div key={unit} style={{padding:"10px 2px",border:"1px solid rgba(255,220,155,.65)",borderRadius:10,background:"rgba(8,11,34,.65)"}}>
+                <div style={{fontSize:"clamp(24px,7vw,39px)",color:"#fff0c2",lineHeight:1.2}}>{String(value).padStart(2,"0")}</div>
+                <div style={{fontSize:11,fontWeight:700,color:"#ffdb9b",marginTop:3}}>{unit}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{fontSize:12,marginTop:12,fontWeight:600}}>Samedi 12 décembre · 20 h 40 (heure de Paris)</div>
+        </> : "⏳ En attente de l’ouverture du concours par l’administrateur"}
+    </div>;
   }
 
   async function loginAdmin() {
@@ -111,39 +143,31 @@ export default function Login({ setUser }) {
         </div>
         <p style={{ color: "#ffd49c", margin: "17px 7px 5px", fontSize: 14 }}>✨ Attends l'ouverture des votes à chaque tour.</p>
       </section>
-      <div className="tv-entry tv-entry-v3"><div className="tv-entry-eyebrow">✦ ACCÈS AU DIRECT ✦</div><h2></h2><div role="status" style={{ padding: "15px 12px", marginBottom: 19, borderRadius: 13, background: connectionsError ? "#93511b" : !connectionsLoaded ? "#56516f" : connectionsOpen ? "linear-gradient(110deg, #003b26, #006f42, #009e63)" : "linear-gradient(110deg, #89000c, #cc0019, #f31337)", border: connectionsLoaded && !connectionsError ? `2px solid ${connectionsOpen ? "#15ef98" : "#ff4d66"}` : "2px solid transparent", boxShadow: connectionsLoaded && !connectionsError ? (connectionsOpen ? "0 0 9px #00e58a, 0 0 20px rgba(0,235,137,.48), inset 0 0 12px rgba(27,255,167,.18)" : "0 0 9px #ff1b42, 0 0 20px rgba(255,27,66,.48), inset 0 0 12px rgba(255,93,111,.2)") : "none", color: "white", fontWeight: 800, letterSpacing: ".025em", textShadow: "0 1px 2px rgba(0,0,0,.5)" }}>
-        {connectionsError ? "⚠️ Impossible de vérifier les connexions : " + connectionsError
-          : !connectionsLoaded ? "⏳ Connexion au serveur en cours…"
-          : connectionsOpen ? "✅ Inscriptions ouvertes"
-          : remaining.total > 0 ? (
-            <div style={{ textAlign: "center" }}>
-              <div style={{ color: "#ffe5ad", fontFamily: "Georgia, serif", fontSize: "clamp(18px, 4.8vw, 24px)", marginBottom: 14 }}>
-                ✨ Ouverture des inscriptions dans :
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 7, fontVariantNumeric: "tabular-nums" }}>
-                {[
-                  ["Jours", remaining.days],
-                  ["Heures", remaining.hours],
-                  ["Min", remaining.minutes],
-                  ["Sec", remaining.seconds],
-                ].map(([unit, value]) => (
-                  <div key={unit} style={{ padding: "10px 2px", border: "1px solid rgba(255,220,155,.65)", borderRadius: 10, background: "rgba(8,11,34,.65)" }}>
-                    <div style={{ fontSize: "clamp(24px, 7vw, 39px)", color: "#fff0c2", lineHeight: 1.2 }}>{String(value).padStart(2, "0")}</div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#ffdb9b", marginTop: 3 }}>{unit}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: 12, marginTop: 12, fontWeight: 600 }}>Samedi 12 décembre · 20 h 40 (heure de Paris)</div>
-            </div>
-          ) : "⏳ Heure d’ouverture atteinte — en attente de l’activation des inscriptions par l’administrateur"}
-      </div>
-      <input disabled={!connectionsLoaded || !connectionsOpen || pending} placeholder="Ton pseudo" value={pseudo} onChange={(e) => setPseudo(e.target.value)}
-        style={{ padding: 10, width: "100%", boxSizing: "border-box", marginBottom: 12 }} />
-      <button onClick={loginPlayer} disabled={pending || !connectionsLoaded || !connectionsOpen} style={{ padding: 12, width: "100%", background: "#ff0088", color: "white", border: 0, cursor: "pointer", marginBottom: 18 }}>
-        Participer au concours
-      </button>
-      {error && <p role="alert" style={{ color: "#b00020" }}>{error}</p>}
-      {adminUid && <p>Ton UID Firebase : <code>{adminUid}</code> — à renseigner dans Render et dans les règles Firebase.</p>}
+      <div className="tv-entry tv-entry-v3" style={{display:"grid",gap:12}}>
+        {screen === "home" && <>
+          {accessControl(true, () => openEntry("public"))}
+          <button type="button" style={entryButton} onClick={() => openEntry("join")}>Rejoindre un groupe</button>
+          <button type="button" style={entryButton} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>
+        </>}
+        {(screen === "public" || screen === "invite") && <>
+          {screen === "invite" && <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Bienvenue dans le groupe</h2>}
+          <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
+          {accessControl(screen === "public", enterPreview, !pseudo.trim())}
+          {screen === "invite" && notice("Le nom du groupe et la validité de l’invitation seront vérifiés à l’étape suivante.")}
+        </>}
+        {screen === "join" && <form onSubmit={enterPreview} style={{display:"grid",gap:12}}>
+          <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
+          <input aria-label="Nom du groupe" placeholder="Nom du groupe" value={groupQuery} onChange={e => setGroupQuery(e.target.value)} style={inputStyle}/>
+          <button type="submit" style={entryButton} disabled={!pseudo.trim() || !groupQuery.trim()}>Rechercher</button>
+          {notice("La recherche et le mot de passe du groupe seront raccordés à l’étape suivante.")}
+        </form>}
+        {screen === "manage" && <>
+          <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Créer / Gérer son groupe</h2>
+          {notice("La création et la gestion des groupes seront développées à l’étape suivante.")}
+        </>}
+        {screen !== "home" && <button type="button" onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}
+        {error && <p role="alert" style={{color:"#ffd0cf",margin:0}}>{error}</p>}
+        {adminUid && <p>Ton UID Firebase : <code>{adminUid}</code> — à renseigner dans Render et dans les règles Firebase.</p>}
       </div>
       {demoLoaded && demoEnabled && <div className="demo-entry-link" style={{ textAlign: "center", padding: "25px 10px 0" }}><button type="button" onClick={() => navigate("/demo")} style={{ background: "linear-gradient(110deg,#143b87,#2862bb)", border: "2px solid #dfbe7b", borderRadius: 15, boxShadow: "0 0 18px rgba(39,131,255,.45),0 0 14px rgba(246,198,102,.3)", color: "white", padding: "15px 24px", fontSize: 16, fontWeight: 800 }}>✦ ESSAYER LA DÉMO · SANS INSCRIPTION ✦</button></div>}
       <footer style={{ textAlign: "center", margin: "38px auto 0", padding: "12px 0 20px" }}>

@@ -2,7 +2,7 @@ import React, { useContext, useState, useEffect } from "react";
 import { AppContext } from "../context/AppContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { auth } from "../firebase";
-import { GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
  
 // 12 décembre 2026, 20 h 40 à Paris (heure d'hiver : UTC+1).
 const REGISTRATION_OPEN_AT = new Date("2026-12-12T20:40:00+01:00").getTime();
@@ -19,7 +19,19 @@ function getRemainingTime() {
 
 
 const GROUP_API="https://miss2027-test-api.onrender.com";
-const groupErrors={already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
+const CREATOR_DRAFT="miss2027_test_creator_email_draft";
+function readCreatorDraft(){
+  try{const d=JSON.parse(localStorage.getItem(CREATOR_DRAFT)||"null");return d&&Date.now()-d.at<1800000?d:null;}catch{return null;}
+}
+function emailError(err){
+  if(err?.code==="auth/too-many-requests"||err?.code==="auth/quota-exceeded")return "Limite d’envoi Firebase atteinte. Réessaie plus tard.";
+  if(err?.code==="auth/invalid-action-code"||err?.code==="auth/expired-action-code")return "Ce lien est expiré, invalide ou déjà utilisé. Demande un nouveau lien.";
+  if(err?.code==="auth/unauthorized-continue-uri"||err?.code==="auth/operation-not-allowed")return "La connexion par e-mail n’est pas encore autorisée dans Firebase test.";
+  if(err?.code)return "La vérification de l’adresse e-mail a échoué ("+err.code+").";
+  return err.message||"Opération impossible.";
+}
+
+const groupErrors={verified_email_required:"Vérifie de nouveau ton adresse e-mail avant de continuer.",owner_required:"Cette adresse e-mail n’est pas celle du créateur de ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
 async function groupRequest(path,body) {
   if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Ce service est réservé au site test.");
   const user=auth.currentUser;
@@ -44,16 +56,15 @@ export default function Login({ setUser }) {
   const [joinedGroup, setJoinedGroup] = useState(null);
   const [creatorName, setCreatorName] = useState("");
   const [creatorPseudo, setCreatorPseudo] = useState("");
-  const [previewCreatedGroup, setPreviewCreatedGroup] = useState(null);
-  const [showCreatorInvite, setShowCreatorInvite] = useState(false);
-  const [editGroupName, setEditGroupName] = useState("");
-  const [editingGroupName, setEditingGroupName] = useState(false);
-  const [removeMemberId, setRemoveMemberId] = useState(null);
-  const [creatorMessage, setCreatorMessage] = useState("");
-
+  const [creatorEmail,setCreatorEmail]=useState(()=>readCreatorDraft()?.email||"");
+  const [creatorPassword,setCreatorPassword]=useState("");
+  const [verifiedCreator,setVerifiedCreator]=useState(null);
+  const [emailLink,setEmailLink]=useState(()=>isSignInWithEmailLink(auth,window.location.href)?window.location.href:"");
+  const [emailNotice,setEmailNotice]=useState("");
+  const [ownerGroup,setOwnerGroup]=useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const invitation = searchParams.get("invite");
-  const screen = invitation ? "invite" : entryMode;
+  const screen = emailLink ? "email-verify" : invitation ? "invite" : entryMode;
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [adminUid, setAdminUid] = useState("");
@@ -68,7 +79,7 @@ export default function Login({ setUser }) {
   useEffect(() => {
     let active = true;
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (!firebaseUser && active) {
+      if (!firebaseUser && active && !isSignInWithEmailLink(auth,window.location.href)) {
         signInAnonymously(auth).catch((error) => {
           if (active) setError("Connexion au serveur impossible : " + (error?.code || error?.message));
         });
@@ -84,7 +95,8 @@ export default function Login({ setUser }) {
   function backToHome() {
     setError(""); setEntryMode("home");
     setGroupQuery(""); setGroupResults(null); setSelectedGroup(null); setGroupPassword("");
-    resetCreatorPanel();
+    setCreatorPassword("");setEmailNotice("");setVerifiedCreator(null);
+    if(emailLink){window.location.replace(window.location.origin+"/#/login");return;}
     if (invitation) setSearchParams({}, {replace:true});
   }
   async function searchRealGroups(event) {
@@ -113,52 +125,67 @@ export default function Login({ setUser }) {
     }catch(err){setError(err.message||"Inscription impossible.");}
     finally{setGroupPassword("");setPending(false);}
   }
-  function createGroupPreview(event) {
+  async function requestCreatorEmail(event,intent){
     event.preventDefault();
-    if (!creatorName.trim() || !creatorPseudo.trim()) return;
-    // Only fictitious display information stays in memory; no credentials or writes.
-    setPreviewCreatedGroup({name:creatorName.trim(),pseudo:creatorPseudo.trim(),members:[],registrationsOpen:true,inviteVersion:1});
-    resetCreatorPanel();
-    event.currentTarget.reset();
-    setCreatorName(""); setCreatorPseudo(""); setError(""); setEntryMode("creator-confirm");
+    if(pending||!creatorEmail.trim())return;
+    setPending(true);setError("");setEmailNotice("");setCreatorPassword("");
+    try{
+      if(intent==="create"&&auth.currentUser){
+        const membership=await groupRequest("/groups/me");
+        if(membership.group){setJoinedGroup(membership.group);setEntryMode("joined-group");return;}
+      }
+      const draft={email:creatorEmail.trim(),name:creatorName.trim(),pseudo:creatorPseudo.trim(),intent,at:Date.now()};
+      try{localStorage.setItem(CREATOR_DRAFT,JSON.stringify(draft));}catch{}
+      await sendSignInLinkToEmail(auth,draft.email,{url:window.location.origin+"/?creatorFlow="+intent,handleCodeInApp:true});
+      setEmailNotice("Lien envoyé ! Ouvre le message Firebase dans ta boîte e-mail et clique sur le lien. Aucun groupe n’est encore créé.");
+    }catch(err){setError(emailError(err));}
+    finally{setPending(false);}
   }
-  function openCreatorPreview(event) {
+  async function verifyCreatorEmail(event){
     event.preventDefault();
-    event.currentTarget.reset();
-    setPreviewCreatedGroup(group => group || {name:"La famille des Miss",pseudo:"Créateur test",members:[{id:"preview-member-1",pseudo:"Camille"},{id:"preview-member-2",pseudo:"Alex"},{id:"preview-member-3",pseudo:"Sophie"}],registrationsOpen:true,inviteVersion:1});
-    resetCreatorPanel();
-    setError(""); setEntryMode("creator-dashboard");
+    if(pending||!emailLink||!creatorEmail.trim())return;
+    setPending(true);setError("");setCreatorPassword("");
+    try{
+      const email=creatorEmail.trim(),draft=readCreatorDraft();
+      const flow=new URL(emailLink).searchParams.get("creatorFlow");
+      const intent=flow==="manage"?"manage":flow==="create"?"create":draft?.email?.toLowerCase()===email.toLowerCase()&&draft.intent==="manage"?"manage":"create";
+      // The email address is entered locally, never taken from the sign-in URL.
+      const credential=await signInWithEmailLink(auth,email,emailLink);
+      if(!credential.user.emailVerified)throw Error("L’adresse e-mail n’est pas vérifiée.");
+      setVerifiedCreator({uid:credential.user.uid,email:credential.user.email,intent});
+      setCreatorEmail(credential.user.email||email);
+      if(intent==="create"&&draft?.email?.toLowerCase()===email.toLowerCase()){
+        setCreatorName(draft.name||"");setCreatorPseudo(draft.pseudo||"");
+      }
+      try{localStorage.removeItem(CREATOR_DRAFT);}catch{}
+      window.history.replaceState(window.history.state,"",window.location.pathname+"#/login");
+      setEmailLink("");setEmailNotice("");setEntryMode(intent==="manage"?"creator-login":"create-group");
+    }catch(err){setError(emailError(err));}
+    finally{setPending(false);}
   }
-  // All management actions below are local previews, not authenticated operations.
-  function resetCreatorPanel() {
-    setShowCreatorInvite(false); setEditingGroupName(false); setRemoveMemberId(null); setCreatorMessage("");
-  }
-  function savePreviewName(event) {
+  async function createRealGroup(event){
     event.preventDefault();
-    const name=editGroupName.trim();
-    if (!name) return;
-    setPreviewCreatedGroup(group => group ? {...group,name} : group);
-    setEditingGroupName(false); setCreatorMessage("Nom modifié dans cet aperçu.");
+    if(!verifiedCreator||verifiedCreator.intent!=="create"||verifiedCreator.uid!==auth.currentUser?.uid||pending||!creatorName.trim()||!creatorPseudo.trim()||creatorPassword.length<6)return;
+    setPending(true);setError("");
+    try{
+      const result=await groupRequest("/groups/create",{name:creatorName.trim(),pseudo:creatorPseudo.trim(),password:creatorPassword});
+      setOwnerGroup({id:result.id,name:result.name,pseudo:creatorPseudo.trim(),memberCount:1,isOwner:true,registrationsOpen:true,members:[{id:auth.currentUser.uid,pseudo:creatorPseudo.trim(),isOwner:true}]});
+      setEntryMode("creator-confirm");
+    }catch(err){setError(err.message||"Création impossible.");}
+    finally{setCreatorPassword("");setPending(false);}
   }
-  function togglePreviewRegistrations() {
-    setPreviewCreatedGroup(group => group ? {...group,registrationsOpen:!group.registrationsOpen} : group);
-    setCreatorMessage("État des inscriptions modifié dans cet aperçu.");
+  async function openRealCreator(event){
+    event.preventDefault();
+    if(!verifiedCreator||verifiedCreator.uid!==auth.currentUser?.uid||pending||creatorPassword.length<6)return;
+    setPending(true);setError("");
+    try{
+      const result=await groupRequest("/groups/owner/access",{password:creatorPassword});
+      setOwnerGroup(result.group);setEntryMode("creator-dashboard");
+    }catch(err){setError(err.message||"Connexion impossible.");}
+    finally{setCreatorPassword("");setPending(false);}
   }
-  function removePreviewMember(id) {
-    setPreviewCreatedGroup(group => group ? {...group,members:group.members.filter(member=>member.id!==id)} : group);
-    setRemoveMemberId(null); setCreatorMessage("Participant retiré de cet aperçu.");
-  }
-  function addPreviewMember() {
-    setPreviewCreatedGroup(group => {
-      if (!group) return group;
-      const n = (group.nextMemberNumber || 0) + 1;
-      return {...group,nextMemberNumber:n,members:[...group.members,{id:"added-preview-"+n,pseudo:"Invité test "+n}]};
-    });
-    setCreatorMessage("Participant fictif ajouté.");
-  }
-  function rotatePreviewInvitation() {
-    setPreviewCreatedGroup(group=>group ? {...group,inviteVersion:group.inviteVersion+1} : group);
-    setCreatorMessage("Lien fictif renouvelé. Aucun lien réel n’a été révoqué.");
+  function startCreatorFlow(mode){
+    setCreatorName("");setCreatorPseudo("");setCreatorEmail("");setCreatorPassword("");setVerifiedCreator(null);setEmailNotice("");setOwnerGroup(null);openEntry(mode);
   }
   function enterPreview(event) {
     event.preventDefault();
@@ -347,93 +374,82 @@ export default function Login({ setUser }) {
           {notice("Les votes et le chat privés seront raccordés à l’étape suivante.")}
         </>}
         {screen === "manage" && <>
-          <button type="button" className="group-entry-blue" style={entryButton} onClick={() => {setCreatorName("");setCreatorPseudo("");openEntry("create-group");}}>Créer un groupe</button>
-          <button type="button" className="group-entry-blue" style={entryButton} onClick={() => openEntry("creator-login")}>Gérer mon groupe</button>
+          <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>startCreatorFlow("create-group")}>Créer un groupe</button>
+          <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>startCreatorFlow("creator-login")}>Gérer mon groupe</button>
         </>}
-        {screen === "create-group" && <form onSubmit={createGroupPreview} style={{display:"grid",gap:12,textAlign:"left"}}>
+        {screen === "email-verify" && <form onSubmit={verifyCreatorEmail} style={{display:"grid",gap:12,textAlign:"left"}}>
+          <h2 style={{margin:0,color:"#ffe5ad",fontSize:19,textAlign:"center"}}>Vérifier mon adresse e-mail</h2>
+          {notice("Confirme l’adresse e-mail à laquelle le lien a été envoyé.")}
+          <input type="email" aria-label="Adresse e-mail" autoComplete="email" required value={creatorEmail} onChange={e=>setCreatorEmail(e.target.value)} style={inputStyle}/>
+          <button type="submit" className="group-entry-green" style={greenButton} disabled={pending}>{pending?"Vérification…":"Valider mon adresse e-mail"}</button>
+        </form>}
+        {screen === "create-group" && <form onSubmit={verifiedCreator?.intent==="create"?createRealGroup:e=>requestCreatorEmail(e,"create")} style={{display:"grid",gap:12,textAlign:"left"}}>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:19,textAlign:"center"}}>Créer ton groupe</h2>
-          {notice("Aperçu de création : la vérification par e-mail doit encore être activée. Ce groupe ne sera pas enregistré ni visible dans la recherche.")}
           <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton pseudo
-            <input autoComplete="off" maxLength={24} required placeholder="Mon pseudo" value={creatorPseudo} onChange={e=>setCreatorPseudo(e.target.value)} style={inputStyle}/>
+            <input autoComplete="nickname" maxLength={24} required placeholder="Mon pseudo" value={creatorPseudo} onChange={e=>setCreatorPseudo(e.target.value)} disabled={pending} style={inputStyle}/>
           </label>
           <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Nom du groupe
-            <input autoComplete="off" maxLength={80} required placeholder="Nom du groupe" value={creatorName} onChange={e=>setCreatorName(e.target.value)} style={inputStyle}/>
+            <input autoComplete="off" maxLength={80} required placeholder="Nom du groupe" value={creatorName} onChange={e=>setCreatorName(e.target.value)} disabled={pending} style={inputStyle}/>
           </label>
           <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton adresse e-mail
-            <input type="email" autoComplete="off" required placeholder="exemple@example.com" style={inputStyle}/>
+            <input type="email" autoComplete="email" required placeholder="exemple@example.com" value={creatorEmail} onChange={e=>setCreatorEmail(e.target.value)} readOnly={!!verifiedCreator} disabled={pending} style={inputStyle}/>
           </label>
-          <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Mot de passe du groupe
-            <input type="password" autoComplete="new-password" minLength={6} maxLength={128} required placeholder="Mot de passe (6 caractères minimum)" style={inputStyle}/>
-          </label>
-          <p style={{fontSize:12,color:"#c6d3ee",margin:0,lineHeight:1.5}}>Ce mot de passe permet à tes invités de rejoindre ton groupe et te sert aussi à accéder à sa gestion.</p>
-          <button type="submit" className="group-entry-green" style={greenButton} disabled={!creatorName.trim() || !creatorPseudo.trim()}>Créer mon groupe</button>
-          <button type="button" className="group-entry-back" onClick={()=>openEntry("manage")}>Retour</button>
+          {verifiedCreator?.intent==="create" ? <>
+            <p style={{margin:0,color:"#78ffbd",fontSize:14}}>✓ Adresse e-mail vérifiée</p>
+            <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Mot de passe du groupe
+              <input type="password" autoComplete="new-password" minLength={6} maxLength={128} required placeholder="Mot de passe (6 caractères minimum)" value={creatorPassword} onChange={e=>setCreatorPassword(e.target.value)} disabled={pending} style={inputStyle}/>
+            </label>
+            <p style={{fontSize:12,color:"#c6d3ee",margin:0,lineHeight:1.5}}>Un seul mot de passe pour le groupe. La gestion est réservée au créateur dont l’e-mail est vérifié. N’utilise pas un mot de passe personnel.</p>
+            <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!creatorName.trim()||!creatorPseudo.trim()||creatorPassword.length<6}>{pending?"Création…":"Créer mon groupe"}</button>
+            <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setVerifiedCreator(null);setCreatorPassword("");setError("");}}>Vérifier de nouveau mon e-mail</button>
+          </> : <>
+            {notice("Vérifie d’abord ton e-mail pour protéger la gestion de ton groupe. Tu choisiras ensuite son mot de passe.")}
+            <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!creatorName.trim()||!creatorPseudo.trim()||!creatorEmail.trim()}>{pending?"Envoi…":"Vérifier mon e-mail"}</button>
+          </>}
+          {emailNotice&&<p role="status" style={{margin:0,color:"#78ffbd",fontSize:14}}>{emailNotice}</p>}
+          <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setVerifiedCreator(null);setCreatorPassword("");setEmailNotice("");openEntry("manage");}}>Retour</button>
         </form>}
-        {screen === "creator-login" && <form onSubmit={openCreatorPreview} style={{display:"grid",gap:12,textAlign:"left"}}>
+        {screen === "creator-login" && <form onSubmit={verifiedCreator?openRealCreator:e=>requestCreatorEmail(e,"manage")} style={{display:"grid",gap:12,textAlign:"left"}}>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:19,textAlign:"center"}}>Gérer mon groupe</h2>
-          {notice("Aperçu de test : aucune authentification réelle. Utilise des informations fictives.")}
           <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton adresse e-mail
-            <input type="email" autoComplete="off" required placeholder="Adresse e-mail" style={inputStyle}/>
+            <input type="email" autoComplete="email" required placeholder="Adresse e-mail" value={creatorEmail} onChange={e=>setCreatorEmail(e.target.value)} readOnly={!!verifiedCreator} disabled={pending} style={inputStyle}/>
           </label>
-          <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Mot de passe du groupe
-            <input type="password" autoComplete="off" required placeholder="Mot de passe du groupe" style={inputStyle}/>
-          </label>
-          <button type="submit" className="group-entry-green" style={greenButton}>Se connecter</button>
-          <button type="button" className="group-entry-back" onClick={()=>setError("Aperçu : la réinitialisation du mot de passe sera raccordée à Firebase Auth. Aucun e-mail envoyé.")}>Mot de passe oublié ?</button>
-          <button type="button" className="group-entry-back" onClick={()=>openEntry("manage")}>Retour</button>
+          {verifiedCreator ? <>
+            <p style={{margin:0,color:"#78ffbd",fontSize:14}}>✓ Adresse e-mail vérifiée</p>
+            <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Mot de passe du groupe
+              <input type="password" autoComplete="off" required minLength={6} maxLength={128} value={creatorPassword} onChange={e=>setCreatorPassword(e.target.value)} disabled={pending} placeholder="Mot de passe du groupe" style={inputStyle}/>
+            </label>
+            <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||creatorPassword.length<6}>{pending?"Connexion…":"Se connecter"}</button>
+            <button type="button" className="group-entry-back" disabled={pending} onClick={()=>setError("La récupération du mot de passe du groupe sera raccordée après les premiers essais.")}>Mot de passe oublié ?</button>
+            <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setVerifiedCreator(null);setCreatorPassword("");setError("");}}>Vérifier de nouveau mon e-mail</button>
+          </> : <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!creatorEmail.trim()}>{pending?"Envoi…":"Vérifier mon e-mail"}</button>}
+          {emailNotice&&<p role="status" style={{margin:0,color:"#78ffbd",fontSize:14}}>{emailNotice}</p>}
+          <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setVerifiedCreator(null);setCreatorPassword("");setEmailNotice("");openEntry("manage");}}>Retour</button>
         </form>}
-        {(screen === "creator-confirm" || screen === "creator-dashboard") && previewCreatedGroup && <>
-          <p style={{fontSize:12,color:"#ffd49c",margin:0}}>Aperçu de test · aucun groupe réel créé</p>
-          <h2 style={{margin:0,color:"#ffe5ad",fontSize:21}}>{screen === "creator-confirm" ? "Ton groupe est créé !" : "Gérer mon groupe"}</h2>
+        {(screen === "creator-confirm" || screen === "creator-dashboard") && ownerGroup && <>
+          <p style={{fontSize:12,color:"#78ffbd",margin:0}}>Groupe enregistré dans Firebase test</p>
+          <h2 style={{margin:0,color:"#ffe5ad",fontSize:21}}>{screen==="creator-confirm"?"Ton groupe est créé !":"Gérer mon groupe"}</h2>
           <div style={{padding:"16px 12px",background:"rgba(84,118,189,.17)",border:"1px solid #64a9ea",borderRadius:13}}>
-            <div style={{fontSize:20,fontWeight:800,color:"#fff",overflowWrap:"anywhere"}}>{previewCreatedGroup.name}</div>
-            <p style={{margin:"8px 0 0",color:"#c6d3ee"}}>{1+previewCreatedGroup.members.length} participant{previewCreatedGroup.members.length?"s":""} · {previewCreatedGroup.pseudo} (créateur)</p>
+            <div style={{fontSize:20,fontWeight:800,color:"#fff",overflowWrap:"anywhere"}}>{ownerGroup.name}</div>
+            <p style={{margin:"8px 0 0",color:"#c6d3ee"}}>{ownerGroup.memberCount} participant{ownerGroup.memberCount>1?"s":""} · {ownerGroup.pseudo} (créateur)</p>
           </div>
-          <button type="button" className="group-entry-blue" style={entryButton} aria-expanded={showCreatorInvite} onClick={()=>{setShowCreatorInvite(v=>!v);setCreatorMessage("");}}>Inviter mes amis</button>
-          {showCreatorInvite && <section style={{display:"grid",gap:10,textAlign:"left",padding:12,border:"1px solid #64a9ea",borderRadius:12,background:"rgba(84,118,189,.13)"}}>
-            <strong style={{color:"#ffe5ad"}}>Invitation au groupe</strong>
-            {notice("Partage le lien d’invitation et le mot de passe du groupe avec tes amis ou ta famille.")}
-            <div style={{fontSize:13,overflowWrap:"anywhere",padding:10,background:"#101c3d",borderRadius:8,color:"#dbe7ff"}}>Lien fictif : {window.location.origin}/?invite=preview-{previewCreatedGroup.inviteVersion}</div>
-            {notice("Ce lien est un exemple non valable pour une inscription réelle. Le partage sera activé après raccordement.")}
-            {screen === "creator-dashboard" && <button type="button" className="group-entry-blue" style={entryButton} onClick={rotatePreviewInvitation}>Renouveler le lien de test</button>}
-          </section>}
-          {accessControl(false, enterPreview)}
-          {screen === "creator-confirm" ? <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>{resetCreatorPanel();openEntry("creator-dashboard");}}>Gérer mon groupe</button> : <>
+          <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>setError("Le lien d’invitation sera raccordé ensuite. Pour l’instant, tes amis peuvent rechercher le nom du groupe et saisir son mot de passe.")}>Inviter mes amis</button>
+          {accessControl(false,enterPreview)}
+          {screen==="creator-confirm"?<button type="button" className="group-entry-blue" style={entryButton} onClick={()=>{setCreatorPassword("");openEntry("creator-dashboard");}}>Gérer mon groupe</button>:<>
             <section style={{display:"grid",gap:10,padding:12,border:"1px solid #64a9ea",borderRadius:13,background:"rgba(84,118,189,.13)",textAlign:"left"}}>
-              <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Participants ({1+previewCreatedGroup.members.length})</h3>
-              <div style={{padding:10,borderRadius:9,background:"#1b315d",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-                <strong style={{overflowWrap:"anywhere",minWidth:0}}>{previewCreatedGroup.pseudo}</strong>
-                <span style={{fontSize:12,color:"#ffe5ad",flexShrink:0}}>Créateur</span>
-              </div>
-              {previewCreatedGroup.members.map(member=><div key={member.id} style={{display:"grid",gap:8,padding:10,borderRadius:9,background:"#1b315d"}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-                  <span style={{overflowWrap:"anywhere",minWidth:0}}>{member.pseudo}</span>
-                  <button type="button" className="group-entry-remove" style={{width:"auto",minHeight:36,padding:"6px 10px",fontSize:12,flexShrink:0}} onClick={()=>{setRemoveMemberId(member.id);setCreatorMessage("");}}>Retirer</button>
-                </div>
-                {removeMemberId===member.id && <>
-                  <p style={{fontSize:13,color:"#ffd0cf",margin:0}}>Retirer {member.pseudo} du groupe ?</p>
-                  <button type="button" className="group-entry-remove" onClick={()=>removePreviewMember(member.id)}>Confirmer le retrait</button>
-                  <button type="button" className="group-entry-back" onClick={()=>setRemoveMemberId(null)}>Annuler</button>
-                </>}
+              <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Participants ({ownerGroup.memberCount})</h3>
+              {ownerGroup.members.map(member=><div key={member.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:10,borderRadius:9,background:"#1b315d"}}>
+                <span>{member.pseudo}</span>{member.isOwner?<span style={{fontSize:12,color:"#ffe5ad"}}>Créateur</span>:<button type="button" className="group-entry-remove" disabled>Retirer</button>}
               </div>)}
-              <button type="button" className="group-entry-blue" style={entryButton} onClick={addPreviewMember}>+ Ajouter un participant fictif</button>
             </section>
             <section style={{display:"grid",gap:12,padding:12,border:"1px solid #bc79be",borderRadius:13,background:"rgba(148,92,205,.13)",textAlign:"left"}}>
               <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Paramètres du groupe</h3>
-              {editingGroupName ? <form onSubmit={savePreviewName} style={{display:"grid",gap:8}}>
-                <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Nouveau nom du groupe
-                  <input maxLength={80} value={editGroupName} onChange={e=>setEditGroupName(e.target.value)} required style={inputStyle}/>
-                </label>
-                <button type="submit" className="group-entry-blue" style={entryButton} disabled={!editGroupName.trim()}>Enregistrer le nom</button>
-                <button type="button" className="group-entry-back" onClick={()=>setEditingGroupName(false)}>Annuler</button>
-              </form> : <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>{setEditGroupName(previewCreatedGroup.name);setEditingGroupName(true);setCreatorMessage("");}}>Modifier le nom du groupe</button>}
-              <p style={{margin:0,fontSize:14,color:previewCreatedGroup.registrationsOpen?"#78ffbd":"#ffadad",fontWeight:800}}>Inscriptions au groupe : {previewCreatedGroup.registrationsOpen?"ouvertes":"fermées"}</p>
-              <button type="button" className={previewCreatedGroup.registrationsOpen?"group-entry-remove":"group-entry-green"} style={entryButton} onClick={togglePreviewRegistrations}>{previewCreatedGroup.registrationsOpen?"Fermer les inscriptions":"Ouvrir les inscriptions"}</button>
-              {notice("Ce réglage concerne uniquement l’arrivée de nouveaux membres. La régie nationale reste seule responsable de l’ouverture du concours.")}
+              <button type="button" className="group-entry-blue" style={entryButton} disabled>Modifier le nom du groupe</button>
+              <p style={{margin:0,color:ownerGroup.registrationsOpen?"#78ffbd":"#ffadad"}}>Inscriptions au groupe : {ownerGroup.registrationsOpen?"ouvertes":"fermées"}</p>
+              <button type="button" className="group-entry-blue" style={entryButton} disabled>{ownerGroup.registrationsOpen?"Fermer les inscriptions":"Ouvrir les inscriptions"}</button>
+              {notice("Les modifications de gestion seront raccordées à la prochaine étape. La liste affichée correspond à la dernière connexion ou création.")}
             </section>
-            <button type="button" className="group-entry-back" onClick={()=>{resetCreatorPanel();openEntry("creator-confirm");}}>Retour à mon groupe</button>
           </>}
-          {creatorMessage && <p role="status" style={{margin:0,color:"#c6ffd9",fontSize:14}}>{creatorMessage}</p>}
         </>}
         {screen !== "home" && <button type="button" className="group-entry-back" disabled={pending} onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}
         {error && <p role="alert" style={{color:"#ffd0cf",margin:0}}>{error}</p>}

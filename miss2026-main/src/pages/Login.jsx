@@ -508,7 +508,6 @@ export default function Login({ setUser }) {
             <input type="password" autoComplete="new-password" minLength={6} maxLength={128} required placeholder="Mot de passe (6 caractères minimum)" value={creatorPassword} onChange={e=>setCreatorPassword(e.target.value)} disabled={pending} style={inputStyle}/>
           </label>
           <p style={{fontSize:14,fontWeight:700,color:"#ffe5ad",margin:0,lineHeight:1.5}}>Crée un mot de passe qui sera partagé avec tes amis. <strong style={{display:"block",color:"#ffcf99",fontWeight:900}}>⚠ N’utilise pas de mot de passe personnel.</strong></p>
-          {notice("Tu seras automatiquement reconnu comme créateur sur ce navigateur. Conserve ses données pour retrouver ton groupe.")}
           <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!firebaseIdentity||!nameReady||!pseudoReady||creatorPassword.length<6}>{pending?"Création…":"Créer mon groupe"}</button>
           <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setCreatorPassword("");openEntry("manage");}}>Retour</button>
         </form>}

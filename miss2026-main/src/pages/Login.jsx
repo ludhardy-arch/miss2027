@@ -305,13 +305,10 @@ export default function Login({ setUser }) {
           <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton adresse e-mail
             <input type="email" autoComplete="off" required placeholder="exemple@example.com" style={inputStyle}/>
           </label>
-          <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton mot de passe personnel
-            <input type="password" autoComplete="new-password" minLength={6} maxLength={128} required placeholder="Pour gérer ton groupe" style={inputStyle}/>
-          </label>
           <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Mot de passe du groupe
-            <input type="password" autoComplete="new-password" minLength={4} maxLength={128} required placeholder="À partager avec tes invités" style={inputStyle}/>
+            <input type="password" autoComplete="new-password" minLength={6} maxLength={128} required placeholder="Mot de passe (6 caractères minimum)" style={inputStyle}/>
           </label>
-          <p style={{fontSize:12,color:"#c6d3ee",margin:0,lineHeight:1.5}}>Ton mot de passe personnel reste privé. Seul le mot de passe du groupe est destiné à tes amis ou à ta famille.</p>
+          <p style={{fontSize:12,color:"#c6d3ee",margin:0,lineHeight:1.5}}>Ce mot de passe permet à tes invités de rejoindre ton groupe et te sert aussi à accéder à sa gestion.</p>
           <button type="submit" className="group-entry-green" style={greenButton} disabled={!creatorName.trim() || !creatorPseudo.trim()}>Créer mon groupe</button>
           <button type="button" className="group-entry-back" onClick={()=>openEntry("manage")}>Retour</button>
         </form>}
@@ -321,8 +318,8 @@ export default function Login({ setUser }) {
           <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton adresse e-mail
             <input type="email" autoComplete="off" required placeholder="Adresse e-mail" style={inputStyle}/>
           </label>
-          <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton mot de passe personnel
-            <input type="password" autoComplete="off" required placeholder="Mot de passe" style={inputStyle}/>
+          <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Mot de passe du groupe
+            <input type="password" autoComplete="off" required placeholder="Mot de passe du groupe" style={inputStyle}/>
           </label>
           <button type="submit" className="group-entry-green" style={greenButton}>Se connecter</button>
           <button type="button" className="group-entry-back" onClick={()=>setError("Aperçu : la réinitialisation du mot de passe sera raccordée à Firebase Auth. Aucun e-mail envoyé.")}>Mot de passe oublié ?</button>

@@ -1,16 +1,35 @@
 import { initializeApp } from "firebase/app";
-import { getDatabase, connectDatabaseEmulator } from "firebase/database";
-import { initializeAuth, connectAuthEmulator, browserSessionPersistence, browserPopupRedirectResolver } from "firebase/auth";
+import { getDatabase } from "firebase/database";
+import { initializeAuth, browserSessionPersistence, browserPopupRedirectResolver } from "firebase/auth";
 
+// Test branch: no production fallback. Configure a separate Firebase project in Render.
 const firebaseConfig = {
-  apiKey: "AIzaSyD14OqrBD-hEGyNQNOoSar_xTiwpWzlr8Y",
-  authDomain: "miss2027.firebaseapp.com",
-  databaseURL: "https://miss2027-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "miss2027",
-  storageBucket: "miss2027.firebasestorage.app",
-  messagingSenderId: "1094478454572",
-  appId: "1:1094478454572:web:eeb7973e0adb4648859689"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
+
+const required = ["apiKey", "authDomain", "databaseURL", "projectId", "messagingSenderId", "appId"];
+if (required.some((key) => !firebaseConfig[key]?.trim())) {
+  throw new Error("Firebase TEST : configuration indépendante manquante.");
+}
+const productionProject = "miss2027";
+const productionDatabase = "miss2027-default-rtdb.europe-west1.firebasedatabase.app";
+const dbURL = new URL(firebaseConfig.databaseURL);
+if (
+  dbURL.protocol !== "https:" ||
+  firebaseConfig.projectId.trim().toLowerCase() === productionProject ||
+  firebaseConfig.authDomain.trim().toLowerCase() === "miss2027.firebaseapp.com" ||
+  dbURL.hostname.toLowerCase().replace(/\.$/, "") === productionDatabase ||
+  firebaseConfig.messagingSenderId === "1094478454572" ||
+  firebaseConfig.appId.startsWith("1:1094478454572:")
+) {
+  throw new Error("Firebase TEST : la configuration de production est interdite.");
+}
 
 const app = initializeApp(firebaseConfig);
 export const database = getDatabase(app);
@@ -21,9 +40,3 @@ export const auth = initializeAuth(app, {
   popupRedirectResolver: browserPopupRedirectResolver,
 });
 
-
-/* Local-only load test. Disabled in Render production and TEST builds. */
-if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === "true") {
-  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
-  connectDatabaseEmulator(database, "127.0.0.1", 9000);
-}

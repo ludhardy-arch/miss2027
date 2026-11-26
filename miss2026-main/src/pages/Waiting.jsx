@@ -54,6 +54,28 @@ export default function Waiting({ user }) {
         {votesOpen ? "✅ LES VOTES SONT OUVERTS !" : "⛔ LES VOTES SONT FERMÉS"}
       </div>
 
+      {tour === 3 && selection.length === 5 && (
+        <section role="status" aria-live="polite" style={{
+          margin: "20px auto 24px",
+          padding: "25px 16px",
+          maxWidth: 720,
+          textAlign: "center",
+          borderRadius: 20,
+          border: "2px solid #ffe4a0",
+          background: "linear-gradient(135deg, #321347, #172c71 55%, #4b1954)",
+          boxShadow: "0 0 18px rgba(255, 204, 102, .65), 0 0 45px rgba(103, 123, 255, .35)",
+          color: "#fff9eb"
+        }}>
+          <div aria-hidden="true" style={{ fontSize: 34, marginBottom: 9 }}>👑 ✨ 👑</div>
+          <h2 style={{ margin: "0 0 12px", fontSize: "clamp(25px, 7vw, 40px)", lineHeight: 1.2, color: "#ffe5a5", textTransform: "uppercase", letterSpacing: ".035em" }}>
+            RESTE CONNECTÉ, SI TU VEUX SAVOIR SI C’EST TOI LE MEILLEUR !!!
+          </h2>
+          <p style={{ margin: 0, fontSize: "clamp(19px, 5vw, 27px)", lineHeight: 1.4, fontWeight: 800 }}>
+            Le résultat tombera juste après l’élection de Miss France.
+          </p>
+        </section>
+      )}
+
       <section className="tv-trends-panel tv-trends-v3" style={{
         borderRadius: 18, padding: "18px 14px", background: "#111827",
         color: "#f9fafb", boxShadow: "0 8px 26px rgba(0,0,0,.18)"

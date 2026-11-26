@@ -12,6 +12,7 @@ const norm = (d) => {
  *
  * TOUR 1 :
  *    +15 points par bonne miss
+ *    +20 points bonus si le coup de cœur du premier tour est la Miss France élue
  *
  * TOUR 2 :
  *    VERT  = bonne T1 + bonne T2 = +25 pts
@@ -86,6 +87,16 @@ export function calculatePoints(playerVotes, adminSelections) {
 
       total += pointsTable[adminRank][color];
     });
+  }
+
+  // Pari du premier tour : +20 points seulement si le coup de cœur
+  // choisi parmi les 12 est bien la Miss France officiellement élue.
+  const favorite = Number(playerVotes.favorite);
+  if (Number.isInteger(favorite) &&
+      favorite >= 1 && favorite <= 31 &&
+      t1P.includes(favorite) &&
+      t3A.length === 5 && t3A[0] === favorite) {
+    total += 20;
   }
 
   return total;

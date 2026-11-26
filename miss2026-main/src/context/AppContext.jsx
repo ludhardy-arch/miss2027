@@ -132,6 +132,19 @@ export function AppProvider({ children }) {
     remove(ref(database, `rooms/miss2027/players/${pseudo}/tour3`));
   };
 
+  // Le favori et les 12 choix sont enregistrés ensemble (écriture atomique).
+  const updateFirstRoundWithFavorite = (pseudo, selection, favoriteId) => {
+    if (selection.length !== 12 || !selection.includes(favoriteId)) {
+      return Promise.reject(new Error("Le coup de cœur doit faire partie des 12 Miss."));
+    }
+    // Mise à jour multipath atomique : les droits sont évalués sur
+    // chaque enfant (tour1 et favorite), pas sur le joueur entier.
+    return update(ref(database, "rooms/miss2027"), {
+      [`players/${pseudo}/tour1`]: selection,
+      [`players/${pseudo}/favorite`]: favoriteId,
+    });
+  };
+
   const updatePlayerVote = (pseudo, tourNum, selection) => {
     return set(ref(database, `rooms/miss2027/players/${pseudo}/tour${tourNum}`), selection);
   };
@@ -160,7 +173,14 @@ export function AppProvider({ children }) {
 
   const updateTour = (num) => set(ref(database, "rooms/miss2027/tour"), num);
   const updateVotesOpen = (state) => set(ref(database, "rooms/miss2027/votesOpen"), state);
-  const updateConnectionsOpen = (state) => set(ref(database, "rooms/miss2027/connectionsOpen"), state);
+  // Ouvrir les connexions coupe simultanément le mode démo.
+  // Fermer les connexions ne réactive jamais le mode démo.
+  const updateConnectionsOpen = (state) => state
+    ? update(ref(database, "rooms/miss2027"), {
+        connectionsOpen: true,
+        demoEnabled: false,
+      })
+    : set(ref(database, "rooms/miss2027/connectionsOpen"), false);
   const updateDemoEnabled = (state) => set(ref(database, "rooms/miss2027/demoEnabled"), Boolean(state));
   const updateFinaleStarted = (state) => set(ref(database, "rooms/miss2027/finaleStarted"), state);
 
@@ -185,6 +205,7 @@ export function AppProvider({ children }) {
         addPlayer,
         resetPlayerVotes,   // ⭐ ajouté ⭐
         updatePlayerVote,
+        updateFirstRoundWithFavorite,
         updateAdminSelections,
         updateTour,
         updateVotesOpen,

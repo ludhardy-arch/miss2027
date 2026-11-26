@@ -1,6 +1,12 @@
  import React, { useState, useEffect, useRef } from "react";
 import { database } from "../firebase";
-import { ref, push, onValue } from "firebase/database";
+import { ref, push, onValue, get } from "firebase/database";
+
+// Messages historiques envoyés avant l'utilisation du nom ADMIN.
+const isAdminMessage = (message) => {
+  const author = String(message?.author || "").trim().toLocaleLowerCase("fr").replace(/\s+/g, " ");
+  return author === "admin" || author === "hardy ludo" || author === "ludo hardy";
+};
 
 export default function ChatBubble({ user, demoMessages = null, onDemoSend = null }) {
   const [open, setOpen] = useState(false);
@@ -11,6 +17,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
   const [chatError, setChatError] = useState("");
   const [sending, setSending] = useState(false);
   const [unread, setUnread] = useState(0);
+  const [chatBlocked, setChatBlocked] = useState(false);
 
   const messagesEndRef = useRef(null);
 
@@ -24,7 +31,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
 
     const unsubscribe = onValue(chatRef, (snap) => {
       const data = snap.val() || {};
-      const list = Object.values(data).sort((a, b) => a.date - b.date);
+      const list = Object.values(data).filter(m => !m.targetUid || m.targetUid === user.uid).sort((a, b) => a.date - b.date);
       setMessages(list);
 
       const last = list[list.length - 1] || null;
@@ -56,6 +63,15 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
     return () => unsubscribe();
   }, [open, user.pseudo, inDemo]);
 
+  // Restriction du chat mise à jour en temps réel.
+  useEffect(() => {
+    if (inDemo || !user?.pseudo) return;
+    return onValue(ref(database, `rooms/miss2027/players/${user.pseudo}/chatBlocked`),
+      snap => setChatBlocked(snap.val() === true),
+      error => setChatError("Modération indisponible : " + (error?.code || error?.message))
+    );
+  }, [inDemo, user?.pseudo]);
+
   // Scroll auto
   useEffect(() => {
     if (open && messagesEndRef.current) {
@@ -67,6 +83,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
   const sendMessage = async () => {
     const message = text.trim();
     if (!message || sending) return;
+    if (!inDemo && chatBlocked) { setChatError("Ton accès à l’écriture dans le chat est bloqué par l’administrateur."); return; }
     if (message.length > 500) {
       setChatError("Message trop long (500 caractères maximum).");
       return;
@@ -74,6 +91,10 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
     setSending(true);
     setChatError("");
     try {
+      if (!inDemo) {
+        const restriction = await get(ref(database, `rooms/miss2027/players/${user.pseudo}/chatBlocked`));
+        if (restriction.val() === true) { setChatBlocked(true); throw new Error("Accès à l’écriture bloqué par l’administrateur."); }
+      }
       await push(ref(database, "rooms/miss2027/chat"), {
         author: user.pseudo,
         text: message,
@@ -176,8 +197,8 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
             }}
           >
             {visibleMessages.map((m, i) => {
-              const isMe = m.author === user.pseudo;
-              const isAdmin = m.author.toLowerCase() === "admin";
+              const isMe = !isAdminMessage(m) && m.author === user.pseudo;
+              const isAdmin = isAdminMessage(m);
 
               return (
                 <div
@@ -203,7 +224,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
                       : "none",
                   }}
                 >
-                  <b>{isAdmin ? "👑 ADMIN" : m.author}</b>
+                  <b>{isAdmin ? "✦ ADMIN ✦" : m.author}</b>
                   <br />
                   {m.text}
                 </div>
@@ -213,6 +234,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
           </div>
 
           {chatError && <p role="alert" style={{ color: "#ffb3b3", padding: 8, margin: 0, fontSize: 12 }}>{chatError}</p>}
+          {chatBlocked && !inDemo && <p role="status" style={{color:"#ffd699",fontWeight:700,padding:"9px",margin:0,textAlign:"center"}}>🔇 Ton accès à l’écriture dans le chat a été bloqué par l’administrateur.</p>}
           {/* Input */}
           <div
             style={{
@@ -225,7 +247,8 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-              placeholder="Écrire…"
+              placeholder={chatBlocked && !inDemo ? "Écriture bloquée" : "Écrire…"}
+              disabled={chatBlocked && !inDemo}
               style={{
                 flex: 1,
                 borderRadius: 6,
@@ -236,7 +259,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
             />
             <button
               onClick={sendMessage}
-              disabled={sending}
+              disabled={sending || (chatBlocked && !inDemo)}
               style={{
                 marginLeft: 6,
                 background: "#ff4da6",

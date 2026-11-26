@@ -5,6 +5,7 @@ import {initializeApp,cert} from "firebase-admin/app";
 import {getAuth} from "firebase-admin/auth";
 import {getDatabase} from "firebase-admin/database";
 import {createGroup,joinGroup,searchGroups,registerPublic,membershipView} from "./registration.mjs";
+import {chatView,chatAction} from "./chat.mjs";
 import {resetContest} from "./reset.mjs";
 import {enterGame,gameView,castVote,adminGameView,advanceRound} from "./game.mjs";
 
@@ -117,6 +118,22 @@ const server=http.createServer(async(req,res)=>{
     const uid=user.uid;
     if(!/^[a-zA-Z0-9_-]{1,128}$/.test(uid)||["__proto__","constructor","prototype"].includes(uid))return reply(res,403,{error:"unsupported_identity"});
     if(limited("user:"+uid,30))return reply(res,429,{error:"too_many_requests"});
+    if(url.pathname==="/chat"||url.pathname==="/admin/chat"){
+      const admin=url.pathname==="/admin/chat";
+      if(admin&&(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com"))return reply(res,403,{error:"admin_required"});
+      if(req.method==="GET"){
+        const snapshot=await getDatabase(app).ref("events/miss2027").get();
+        const view=chatView({events:{miss2027:snapshot.val()}},{uid,admin,groupId:url.searchParams.get("groupId")});
+        return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
+      }
+      if(req.method==="POST"){
+        if(limited("chat:"+uid,12))return reply(res,429,{error:"too_many_requests"});
+        const b=await body(req),id=randomUUID(),now=Date.now();
+        const result=await atomic(root=>chatAction(root,{uid,admin,groupId:b.groupId,text:b.text,id,now,action:admin?b.action:"send",targetUid:admin?b.targetUid:undefined}),getDatabase(app).ref());
+        return reply(res,result.status,result.body);
+      }
+      return reply(res,405,{error:"method_not_allowed"});
+    }
     if(url.pathname==="/admin/game"||url.pathname==="/admin/round"){
       if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});
       if(req.method==="GET"&&url.pathname==="/admin/game")return reply(res,200,adminGameView((await getDatabase(app).ref().get()).val()));

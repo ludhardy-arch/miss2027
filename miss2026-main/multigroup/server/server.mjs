@@ -7,7 +7,7 @@ import {getDatabase} from "firebase-admin/database";
 import {createGroup,joinGroup,searchGroups,registerPublic,membershipView} from "./registration.mjs";
 import {chatView,chatAction} from "./chat.mjs";
 import {resetContest} from "./reset.mjs";
-import {enterGame,gameView,castVote,adminGameView,advanceRound} from "./game.mjs";
+import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal} from "./game.mjs";
 
 const PROJECT="miss2027-test-v2";
 const DATABASE="https://miss2027-test-v2-default-rtdb.europe-west1.firebasedatabase.app";
@@ -134,9 +134,15 @@ const server=http.createServer(async(req,res)=>{
       }
       return reply(res,405,{error:"method_not_allowed"});
     }
-    if(url.pathname==="/admin/game"||url.pathname==="/admin/round"){
+    if(url.pathname==="/admin/game"||url.pathname==="/admin/round"||url.pathname==="/admin/finale"){
       if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});
       if(req.method==="GET"&&url.pathname==="/admin/game")return reply(res,200,adminGameView((await getDatabase(app).ref().get()).val()));
+      if(req.method==="POST"&&url.pathname==="/admin/finale"){
+        const b=await body(req);
+        if(b.confirmed!==true)return reply(res,400,{error:"confirmation_required"});
+        const result=await atomic(root=>publishFinal(root,{gameId:b.gameId}),getDatabase(app).ref());
+        return reply(res,result.status,result.body);
+      }
       if(req.method==="POST"&&url.pathname==="/admin/round"){
         const b=await body(req);
         const result=await atomic(root=>advanceRound(root,{gameId:b.gameId,tour:b.tour,selection:b.selection}),getDatabase(app).ref());

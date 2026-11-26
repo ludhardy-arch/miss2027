@@ -13,7 +13,7 @@ export function resetContest(root,kind,id){
   const control=event.control||{};
   let newRoom,newEvent;
   if(kind==="game"){
-    newRoom={...without(room,gameFields),players:Object.fromEntries(Object.entries(room.players||{}).map(([key,p])=>[key,without(p,voteFields)])),adminSelections:{},tour:1,votesOpen:false,finaleStarted:false,gameId:id};
+    newRoom={...without(room,gameFields),players:Object.fromEntries(Object.entries(room.players||{}).map(([key,p])=>[key,without(p,voteFields)])),adminSelections:{},tour:1,votesOpen:false,registrationLocked:false,finaleStarted:false,gameId:id};
     newEvent={...without(event,[...gameFields,"officialSelections"]),control:resetControl(control,id)};
   }else if(kind==="registrations"){
     // Do not erase participants from a live or completed round. Reset the game first.

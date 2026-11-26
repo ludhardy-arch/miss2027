@@ -77,7 +77,7 @@ export default function Login({ setUser }) {
   const canEnter = connectionsLoaded && connectionsOpen && !connectionsError;
   function accessControl(isPublic, action, disabled=false) {
     const label = isPublic ? "Accéder au concours en salle publique" : "Accéder au concours";
-    if (canEnter) return <button type="button" onClick={action} disabled={disabled || pending}
+    if (canEnter) return <button type="button" className="group-entry-green" onClick={action} disabled={disabled || pending}
       style={{...greenButton,opacity:disabled || pending ? .55 : 1}}>{label}</button>;
     return <div role="status" style={{padding:"15px 12px",borderRadius:13,
       background:"linear-gradient(145deg,#192b50,#101b40)",border:"1px solid #d6b674",
@@ -143,11 +143,28 @@ export default function Login({ setUser }) {
         </div>
         <p style={{ color: "#ffd49c", margin: "17px 7px 5px", fontSize: 14 }}>✨ Attends l'ouverture des votes à chaque tour.</p>
       </section>
-      <div className="tv-entry tv-entry-v3" style={{display:"grid",gap:12}}>
+      <div className="tv-entry tv-entry-v3 group-entry-panel" style={{display:"grid",gap:12}}>
+        <style>{`
+          .tv-login-shell .group-entry-panel button { margin-top:0; }
+          .tv-login-shell .group-entry-panel button.group-entry-blue {
+            background:linear-gradient(110deg,#143b87,#2862bb)!important;
+            color:#fff!important;border:1px solid #64a9ea!important;
+            box-shadow:0 0 12px rgba(39,131,255,.25)!important;font-size:16px;
+          }
+          .tv-login-shell .group-entry-panel button.group-entry-green {
+            background:linear-gradient(110deg,#003b26,#006f42,#009e63)!important;
+            color:#fff!important;border:2px solid #15ef98!important;
+            box-shadow:0 0 9px #00e58a,0 0 20px rgba(0,235,137,.35)!important;font-size:16px;
+          }
+          .tv-login-shell .group-entry-panel button.group-entry-back {
+            background:transparent!important;color:#c6d3ee!important;
+            border:0!important;box-shadow:none!important;font-size:14px;
+          }
+        `}</style>
         {screen === "home" && <>
           {accessControl(true, () => openEntry("public"))}
-          <button type="button" style={entryButton} onClick={() => openEntry("join")}>Rejoindre un groupe</button>
-          <button type="button" style={entryButton} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>
+          <button type="button" className="group-entry-blue" style={entryButton} onClick={() => openEntry("join")}>Rejoindre un groupe</button>
+          <button type="button" className="group-entry-blue" style={entryButton} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>
         </>}
         {(screen === "public" || screen === "invite") && <>
           {screen === "invite" && <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Bienvenue dans le groupe</h2>}
@@ -158,14 +175,14 @@ export default function Login({ setUser }) {
         {screen === "join" && <form onSubmit={enterPreview} style={{display:"grid",gap:12}}>
           <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
           <input aria-label="Nom du groupe" placeholder="Nom du groupe" value={groupQuery} onChange={e => setGroupQuery(e.target.value)} style={inputStyle}/>
-          <button type="submit" style={entryButton} disabled={!pseudo.trim() || !groupQuery.trim()}>Rechercher</button>
+          <button type="submit" className="group-entry-blue" style={entryButton} disabled={!pseudo.trim() || !groupQuery.trim()}>Rechercher</button>
           {notice("La recherche et le mot de passe du groupe seront raccordés à l’étape suivante.")}
         </form>}
         {screen === "manage" && <>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Créer / Gérer son groupe</h2>
           {notice("La création et la gestion des groupes seront développées à l’étape suivante.")}
         </>}
-        {screen !== "home" && <button type="button" onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}
+        {screen !== "home" && <button type="button" className="group-entry-back" onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}
         {error && <p role="alert" style={{color:"#ffd0cf",margin:0}}>{error}</p>}
         {adminUid && <p>Ton UID Firebase : <code>{adminUid}</code> — à renseigner dans Render et dans les règles Firebase.</p>}
       </div>

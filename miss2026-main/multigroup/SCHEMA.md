@@ -61,3 +61,7 @@ Les tests ne contactent pas Firebase. La validation du moteur ne valide pas les 
 ## Accueil — décision du 26 novembre
 
 Sans invitation : trois boutons uniquement, aucun champ pseudo initial. Accéder au concours en salle publique dans : + chrono, puis bouton vert dès ouverture par la régie. Rejoindre un groupe. Créer / Gérer son groupe. Pseudo uniquement après choix de jouer/rejoindre. Avec invitation : bienvenue dans le groupe (nom issu de la vérification serveur), pseudo, accès/chrono. Aucun bouton deuxième groupe. Le code de recherche et gestion et l'attribution effective du groupe doivent être raccordés au backend avant activation. Couronnes, instructions, démo et accès admin inchangés.
+
+## Brouillon des règles
+
+`database.rules.draft.json` est un brouillon non déployé. Toutes les écritures clientes sont refusées par défaut. Les lectures sont limitées aux données publiques de l'événement, au joueur connecté, à son groupe et aux résultats publiés. Ce fichier ne fonctionne pas avec l'ancien AppContext ni avec l'ancienne régie. Ne pas le déployer avant d'avoir raccordé les fonctions serveur de confiance, testé les règles sur émulateur et créé le Firebase indépendant. Le moteur de recherche, la validation d'invitation et les opérations de création/attribution sont volontairement non raccordés à l'étape de la maquette d'accueil.

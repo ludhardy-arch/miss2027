@@ -49,7 +49,6 @@ export default function Admin({ user, setUser }) {
     demoEnabled,
     demoLoaded,
     updateDemoEnabled,
-    updateVotesOpen,
     tour,
     adminSelections,
     gameId,
@@ -336,7 +335,7 @@ export default function Admin({ user, setUser }) {
 
       <section className="regie-controls"><h2>COMMANDES DE LA RÉGIE</h2><div className="regie-control-grid">
         <button type="button" className={"regie-switch "+(connectionsOpen?"is-on":"is-off")} onClick={()=>safely(()=>updateConnectionsOpen(!connectionsOpen))}><span>⇥</span><b>CONNEXIONS</b><strong>{connectionsOpen?"ON":"OFF"}</strong></button>
-        <button type="button" className={"regie-switch "+(votesOpen?"is-on":"is-off")} disabled={finaleStarted} onClick={()=>safely(()=>updateVotesOpen(!votesOpen))}><span>✉</span><b>VOTES</b><strong>{votesOpen?"ON":"OFF"}</strong></button>
+        <button type="button" className={"regie-switch "+(votesOpen?"is-on":"is-off")} disabled={finaleStarted} onClick={()=>safely(()=>adminRequest("/admin/votes",{gameId:String(gameId),open:!votesOpen}))}><span>✉</span><b>VOTES</b><strong>{votesOpen?"ON":"OFF"}</strong></button>
         <button type="button" disabled={!demoLoaded} className={"regie-switch "+(demoEnabled?"is-on":"is-off")} onClick={()=>safely(()=>updateDemoEnabled(!demoEnabled))}><span>▣</span><b>MODE DÉMO</b><strong>{!demoLoaded?"…":demoEnabled?"ON":"OFF"}</strong></button>
         <button type="button" className="regie-show" disabled={publishing||votesOpen||finaleStarted||!finalRankingValidated} onClick={()=>void launchShow()}><span>♛</span><b>SHOW FINAL</b><strong>{finaleStarted?"SHOW LANCÉ":publishing?"PUBLICATION…":"LANCER LE SHOW"}</strong></button>
       </div></section>

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
+import {searchGroups,membershipView} from "./registration.mjs";
 const root={other:{keep:true},rooms:{other:{keep:true},miss2027:{tour:3,votesOpen:true,connectionsOpen:true,demoEnabled:false,finaleStarted:true,gameId:"old",players:{Alice:{uid:"u1",connected:true,chatBlocked:true,tour1:[1],favorite:1,score:20}},chat:{m:"hello"},adminSelections:{tour1:[1]}}},events:{miss2027:{registration:{groups:{g:{name:"Test"}},membership:{u1:"g"}},votes:{u1:{tour1:[1]}},results:{v:1},control:{tour:3,resultsVersion:"v",connectionsOpen:true,custom:1}}}};
 test("game reset preserves memberships, chat, flags and unrelated roots",()=>{
  const r=resetContest(root,"game","new").state;
@@ -40,6 +41,8 @@ test("registration reset clears the same registry used by search and recovery",(
  assert.equal(r.result.before.players,1);
  assert.deepEqual(registrationCounts(r.state),{groups:0,players:0,chats:0,entered:0});
  assert.equal(verifyReset(r.state,"registrations","r"),true);
+ assert.deepEqual(searchGroups(r.state.events.miss2027.registration,"Test"),[]);
+ assert.equal(membershipView(r.state.events.miss2027.registration,"u1"),null);
  assert.equal(verifyReset(game,"registrations","r"),false);
  assert.equal(verifyReset(game,"game","g"),true);
  assert.equal(verifyReset({...r.state,events:game.events},"registrations","r"),false);

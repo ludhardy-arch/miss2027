@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
 import {searchGroups,membershipView} from "./registration.mjs";
-const root={other:{keep:true},rooms:{other:{keep:true},miss2027:{tour:3,votesOpen:true,connectionsOpen:true,demoEnabled:false,finaleStarted:true,gameId:"old",players:{Alice:{uid:"u1",connected:true,chatBlocked:true,tour1:[1],favorite:1,score:20}},chat:{m:"hello"},adminSelections:{tour1:[1]}}},events:{miss2027:{registration:{groups:{g:{name:"Test"}},membership:{u1:"g"}},votes:{u1:{tour1:[1]}},results:{v:1},control:{tour:3,resultsVersion:"v",connectionsOpen:true,custom:1}}}};
+const root={other:{keep:true},rooms:{other:{keep:true},miss2027:{tour:3,votesOpen:true,connectionsOpen:true,demoEnabled:false,finaleStarted:true,gameId:"old",players:{Alice:{uid:"u1",connected:true,chatBlocked:true,tour1:[1],favorite:1,score:20}},chat:{m:"hello"},adminSelections:{tour1:[1]}}},events:{miss2027:{registration:{groups:{g:{name:"Test",type:"private",registrationsOpen:true,members:{u1:{pseudo:"Alice"}}}},membership:{u1:"g"}},votes:{u1:{tour1:[1]}},results:{v:1},control:{tour:3,resultsVersion:"v",connectionsOpen:true,custom:1}}}};
 test("game reset preserves memberships, chat, flags and unrelated roots",()=>{
  const r=resetContest(root,"game","new").state;
  assert.deepEqual(r.events.miss2027.registration,root.events.miss2027.registration);
@@ -36,6 +36,8 @@ test("invalid reset and absent room are rejected",()=>{
 
 test("registration reset clears the same registry used by search and recovery",()=>{
  const game=resetContest(root,"game","g").state;
+ assert.equal(searchGroups(game.events.miss2027.registration,"Test").length,1);
+ assert.equal(membershipView(game.events.miss2027.registration,"u1").id,"g");
  const r=resetContest(game,"registrations","r");
  assert.equal(r.result.before.groups,1);
  assert.equal(r.result.before.players,1);

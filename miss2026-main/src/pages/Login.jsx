@@ -31,7 +31,7 @@ function emailError(err){
   return err.message||"Opération impossible.";
 }
 
-const groupErrors={pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",owner_session_expired:"La session de gestion a expiré. Reconnecte-toi comme créateur.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",verified_email_required:"Vérifie de nouveau ton adresse e-mail avant de continuer.",owner_required:"Cette adresse e-mail n’est pas celle du créateur de ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
+const groupErrors={group_full:"Ce groupe est complet (30 participants maximum).",pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",owner_session_expired:"La session de gestion a expiré. Reconnecte-toi comme créateur.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",verified_email_required:"Vérifie de nouveau ton adresse e-mail avant de continuer.",owner_required:"Cette adresse e-mail n’est pas celle du créateur de ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
 async function groupRequest(path,body) {
   if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Ce service est réservé au site test.");
   const user=auth.currentUser;
@@ -571,7 +571,7 @@ export default function Login({ setUser }) {
           <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setVerifiedCreator(null);setCreatorPassword("");setEmailNotice("");openEntry("manage");}}>Retour</button>
         </form>}
         {(screen === "creator-confirm" || screen === "creator-dashboard") && ownerGroup && <>
-          <p style={{fontSize:12,color:"#78ffbd",margin:0}}>Groupe enregistré dans Firebase test</p>
+          <p style={{fontSize:12,color:"#78ffbd",margin:0}}>Groupe enregistré</p>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:21}}>{screen==="creator-confirm"?"Ton groupe est créé !":"Gérer mon groupe"}</h2>
           <div style={{padding:"16px 12px",background:"rgba(84,118,189,.17)",border:"1px solid #64a9ea",borderRadius:13}}>
             <div style={{fontSize:20,fontWeight:800,color:"#fff",overflowWrap:"anywhere"}}>{ownerGroup.name}</div>
@@ -584,17 +584,10 @@ export default function Login({ setUser }) {
           {accessControl(false,enterContest,false,ownerGroup.entered===true)}
           {screen==="creator-confirm"?<button type="button" className="group-entry-blue" style={entryButton} onClick={()=>{setCreatorPassword("");openEntry("creator-dashboard");}}>Gérer mon groupe</button>:<>
             <section style={{display:"grid",gap:10,padding:12,border:"1px solid #64a9ea",borderRadius:13,background:"rgba(84,118,189,.13)",textAlign:"left"}}>
-              <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Participants ({ownerGroup.memberCount})</h3><button type="button" className="group-entry-blue" disabled={pending} onClick={refreshOwner}>Actualiser la liste</button>
+              <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Participants ({ownerGroup.memberCount}/30)</h3><button type="button" className="group-entry-blue" disabled={pending} onClick={refreshOwner}>Actualiser la liste</button>
               {ownerGroup.members.map(member=><div key={member.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:10,borderRadius:9,background:"#1b315d"}}>
                 <span>{member.pseudo}</span>{member.isOwner?<span style={{fontSize:12,color:"#ffe5ad"}}>Créateur</span>:<button type="button" className="group-entry-remove" disabled={pending||ownerGroup.locked} onClick={()=>{if(window.confirm("Retirer "+member.pseudo+" du groupe ?"))void ownerAction("remove",undefined,member.id);}}>Retirer</button>}
               </div>)}
-            </section>
-            <section style={{display:"grid",gap:12,padding:12,border:"1px solid #bc79be",borderRadius:13,background:"rgba(148,92,205,.13)",textAlign:"left"}}>
-              <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Paramètres du groupe</h3>
-              <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||ownerGroup.locked} onClick={()=>{const name=window.prompt("Nouveau nom du groupe",ownerGroup.name);if(name?.trim())void ownerAction("rename",name.trim());}}>Modifier le nom du groupe</button>
-              <p style={{margin:0,color:ownerGroup.registrationsOpen?"#78ffbd":"#ffadad"}}>Inscriptions au groupe : {ownerGroup.registrationsOpen?"ouvertes":"fermées"}</p>
-              <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||ownerGroup.locked} onClick={()=>void ownerAction("open",!ownerGroup.registrationsOpen)}>{ownerGroup.registrationsOpen?"Fermer les inscriptions":"Ouvrir les inscriptions"}</button>
-              {notice(ownerGroup.locked?"Le concours a commencé : les appartenances sont figées.":"Tu peux actualiser la liste des participants à tout moment.")}
             </section>
           </>}
         </>}

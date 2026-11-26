@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {enterGame,gameView,castVote,adminGameView,advanceRound} from "./game.mjs";
+import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal} from "./game.mjs";
 const fixture=()=>({rooms:{miss2027:{gameId:"g1",connectionsOpen:true,votesOpen:true,tour:1,adminSelections:{}}},events:{miss2027:{registration:{groups:{a:{name:"A",members:{u1:{pseudo:"X"},u2:{pseudo:"Y"}}},b:{name:"B",members:{u3:{pseudo:"X"}}}},membership:{u1:"a",u2:"a",u3:"b"}}}}});
 const ballot={uid:"u1",gameId:"g1",tour:1,selection:Array.from({length:12},(_,i)=>i+1),favorite:1,now:2};
 const enter=(root,uid)=>enterGame(root,{uid,now:1}).state;
@@ -59,4 +59,19 @@ test("official selection and round advance are atomic and forbidden during open 
  assert.equal(next.state.rooms.miss2027.tour,2);
  assert.deepEqual(next.state.rooms.miss2027.adminSelections.tour1,ballot.selection);
  assert.equal(advanceRound(next.state,params).code,"round_changed");
+});
+
+test("final publication locks game, is idempotent and exposes only the member's local results",()=>{
+ let r=enter(enter(fixture(),"u1"),"u3");
+ r=castVote(r,ballot).state;
+ r=castVote(r,{...ballot,uid:"u3",favorite:2}).state;
+ assert.equal(publishFinal(r,{gameId:"g1"}).code,"close_votes_first");
+ r.rooms.miss2027={...r.rooms.miss2027,tour:3,votesOpen:false,adminSelections:{tour1:ballot.selection,tour2:[1,2,3,4,5],tour3:[1,2,3,4,5]}};
+ assert.equal(gameView(r,"u1").result.final,null);
+ const result=publishFinal(r,{gameId:"g1"});assert.equal(result.result.total,2);
+ const view=gameView(result.state,"u1").result;
+ assert.equal(view.final.local.length,1);assert.equal(view.final.local[0].uid,"u1");
+ assert.equal(view.final.personal.nationalRank,1);
+ assert.equal(view.final.nationalTotal,2);
+ assert.equal(publishFinal(result.state,{gameId:"g1"}).result.alreadyPublished,true);
 });

@@ -434,10 +434,14 @@ export default function Login({ setUser }) {
           }
         `}</style>
         {screen === "home" && <>
-          {recoverableGroup&&firebaseIdentity===auth.currentUser?.uid&&<button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={recoverGroup}>Retrouver mon groupe · {recoverableGroup.name}</button>}
-          {recoveryStatus==="failed"&&<button type="button" className="group-entry-back" disabled={pending} onClick={recoverGroup}>Retrouver une inscription existante</button>}
           {accessControl(true, () => openEntry("public"))}
-          <button type="button" className="group-entry-blue" style={entryButton} onClick={() => openEntry("join")}>Rejoindre un groupe</button>
+          {recoverableGroup&&firebaseIdentity===auth.currentUser?.uid ? (
+            <button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={recoverGroup}>Retrouver mon groupe · {recoverableGroup.name}</button>
+          ) : recoveryStatus==="failed" ? (
+            <button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={recoverGroup}>Vérifier mon inscription</button>
+          ) : (
+            <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||recoveryStatus==="loading"} onClick={() => openEntry("join")}>Rejoindre un groupe</button>
+          )}
           <button type="button" className="group-entry-blue" style={entryButton} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>
         </>}
         {(screen === "public" || screen === "invite") && <>

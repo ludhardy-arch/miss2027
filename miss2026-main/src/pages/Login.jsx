@@ -31,7 +31,7 @@ function emailError(err){
   return err.message||"Opération impossible.";
 }
 
-const groupErrors={not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",verified_email_required:"Vérifie de nouveau ton adresse e-mail avant de continuer.",owner_required:"Cette adresse e-mail n’est pas celle du créateur de ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
+const groupErrors={membership_locked:"Le concours a commencé : les groupes sont figés.",owner_session_expired:"La session de gestion a expiré. Reconnecte-toi comme créateur.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",verified_email_required:"Vérifie de nouveau ton adresse e-mail avant de continuer.",owner_required:"Cette adresse e-mail n’est pas celle du créateur de ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
 async function groupRequest(path,body) {
   if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Ce service est réservé au site test.");
   const user=auth.currentUser;
@@ -67,6 +67,9 @@ export default function Login({ setUser }) {
   const [ownerGroup,setOwnerGroup]=useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const invitation = searchParams.get("invite");
+  const [inviteGroup,setInviteGroup]=useState(null);
+  const [inviteLink,setInviteLink]=useState("");
+  const [inviteStatus,setInviteStatus]=useState("");
   const screen = emailLink ? "email-verify" : invitation ? "invite" : entryMode;
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -124,6 +127,41 @@ export default function Login({ setUser }) {
     finally{setPending(false);}
   }
 
+  useEffect(()=>{
+    let active=true;
+    setInviteGroup(null);setInviteStatus("");
+    if(!invitation||!firebaseIdentity)return;
+    groupRequest("/groups/invite/preview",{token:invitation}).then(r=>{if(active){setInviteGroup(r.group);setInviteStatus("ok");}}).catch(e=>{if(active)setInviteStatus(e.message);});
+    return()=>{active=false;};
+  },[invitation,firebaseIdentity]);
+  async function acceptInvite(event){
+    event.preventDefault();
+    if(pending||!inviteGroup||!pseudo.trim())return;
+    setPending(true);setError("");
+    try{const result=await groupRequest("/groups/invite/join",{token:invitation,pseudo:pseudo.trim()});setJoinedGroup(result.group);setEntryMode("joined-group");setSearchParams({}, {replace:true});}
+    catch(e){setError(e.message);}finally{setPending(false);}
+  }
+  async function ownerAction(action,value,targetUid){
+    if(pending||!ownerGroup)return;
+    setPending(true);setError("");setInviteStatus("");
+    try{
+      const result=await groupRequest("/groups/owner/manage",{action,value,targetUid});
+      setOwnerGroup(result.group);
+      if(action==="invite"&&result.token)setInviteLink(window.location.origin+"/#/login?invite="+encodeURIComponent(result.token));
+      if(action==="revoke")setInviteLink("");
+    }catch(e){setError(e.message);}finally{setPending(false);}
+  }
+  async function copyInvitation(){
+    if(!inviteLink)return;
+    try{await navigator.clipboard.writeText(inviteLink);setInviteStatus("Lien copié !");}
+    catch{setInviteStatus("Sélectionne le lien et copie-le manuellement.");}
+  }
+  async function refreshOwner(){
+    if(pending)return;
+    setPending(true);setError("");
+    try{const result=await groupRequest("/groups/owner/manage");setOwnerGroup(result.group);}catch(e){setError(e.message);}finally{setPending(false);}
+  }
+
   // No fallback to legacy pseudo-based entry before V2 group assignment exists.
   function openEntry(mode) {
     setError(""); setEntryMode(mode);
@@ -131,7 +169,7 @@ export default function Login({ setUser }) {
   function backToHome() {
     setError(""); setEntryMode("home");
     setGroupQuery(""); setGroupResults(null); setSelectedGroup(null); setGroupPassword("");
-    setCreatorPassword("");setEmailNotice("");setVerifiedCreator(null);
+    setCreatorPassword("");setEmailNotice("");setVerifiedCreator(null);setInviteLink("");setInviteStatus("");
     if(emailLink){window.location.replace(window.location.origin+"/#/login");return;}
     if (invitation) setSearchParams({}, {replace:true});
   }
@@ -206,7 +244,7 @@ export default function Login({ setUser }) {
     setPending(true);setError("");
     try{
       const result=await groupRequest("/groups/create",{name:creatorName.trim(),pseudo:creatorPseudo.trim(),password:creatorPassword});
-      setOwnerGroup({id:result.id,name:result.name,pseudo:creatorPseudo.trim(),memberCount:1,isOwner:true,registrationsOpen:true,members:[{id:auth.currentUser.uid,pseudo:creatorPseudo.trim(),isOwner:true}]});
+      setOwnerGroup({id:result.id,name:result.name,pseudo:creatorPseudo.trim(),memberCount:1,isOwner:true,registrationsOpen:true,locked:false,invitationActive:false,members:[{id:auth.currentUser.uid,pseudo:creatorPseudo.trim(),isOwner:true}]});
       setEntryMode("creator-confirm");
     }catch(err){setError(err.message||"Création impossible.");}
     finally{setCreatorPassword("");setPending(false);}
@@ -222,7 +260,7 @@ export default function Login({ setUser }) {
     finally{setCreatorPassword("");setPending(false);}
   }
   function startCreatorFlow(mode){
-    setCreatorName("");setCreatorPseudo("");setCreatorEmail("");setCreatorPassword("");setVerifiedCreator(null);setEmailNotice("");setOwnerGroup(null);openEntry(mode);
+    setCreatorName("");setCreatorPseudo("");setCreatorEmail("");setCreatorPassword("");setVerifiedCreator(null);setEmailNotice("");setOwnerGroup(null);setInviteLink("");setInviteStatus("");openEntry(mode);
   }
   async function registerPublicPlayer(event) {
     event.preventDefault();
@@ -248,10 +286,6 @@ export default function Login({ setUser }) {
       navigate("/player",{replace:true});
     }catch(err){setError(err.message||"Accès impossible.");}
     finally{setPending(false);}
-  }
-  function enterPreview(event) {
-    event.preventDefault();
-    setError("Cette fonction sera raccordée à la nouvelle base de test à l’étape suivante.");
   }
   const entryButton = {
     width:"100%", minHeight:52, boxSizing:"border-box", borderRadius:13,
@@ -407,12 +441,12 @@ export default function Login({ setUser }) {
           <button type="button" className="group-entry-blue" style={entryButton} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>
         </>}
         {(screen === "public" || screen === "invite") && <>
-          {screen === "invite" && <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Bienvenue dans le groupe</h2>}
+          {screen === "invite" && <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Bienvenue {inviteGroup?"dans le groupe "+inviteGroup.name:"dans le groupe"}</h2>}
           <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} disabled={pending} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
           {screen === "public" && notice("Tu seras automatiquement inscrit dans une salle publique de 30 joueurs maximum. Si tu appartiens déjà à un groupe, tu retrouveras ton groupe actuel.")}
-          {accessControl(screen === "public", screen === "public" ? registerPublicPlayer : enterPreview, !pseudo.trim())}
+          {screen==="public"?accessControl(true,registerPublicPlayer,!pseudo.trim()):<button type="button" className="group-entry-blue" style={entryButton} disabled={pending||!inviteGroup||!pseudo.trim()} onClick={acceptInvite}>Rejoindre le groupe</button>}
           {pending && notice("Inscription en cours…")}
-          {screen === "invite" && notice("Le nom du groupe et la validité de l’invitation seront vérifiés à l’étape suivante.")}
+          {screen === "invite" && notice(inviteStatus==="ok"?"Invitation vérifiée. Aucun mot de passe à saisir.":inviteStatus||"Vérification de l’invitation…")}
         </>}
         {screen === "join" && <>
           <form onSubmit={searchRealGroups} style={{display:"grid",gap:12}}>
@@ -503,21 +537,24 @@ export default function Login({ setUser }) {
             <div style={{fontSize:20,fontWeight:800,color:"#fff",overflowWrap:"anywhere"}}>{ownerGroup.name}</div>
             <p style={{margin:"8px 0 0",color:"#c6d3ee"}}>{ownerGroup.memberCount} participant{ownerGroup.memberCount>1?"s":""} · {ownerGroup.pseudo} (créateur)</p>
           </div>
-          <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>setError("Le lien d’invitation sera raccordé ensuite. Pour l’instant, tes amis peuvent rechercher le nom du groupe et saisir son mot de passe.")}>Inviter mes amis</button>
+          <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||ownerGroup.locked} onClick={()=>{if(!ownerGroup.invitationActive||window.confirm("Créer un nouveau lien ? L’ancien ne fonctionnera plus."))void ownerAction("invite");}}>Inviter mes amis</button>
+          {inviteLink&&<><input aria-label="Lien d’invitation" style={inputStyle} readOnly value={inviteLink} onFocus={e=>e.target.select()}/><button type="button" className="group-entry-blue" style={entryButton} onClick={copyInvitation}>Copier le lien</button></>}
+          {ownerGroup.invitationActive&&<button type="button" className="group-entry-danger" disabled={pending} onClick={()=>{if(window.confirm("Désactiver le lien d’invitation ?"))void ownerAction("revoke");}}>Désactiver le lien</button>}
+          {inviteStatus&&notice(inviteStatus)}
           {accessControl(false,enterContest,false,ownerGroup.entered===true)}
           {screen==="creator-confirm"?<button type="button" className="group-entry-blue" style={entryButton} onClick={()=>{setCreatorPassword("");openEntry("creator-dashboard");}}>Gérer mon groupe</button>:<>
             <section style={{display:"grid",gap:10,padding:12,border:"1px solid #64a9ea",borderRadius:13,background:"rgba(84,118,189,.13)",textAlign:"left"}}>
-              <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Participants ({ownerGroup.memberCount})</h3>
+              <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Participants ({ownerGroup.memberCount})</h3><button type="button" className="group-entry-blue" disabled={pending} onClick={refreshOwner}>Actualiser la liste</button>
               {ownerGroup.members.map(member=><div key={member.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:10,borderRadius:9,background:"#1b315d"}}>
-                <span>{member.pseudo}</span>{member.isOwner?<span style={{fontSize:12,color:"#ffe5ad"}}>Créateur</span>:<button type="button" className="group-entry-remove" disabled>Retirer</button>}
+                <span>{member.pseudo}</span>{member.isOwner?<span style={{fontSize:12,color:"#ffe5ad"}}>Créateur</span>:<button type="button" className="group-entry-remove" disabled={pending||ownerGroup.locked} onClick={()=>{if(window.confirm("Retirer "+member.pseudo+" du groupe ?"))void ownerAction("remove",undefined,member.id);}}>Retirer</button>}
               </div>)}
             </section>
             <section style={{display:"grid",gap:12,padding:12,border:"1px solid #bc79be",borderRadius:13,background:"rgba(148,92,205,.13)",textAlign:"left"}}>
               <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Paramètres du groupe</h3>
-              <button type="button" className="group-entry-blue" style={entryButton} disabled>Modifier le nom du groupe</button>
+              <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||ownerGroup.locked} onClick={()=>{const name=window.prompt("Nouveau nom du groupe",ownerGroup.name);if(name?.trim())void ownerAction("rename",name.trim());}}>Modifier le nom du groupe</button>
               <p style={{margin:0,color:ownerGroup.registrationsOpen?"#78ffbd":"#ffadad"}}>Inscriptions au groupe : {ownerGroup.registrationsOpen?"ouvertes":"fermées"}</p>
-              <button type="button" className="group-entry-blue" style={entryButton} disabled>{ownerGroup.registrationsOpen?"Fermer les inscriptions":"Ouvrir les inscriptions"}</button>
-              {notice("Les modifications de gestion seront raccordées à la prochaine étape. La liste affichée correspond à la dernière connexion ou création.")}
+              <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||ownerGroup.locked} onClick={()=>void ownerAction("open",!ownerGroup.registrationsOpen)}>{ownerGroup.registrationsOpen?"Fermer les inscriptions":"Ouvrir les inscriptions"}</button>
+              {notice(ownerGroup.locked?"Le concours a commencé : les appartenances sont figées.":"Tu peux actualiser la liste des participants à tout moment.")}
             </section>
           </>}
         </>}

@@ -59,6 +59,12 @@ export default function Login({ setUser }) {
   const [creatorName, setCreatorName] = useState("");
   const [creatorPseudo, setCreatorPseudo] = useState("");
   const [previewCreatedGroup, setPreviewCreatedGroup] = useState(null);
+  const [showCreatorInvite, setShowCreatorInvite] = useState(false);
+  const [editGroupName, setEditGroupName] = useState("");
+  const [editingGroupName, setEditingGroupName] = useState(false);
+  const [removeMemberId, setRemoveMemberId] = useState(null);
+  const [creatorMessage, setCreatorMessage] = useState("");
+
   // Dashboard preview only: no group, membership, invitation or credential writes.
   const [previewMembers, setPreviewMembers] = useState([]);
   const [previewRegistrationOpen, setPreviewRegistrationOpen] = useState(true);
@@ -98,6 +104,7 @@ export default function Login({ setUser }) {
   function backToHome() {
     setError(""); setEntryMode("home");
     setGroupQuery(""); setGroupResults(null); setSelectedGroup(null); setGroupPassword("");
+    resetCreatorPanel();
     setPreviewRename(null); setPreviewRemoveId(null); setPreviewInviteOpen(false);
     if (invitation) setSearchParams({}, {replace:true});
   }
@@ -118,7 +125,8 @@ export default function Login({ setUser }) {
     event.preventDefault();
     if (!creatorName.trim() || !creatorPseudo.trim()) return;
     // Only fictitious display information stays in memory; no credentials or writes.
-    setPreviewCreatedGroup({name:creatorName.trim(),pseudo:creatorPseudo.trim()});
+    setPreviewCreatedGroup({name:creatorName.trim(),pseudo:creatorPseudo.trim(),members:[],registrationsOpen:true,inviteVersion:1});
+    resetCreatorPanel();
     setPreviewMembers([]); setPreviewRegistrationOpen(true); setPreviewRename(null); setPreviewRemoveId(null); setPreviewInviteOpen(false);
     event.currentTarget.reset();
     setCreatorName(""); setCreatorPseudo(""); setError(""); setEntryMode("creator-confirm");
@@ -126,7 +134,8 @@ export default function Login({ setUser }) {
   function openCreatorPreview(event) {
     event.preventDefault();
     event.currentTarget.reset();
-    setPreviewCreatedGroup(group => group || {name:"La famille des Miss",pseudo:"Créateur test"});
+    setPreviewCreatedGroup(group => group || {name:"La famille des Miss",pseudo:"Créateur test",members:[{id:"preview-member-1",pseudo:"Camille"},{id:"preview-member-2",pseudo:"Alex"},{id:"preview-member-3",pseudo:"Sophie"}],registrationsOpen:true,inviteVersion:1});
+    resetCreatorPanel();
     setPreviewRename(null); setPreviewRemoveId(null); setPreviewInviteOpen(false);
     setError(""); setEntryMode("creator-dashboard");
   }
@@ -143,6 +152,37 @@ export default function Login({ setUser }) {
   function removePreviewMember(id) {
     setPreviewMembers(current => current.filter(member => member.id!==id));
     setPreviewRemoveId(null);
+  }
+  // All management actions below are local previews, not authenticated operations.
+  function resetCreatorPanel() {
+    setShowCreatorInvite(false); setEditingGroupName(false); setRemoveMemberId(null); setCreatorMessage("");
+  }
+  function savePreviewName(event) {
+    event.preventDefault();
+    const name=editGroupName.trim();
+    if (!name) return;
+    setPreviewCreatedGroup(group => group ? {...group,name} : group);
+    setEditingGroupName(false); setCreatorMessage("Nom modifié dans cet aperçu.");
+  }
+  function togglePreviewRegistrations() {
+    setPreviewCreatedGroup(group => group ? {...group,registrationsOpen:!group.registrationsOpen} : group);
+    setCreatorMessage("État des inscriptions modifié dans cet aperçu.");
+  }
+  function removePreviewMember(id) {
+    setPreviewCreatedGroup(group => group ? {...group,members:group.members.filter(member=>member.id!==id)} : group);
+    setRemoveMemberId(null); setCreatorMessage("Participant retiré de cet aperçu.");
+  }
+  function addPreviewMember() {
+    setPreviewCreatedGroup(group => {
+      if (!group) return group;
+      const n = (group.nextMemberNumber || 0) + 1;
+      return {...group,nextMemberNumber:n,members:[...group.members,{id:"added-preview-"+n,pseudo:"Invité test "+n}]};
+    });
+    setCreatorMessage("Participant fictif ajouté.");
+  }
+  function rotatePreviewInvitation() {
+    setPreviewCreatedGroup(group=>group ? {...group,inviteVersion:group.inviteVersion+1} : group);
+    setCreatorMessage("Lien fictif renouvelé. Aucun lien réel n’a été révoqué.");
   }
   function enterPreview(event) {
     event.preventDefault();
@@ -280,6 +320,11 @@ export default function Login({ setUser }) {
             color:#fff!important;border:1px solid #e4778d!important;
             box-shadow:none!important;font-size:13px;font-weight:700;
           }
+          .tv-login-shell .group-entry-panel button.group-entry-remove {
+            background:linear-gradient(135deg,#7b233e,#a8334c)!important;
+            color:#fff!important;border:1px solid #ff859c!important;
+            box-shadow:0 0 9px rgba(255,85,117,.25)!important;
+          }
           .tv-login-shell .group-entry-panel button.group-entry-back {
             background:transparent!important;color:#c6d3ee!important;
             border:0!important;box-shadow:none!important;font-size:14px;
@@ -360,52 +405,53 @@ export default function Login({ setUser }) {
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:21}}>{screen === "creator-confirm" ? "Ton groupe est créé !" : "Gérer mon groupe"}</h2>
           <div style={{padding:"16px 12px",background:"rgba(84,118,189,.17)",border:"1px solid #64a9ea",borderRadius:13}}>
             <div style={{fontSize:20,fontWeight:800,color:"#fff",overflowWrap:"anywhere"}}>{previewCreatedGroup.name}</div>
-            <p style={{margin:"8px 0 0",color:"#c6d3ee"}}>{1+previewMembers.length} participant{previewMembers.length ? "s" : ""} · {previewCreatedGroup.pseudo} (créateur)</p>
+            <p style={{margin:"8px 0 0",color:"#c6d3ee"}}>{1+previewCreatedGroup.members.length} participant{previewCreatedGroup.members.length?"s":""} · {previewCreatedGroup.pseudo} (créateur)</p>
           </div>
-          <button type="button" className="group-entry-blue" style={entryButton} aria-expanded={previewInviteOpen} aria-controls="preview-invite" onClick={()=>{setError("");setPreviewInviteOpen(open=>!open);}}>Inviter mes amis</button>
-          {previewInviteOpen && <div id="preview-invite" style={{display:"grid",gap:10,padding:14,border:"1px solid #64a9ea",borderRadius:13,background:"rgba(84,118,189,.13)",textAlign:"left"}}>
+          <button type="button" className="group-entry-blue" style={entryButton} aria-expanded={showCreatorInvite} onClick={()=>{setShowCreatorInvite(v=>!v);setCreatorMessage("");}}>Inviter mes amis</button>
+          {showCreatorInvite && <section style={{display:"grid",gap:10,textAlign:"left",padding:12,border:"1px solid #64a9ea",borderRadius:12,background:"rgba(84,118,189,.13)"}}>
             <strong style={{color:"#ffe5ad"}}>Invitation au groupe</strong>
-            <p style={{margin:0,lineHeight:1.5}}>Rejoins mon groupe « {previewCreatedGroup.name} » pour le concours de pronostics Miss France 2027 !</p>
-            {notice("Le véritable lien d’invitation et le partage seront disponibles après raccordement sécurisé. Aucun lien réel n’est créé ou envoyé pour cet aperçu.")}
-          </div>}
+            {notice("Partage le lien d’invitation et le mot de passe du groupe avec tes amis ou ta famille.")}
+            <div style={{fontSize:13,overflowWrap:"anywhere",padding:10,background:"#101c3d",borderRadius:8,color:"#dbe7ff"}}>Lien fictif : {window.location.origin}/?invite=preview-{previewCreatedGroup.inviteVersion}</div>
+            {notice("Ce lien est un exemple non valable pour une inscription réelle. Le partage sera activé après raccordement.")}
+            {screen === "creator-dashboard" && <button type="button" className="group-entry-blue" style={entryButton} onClick={rotatePreviewInvitation}>Renouveler le lien de test</button>}
+          </section>}
           {accessControl(false, enterPreview)}
-          {screen === "creator-confirm" ? <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>openEntry("creator-dashboard")}>Gérer mon groupe</button> : <>
-            <section aria-label="Participants" style={{display:"grid",gap:10,textAlign:"left",padding:14,border:"1px solid #64a9ea",borderRadius:13,background:"rgba(84,118,189,.13)"}}>
-              <h3 style={{margin:0,color:"#ffe5ad",fontSize:17}}>Participants ({1+previewMembers.length})</h3>
-              <div style={{padding:10,borderRadius:10,background:"rgba(9,20,58,.55)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-                <strong style={{overflowWrap:"anywhere",minWidth:0}}>{previewCreatedGroup.pseudo}</strong><span style={{color:"#ffe5ad",fontSize:12,flexShrink:0}}>Créateur</span>
+          {screen === "creator-confirm" ? <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>{resetCreatorPanel();openEntry("creator-dashboard");}}>Gérer mon groupe</button> : <>
+            <section style={{display:"grid",gap:10,padding:12,border:"1px solid #64a9ea",borderRadius:13,background:"rgba(84,118,189,.13)",textAlign:"left"}}>
+              <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Participants ({1+previewCreatedGroup.members.length})</h3>
+              <div style={{padding:10,borderRadius:9,background:"#1b315d",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                <strong style={{overflowWrap:"anywhere",minWidth:0}}>{previewCreatedGroup.pseudo}</strong>
+                <span style={{fontSize:12,color:"#ffe5ad",flexShrink:0}}>Créateur</span>
               </div>
-              {previewMembers.map(member => <div key={member.id} style={{display:"grid",gap:7,padding:10,borderRadius:10,background:"rgba(9,20,58,.55)"}}>
+              {previewCreatedGroup.members.map(member=><div key={member.id} style={{display:"grid",gap:8,padding:10,borderRadius:9,background:"#1b315d"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
                   <span style={{overflowWrap:"anywhere",minWidth:0}}>{member.pseudo}</span>
-                  <button type="button" className="group-entry-danger" style={{width:"auto",minHeight:36,padding:"6px 10px",borderRadius:8,flexShrink:0}} onClick={()=>setPreviewRemoveId(member.id)}>Retirer</button>
+                  <button type="button" className="group-entry-remove" style={{width:"auto",minHeight:36,padding:"6px 10px",fontSize:12,flexShrink:0}} onClick={()=>{setRemoveMemberId(member.id);setCreatorMessage("");}}>Retirer</button>
                 </div>
-                {previewRemoveId===member.id && <div style={{display:"grid",gap:8}}>
-                  <p style={{fontSize:13,margin:0,color:"#ffd0cf"}}>Retirer {member.pseudo} du groupe de test ?</p>
-                  <div style={{display:"flex",gap:8}}>
-                    <button type="button" className="group-entry-danger" style={{flex:1,minHeight:38,borderRadius:8}} onClick={()=>removePreviewMember(member.id)}>Confirmer</button>
-                    <button type="button" className="group-entry-back" style={{flex:1,minHeight:38}} onClick={()=>setPreviewRemoveId(null)}>Annuler</button>
-                  </div>
-                </div>}
+                {removeMemberId===member.id && <>
+                  <p style={{fontSize:13,color:"#ffd0cf",margin:0}}>Retirer {member.pseudo} du groupe ?</p>
+                  <button type="button" className="group-entry-remove" onClick={()=>removePreviewMember(member.id)}>Confirmer le retrait</button>
+                  <button type="button" className="group-entry-back" onClick={()=>setRemoveMemberId(null)}>Annuler</button>
+                </>}
               </div>)}
-              {previewMembers.length===0 && notice("Tu es actuellement le seul participant.")}
-              <button type="button" className="group-entry-back" style={{fontSize:13,minHeight:38}} disabled={previewMembers.length===3} onClick={addPreviewMembers}>+ Ajouter des participants fictifs pour tester</button>
+              <button type="button" className="group-entry-blue" style={entryButton} onClick={addPreviewMember}>+ Ajouter un participant fictif</button>
             </section>
-            <section aria-label="Paramètres du groupe" style={{display:"grid",gap:10,textAlign:"left",padding:14,border:"1px solid #64a9ea",borderRadius:13,background:"rgba(84,118,189,.13)"}}>
-              <h3 style={{margin:0,color:"#ffe5ad",fontSize:17}}>Paramètres du groupe</h3>
-              {previewRename===null ? <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>setPreviewRename(previewCreatedGroup.name)}>Modifier le nom du groupe</button> : <form onSubmit={renamePreviewGroup} style={{display:"grid",gap:8}}>
-                <input aria-label="Nouveau nom du groupe" value={previewRename} maxLength={80} required onChange={e=>setPreviewRename(e.target.value)} style={inputStyle}/>
-                <button type="submit" className="group-entry-blue" style={entryButton} disabled={!previewRename.trim()}>Enregistrer le nom</button>
-                <button type="button" className="group-entry-back" onClick={()=>setPreviewRename(null)}>Annuler</button>
-              </form>}
-              <div style={{padding:10,borderRadius:10,background:"rgba(9,20,58,.55)",display:"grid",gap:8}}>
-                <strong>Inscriptions au groupe</strong>
-                <span role="status" style={{color:previewRegistrationOpen?"#7effbc":"#ffc4c4",fontWeight:700}}>{previewRegistrationOpen?"● Ouvertes":"● Fermées"}</span>
-                <button type="button" className={previewRegistrationOpen?"group-entry-danger":"group-entry-blue"} style={{...entryButton,minHeight:44}} onClick={()=>setPreviewRegistrationOpen(open=>!open)}>{previewRegistrationOpen?"Fermer les inscriptions":"Ouvrir les inscriptions"}</button>
-                {notice("Ce réglage concerne uniquement ton groupe. L’ouverture du concours reste contrôlée par la régie.")}
-              </div>
+            <section style={{display:"grid",gap:12,padding:12,border:"1px solid #bc79be",borderRadius:13,background:"rgba(148,92,205,.13)",textAlign:"left"}}>
+              <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Paramètres du groupe</h3>
+              {editingGroupName ? <form onSubmit={savePreviewName} style={{display:"grid",gap:8}}>
+                <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Nouveau nom du groupe
+                  <input maxLength={80} value={editGroupName} onChange={e=>setEditGroupName(e.target.value)} required style={inputStyle}/>
+                </label>
+                <button type="submit" className="group-entry-blue" style={entryButton} disabled={!editGroupName.trim()}>Enregistrer le nom</button>
+                <button type="button" className="group-entry-back" onClick={()=>setEditingGroupName(false)}>Annuler</button>
+              </form> : <button type="button" className="group-entry-blue" style={entryButton} onClick={()=>{setEditGroupName(previewCreatedGroup.name);setEditingGroupName(true);setCreatorMessage("");}}>Modifier le nom du groupe</button>}
+              <p style={{margin:0,fontSize:14,color:previewCreatedGroup.registrationsOpen?"#78ffbd":"#ffadad",fontWeight:800}}>Inscriptions au groupe : {previewCreatedGroup.registrationsOpen?"ouvertes":"fermées"}</p>
+              <button type="button" className={previewCreatedGroup.registrationsOpen?"group-entry-remove":"group-entry-green"} style={entryButton} onClick={togglePreviewRegistrations}>{previewCreatedGroup.registrationsOpen?"Fermer les inscriptions":"Ouvrir les inscriptions"}</button>
+              {notice("Ce réglage concerne uniquement l’arrivée de nouveaux membres. La régie nationale reste seule responsable de l’ouverture du concours.")}
             </section>
+            <button type="button" className="group-entry-back" onClick={()=>{resetCreatorPanel();openEntry("creator-confirm");}}>Retour à mon groupe</button>
           </>}
+          {creatorMessage && <p role="status" style={{margin:0,color:"#c6ffd9",fontSize:14}}>{creatorMessage}</p>}
         </>}
         {screen !== "home" && <button type="button" className="group-entry-back" onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}
         {error && <p role="alert" style={{color:"#ffd0cf",margin:0}}>{error}</p>}

@@ -101,13 +101,13 @@ const server=http.createServer(async(req,res)=>{
   try {
     const url=new URL(req.url,"http://localhost");
     if(url.pathname==="/health"&&req.method==="GET")return reply(res,ready()?200:503,{ok:ready(),testOnly:true,registrationEnabled:registrationEnabled&&ready(),firebase:readiness});
-    if(!registrationEnabled||!ready())return reply(res,503,{error:"test_registration_disabled"});
     if(req.headers.origin!==ORIGIN)return reply(res,403,{error:"origin_not_allowed"});
     res.setHeader("Access-Control-Allow-Origin",ORIGIN);
     res.setHeader("Vary","Origin");
     res.setHeader("Access-Control-Allow-Methods","GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers","Authorization, Content-Type");
     if(req.method==="OPTIONS"){res.writeHead(204);return res.end();}
+    if(!registrationEnabled||!ready())return reply(res,503,{error:"test_registration_disabled"});
     const bearer=/^Bearer ([^\s]+)$/.exec(req.headers.authorization||"");
     if(!bearer)return reply(res,401,{error:"authentication_required"});
     let user;
@@ -115,6 +115,14 @@ const server=http.createServer(async(req,res)=>{
     const uid=user.uid;
     if(!/^[a-zA-Z0-9_-]{1,128}$/.test(uid)||["__proto__","constructor","prototype"].includes(uid))return reply(res,403,{error:"unsupported_identity"});
     if(limited("user:"+uid,30))return reply(res,429,{error:"too_many_requests"});
+    if(req.method==="GET"&&url.pathname==="/groups/me"){
+      const state=(await registry.get()).val();
+      const id=state?.membership?.[uid];
+      const group=id&&state.groups?.[id];
+      const member=group?.members?.[uid];
+      if(!group||!member)return reply(res,200,{group:null});
+      return reply(res,200,{group:{id,name:group.name,pseudo:member.pseudo,isOwner:group.ownerUid===uid,memberCount:Object.keys(group.members).length}});
+    }
     if(req.method==="GET"&&url.pathname==="/groups/search"){
       const query=url.searchParams.get("q");
       if(!validString(query,1,80))return reply(res,400,{error:"invalid_query"});

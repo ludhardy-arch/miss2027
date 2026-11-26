@@ -10,7 +10,7 @@ export function ownerView(root,uid){
  const event=eventOf(root),reg=event.registration,view=membershipView(reg,uid);
  if(!view?.isOwner)return fail("owner_required");
  const group=reg.groups[view.id];
- return {result:{group:{...view,entered:event.players?.[uid]?.groupId===view.id,registrationsOpen:group.registrationsOpen===true,locked:locked(root),invitationActive:!!group.inviteDigest,members:Object.entries(group.members).map(([id,m])=>({id,pseudo:m.pseudo,isOwner:id===uid}))}}};
+ return {result:{group:{...view,entered:event.players?.[uid]?.groupId===view.id,registrationsOpen:!locked(root)&&Object.keys(group.members||{}).length<30,locked:locked(root),invitationActive:!!group.inviteDigest,members:Object.entries(group.members).map(([id,m])=>({id,pseudo:m.pseudo,isOwner:id===uid}))}}};
 }
 export function manageGroup(root,{uid,action,value,targetUid,digest}){
  const initial=ownerView(root,uid);
@@ -33,7 +33,7 @@ export function manageGroup(root,{uid,action,value,targetUid,digest}){
 }
 export function invitationView(root,digest){
  if(!/^[a-f0-9]{64}$/.test(digest||"")||locked(root))return fail("unavailable");
- const entry=Object.entries(eventOf(root).registration?.groups||{}).find(([,g])=>g.type==="private"&&g.registrationsOpen===true&&g.inviteDigest===digest);
+ const entry=Object.entries(eventOf(root).registration?.groups||{}).find(([,g])=>g.type==="private"&&g.inviteDigest===digest);
  if(!entry)return fail("unavailable");
  return {result:{group:{id:entry[0],name:entry[1].name}}};
 }

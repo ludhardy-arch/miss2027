@@ -1,0 +1,15 @@
+{
+  "name": "miss2027-test-registration",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test registration.test.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "13.4.0"
+  }
+}

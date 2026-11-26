@@ -1,0 +1,63 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "events": {
+      "$event": {
+        "control": {
+          ".read": "auth != null"
+        },
+        "groupDirectory": {
+          ".read": "auth != null"
+        },
+        "playerGroup": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid"
+          }
+        },
+        "players": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid"
+          }
+        },
+        "votes": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid"
+          }
+        },
+        "groups": {
+          "$group": {
+            ".read": "auth != null && root.child('events').child($event).child('playerGroup').child(auth.uid).val() === $group"
+          }
+        },
+        "groupMembers": {
+          "$group": {
+            ".read": "auth != null && root.child('events').child($event).child('playerGroup').child(auth.uid).val() === $group"
+          }
+        },
+        "chats": {
+          "$group": {
+            ".read": "auth != null && root.child('events').child($event).child('playerGroup').child(auth.uid).val() === $group"
+          }
+        },
+        "results": {
+          "$version": {
+            "groups": {
+              "$group": {
+                ".read": "auth != null && root.child('events').child($event).child('control').child('resultsVersion').val() === $version && root.child('events').child($event).child('playerGroup').child(auth.uid).val() === $group"
+              }
+            },
+            "players": {
+              "$uid": {
+                ".read": "auth != null && auth.uid === $uid && root.child('events').child($event).child('control').child('resultsVersion').val() === $version"
+              }
+            },
+            "nationalTop": {
+              ".read": "auth != null && root.child('events').child($event).child('control').child('resultsVersion').val() === $version"
+            }
+          }
+        }
+      }
+    }
+  }
+}

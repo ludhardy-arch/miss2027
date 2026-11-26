@@ -31,7 +31,7 @@ function emailError(err){
   return err.message||"Opération impossible.";
 }
 
-const groupErrors={membership_locked:"Le concours a commencé : les groupes sont figés.",owner_session_expired:"La session de gestion a expiré. Reconnecte-toi comme créateur.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",verified_email_required:"Vérifie de nouveau ton adresse e-mail avant de continuer.",owner_required:"Cette adresse e-mail n’est pas celle du créateur de ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
+const groupErrors={pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",owner_session_expired:"La session de gestion a expiré. Reconnecte-toi comme créateur.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",verified_email_required:"Vérifie de nouveau ton adresse e-mail avant de continuer.",owner_required:"Cette adresse e-mail n’est pas celle du créateur de ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
 async function groupRequest(path,body) {
   if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Ce service est réservé au site test.");
   const user=auth.currentUser;
@@ -75,6 +75,25 @@ export default function Login({ setUser }) {
   const screen = emailLink ? "email-verify" : invitation ? "invite" : entryMode;
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const activePseudo=screen==="create-group"?creatorPseudo:["public","invite","join-group"].includes(screen)?pseudo:"";
+  const pseudoKey=activePseudo.trim()?JSON.stringify([firebaseIdentity,gameId,activePseudo.trim()]):"";
+  const [pseudoCheck,setPseudoCheck]=useState({key:"",status:""});
+  const [pseudoRetry,setPseudoRetry]=useState(0);
+  const pseudoStatus=!pseudoKey?"":pseudoCheck.key===pseudoKey?pseudoCheck.status:"checking";
+  const pseudoReady=pseudoStatus==="available";
+  useEffect(()=>{
+    if(!pseudoKey||!firebaseIdentity)return;
+    let active=true;
+    setPseudoCheck({key:pseudoKey,status:"checking"});
+    const timer=setTimeout(async()=>{
+      try{
+        const result=await groupRequest("/groups/pseudo",{pseudo:activePseudo.trim()});
+        if(active)setPseudoCheck({key:pseudoKey,status:result.available===true?"available":"taken"});
+      }catch{if(active)setPseudoCheck({key:pseudoKey,status:"error"});}
+    },750);
+    return()=>{active=false;clearTimeout(timer);};
+  },[pseudoKey,pseudoRetry,firebaseIdentity]);
+  const pseudoFeedback=()=>!pseudoStatus?null:<div aria-live="polite" style={{fontSize:13,fontWeight:600,color:pseudoStatus==="available"?"#78ffbd":pseudoStatus==="taken"||pseudoStatus==="error"?"#ff929a":"#c6d3ee"}}>{pseudoStatus==="available"?"✓ Pseudo disponible":pseudoStatus==="taken"?"✗ Pseudo déjà pris":pseudoStatus==="error"?<>Vérification indisponible. <button type="button" onClick={()=>setPseudoRetry(n=>n+1)} style={{fontSize:12,padding:"3px 8px"}}>Réessayer</button></>:"Vérification du pseudo…"}</div>;
   const [adminUid, setAdminUid] = useState("");
   const [remaining, setRemaining] = useState(getRemainingTime);
   useEffect(() => {
@@ -140,7 +159,7 @@ export default function Login({ setUser }) {
   },[invitation,firebaseIdentity,gameId]);
   async function acceptInvite(event){
     event.preventDefault();
-    if(pending||!inviteGroup||!pseudo.trim())return;
+    if(pending||!inviteGroup||!pseudoReady)return;
     setPending(true);setError("");
     try{const result=await groupRequest("/groups/invite/join",{token:invitation,pseudo:pseudo.trim()});setJoinedGroup(result.group);setEntryMode("joined-group");setSearchParams({}, {replace:true});}
     catch(e){setError(e.message);}finally{setPending(false);}
@@ -196,7 +215,7 @@ export default function Login({ setUser }) {
   }
   async function submitRealGroup(event) {
     event.preventDefault();
-    if(pending||!selectedGroup||!pseudo.trim()||groupPassword.length<6)return;
+    if(pending||!selectedGroup||!pseudoReady||groupPassword.length<6)return;
     setPending(true);setError("");
     try{
       const result=await groupRequest("/groups/join",{id:selectedGroup.id,pseudo:pseudo.trim(),password:groupPassword});
@@ -207,7 +226,7 @@ export default function Login({ setUser }) {
   }
   async function requestCreatorEmail(event,intent){
     event.preventDefault();
-    if(pending||!creatorEmail.trim())return;
+    if(pending||!creatorEmail.trim()||(intent==="create"&&!pseudoReady))return;
     setPending(true);setError("");setEmailNotice("");setCreatorPassword("");
     try{
       if(intent==="create"&&auth.currentUser){
@@ -254,7 +273,7 @@ export default function Login({ setUser }) {
   },[emailLink]);
   async function createRealGroup(event){
     event.preventDefault();
-    if(!verifiedCreator||verifiedCreator.intent!=="create"||verifiedCreator.uid!==auth.currentUser?.uid||pending||!creatorName.trim()||!creatorPseudo.trim()||creatorPassword.length<6)return;
+    if(!verifiedCreator||verifiedCreator.intent!=="create"||verifiedCreator.uid!==auth.currentUser?.uid||pending||!creatorName.trim()||!pseudoReady||creatorPassword.length<6)return;
     setPending(true);setError("");
     try{
       const result=await groupRequest("/groups/create",{name:creatorName.trim(),pseudo:creatorPseudo.trim(),password:creatorPassword});
@@ -278,7 +297,7 @@ export default function Login({ setUser }) {
   }
   async function registerPublicPlayer(event) {
     event.preventDefault();
-    if(pending||!pseudo.trim()||!connectionsLoaded||!connectionsOpen||connectionsError)return;
+    if(pending||!pseudoReady||!connectionsLoaded||!connectionsOpen||connectionsError)return;
     setPending(true);setError("");
     try {
       const result=await groupRequest("/groups/public",{pseudo:pseudo.trim()});
@@ -461,8 +480,9 @@ export default function Login({ setUser }) {
         {(screen === "public" || screen === "invite") && <>
           {screen === "invite" && <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Bienvenue {inviteGroup?"dans le groupe "+inviteGroup.name:"dans le groupe"}</h2>}
           <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} disabled={pending} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
+          {pseudoFeedback()}
           {screen === "public" && notice("Tu seras automatiquement inscrit dans une salle publique de 30 joueurs maximum. Si tu appartiens déjà à un groupe, tu retrouveras ton groupe actuel.")}
-          {screen==="public"?accessControl(true,registerPublicPlayer,!pseudo.trim()):<button type="button" className="group-entry-blue" style={entryButton} disabled={pending||!inviteGroup||!pseudo.trim()} onClick={acceptInvite}>Rejoindre le groupe</button>}
+          {screen==="public"?accessControl(true,registerPublicPlayer,!pseudoReady):<button type="button" className="group-entry-blue" style={entryButton} disabled={pending||!inviteGroup||!pseudoReady} onClick={acceptInvite}>Rejoindre le groupe</button>}
           {pending && notice("Inscription en cours…")}
           {screen === "invite" && notice(inviteStatus==="ok"?"Invitation vérifiée. Aucun mot de passe à saisir.":inviteStatus||"Vérification de l’invitation…")}
         </>}
@@ -485,8 +505,9 @@ export default function Login({ setUser }) {
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Rejoindre {selectedGroup.name}</h2>
           {notice("Inscription réelle dans Firebase test. Utilise un mot de passe réservé au groupe de test.")}
           <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
+          {pseudoFeedback()}
           <input type="password" aria-label="Mot de passe du groupe" autoComplete="off" placeholder="Mot de passe du groupe" maxLength={128} value={groupPassword} onChange={e => setGroupPassword(e.target.value)} style={inputStyle}/>
-          <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!pseudo.trim()||groupPassword.length<6}>{pending?"Inscription en cours…":"Intégrer le groupe"}</button>
+          <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!pseudoReady||groupPassword.length<6}>{pending?"Inscription en cours…":"Intégrer le groupe"}</button>
           <button type="button" className="group-entry-back" disabled={pending} onClick={() => {setGroupPassword("");setSelectedGroup(null);setError("");setEntryMode("join");}}>Retour aux résultats</button>
         </form>}
         {screen === "joined-group" && joinedGroup && <>
@@ -511,6 +532,7 @@ export default function Login({ setUser }) {
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:19,textAlign:"center"}}>Créer ton groupe</h2>
           <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton pseudo
             <input autoComplete="nickname" maxLength={24} required placeholder="Mon pseudo" value={creatorPseudo} onChange={e=>setCreatorPseudo(e.target.value)} disabled={pending} style={inputStyle}/>
+            {pseudoFeedback()}
           </label>
           <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Nom du groupe
             <input autoComplete="off" maxLength={80} required placeholder="Nom du groupe" value={creatorName} onChange={e=>setCreatorName(e.target.value)} disabled={pending} style={inputStyle}/>
@@ -524,10 +546,10 @@ export default function Login({ setUser }) {
               <input type="password" autoComplete="new-password" minLength={6} maxLength={128} required placeholder="Mot de passe (6 caractères minimum)" value={creatorPassword} onChange={e=>setCreatorPassword(e.target.value)} disabled={pending} style={inputStyle}/>
             </label>
             <p style={{fontSize:12,color:"#c6d3ee",margin:0,lineHeight:1.5}}>Un seul mot de passe pour le groupe. La gestion est réservée au créateur dont l’e-mail est vérifié. N’utilise pas un mot de passe personnel.</p>
-            <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!creatorName.trim()||!creatorPseudo.trim()||creatorPassword.length<6}>{pending?"Création…":"Créer mon groupe"}</button>
+            <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!creatorName.trim()||!pseudoReady||creatorPassword.length<6}>{pending?"Création…":"Créer mon groupe"}</button>
           </> : <>
             {notice("Vérifie d’abord ton e-mail pour protéger la gestion de ton groupe. Tu choisiras ensuite son mot de passe.")}
-            <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!creatorName.trim()||!creatorPseudo.trim()||!creatorEmail.trim()}>{pending?"Envoi…":"Vérifier mon e-mail"}</button>
+            <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!creatorName.trim()||!pseudoReady||!creatorEmail.trim()}>{pending?"Envoi…":"Vérifier mon e-mail"}</button>
           </>}
           {emailNotice&&<p role="status" style={{margin:0,color:"#78ffbd",fontSize:14}}>{emailNotice}</p>}
           <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setVerifiedCreator(null);setCreatorPassword("");setEmailNotice("");openEntry("manage");}}>Retour</button>

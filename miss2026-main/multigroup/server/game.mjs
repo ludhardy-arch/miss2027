@@ -60,3 +60,26 @@ export function castVote(root,{uid,gameId,tour,selection,favorite,now}){
  const next={...event,votes:{...event.votes,[uid]:vote}};
  return {state:stateWith(root,next),result:{accepted:true}};
 }
+
+export function adminGameView(root){
+ const event=root?.events?.miss2027||{},room=root?.rooms?.miss2027||{};
+ const players={};
+ for(const uid of Object.keys(event.registration?.membership||{})){
+   const group=membershipView(event.registration,uid);
+   if(!group)continue;
+   const own=event.votes?.[uid]||{};
+   const record={uid,pseudo:group.pseudo,groupName:group.name,groupId:group.id,entered:event.players?.[uid]?.groupId===group.id};
+   for(const key of ["tour1","tour2","tour3","favorite"])if(own[key]!==undefined)record[key]=own[key];
+   players[uid]=record;
+ }
+ return {players,tour:Number(room.tour||1),gameId:String(room.gameId||""),votesOpen:room.votesOpen===true,groupCount:Object.keys(event.registration?.groups||{}).length};
+}
+export function advanceRound(root,{gameId,tour,selection}){
+ const room=root?.rooms?.miss2027;
+ if(!room?.gameId||String(room.gameId)!==gameId)return fail("game_changed");
+ if(![1,2,3].includes(tour)||Number(room.tour||1)!==tour)return fail("round_changed");
+ if(room.votesOpen===true||room.finaleStarted===true)return fail("close_votes_first");
+ const allowed=tour===1?ids:list(room.adminSelections?.["tour"+(tour-1)]),needed=tour===1?12:5;
+ if(!Array.isArray(selection)||selection.length!==needed||new Set(selection).size!==needed||selection.some(id=>!Number.isInteger(id)||!allowed.includes(id)||!ids.includes(id)))return fail("invalid_vote");
+ return {state:{...root,rooms:{...root.rooms,miss2027:{...room,adminSelections:{...room.adminSelections,["tour"+tour]:selection},tour:Math.min(tour+1,3)}}},result:{tour:Math.min(tour+1,3),accepted:true}};
+}

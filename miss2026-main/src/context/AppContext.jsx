@@ -27,34 +27,6 @@ export function AppProvider({ children }) {
   // utilisé pour la reconnexion automatique
   const [gameId, setGameId] = useState("loading");
 
-  const roomRef = ref(database, "rooms/miss2027");
-
-  // -----------------------------------------
-  // INIT ROOM (si vide)
-  // -----------------------------------------
-  useEffect(() => {
-    onValue(
-      roomRef,
-      (snap) => {
-        if (snap.exists()) return;
-
-        const newGameId = Date.now().toString();
-
-        set(roomRef, {
-          players: {},
-          adminSelections: { tour1: [], tour2: [], tour3: [] },
-          votesOpen: false,
-          connectionsOpen: false,
-          demoEnabled: true,
-          tour: 1,
-          finaleStarted: false,
-          gameId: newGameId,
-        });
-      },
-      { onlyOnce: true }
-    );
-  }, []);
-
   // Subscribe only after Firebase has authenticated this device. Firebase RTDB
   // rules require auth != null, including for the connectionsOpen flag.
   useEffect(() => {
@@ -65,18 +37,14 @@ export function AppProvider({ children }) {
       setConnectionsLoaded(false);
       setDemoLoaded(false);
       setConnectionsError("");
+      setPlayers({});
+      setAdminSelections({tour1:[],tour2:[],tour3:[]});
       if (!firebaseUser) return;
 
       const subscriptions = [
         onValue(ref(database, "rooms/miss2027/demoEnabled"),
           (snap) => { setDemoEnabled(snap.val() !== false); setDemoLoaded(true); },
           (error) => { setDemoEnabled(false); setDemoLoaded(false); console.error("Demo setting sync:", error); }),
-        onValue(ref(database, "rooms/miss2027/players"),
-          (snap) => setPlayers(snap.val() || {}),
-          (error) => console.error("Players sync:", error)),
-        onValue(ref(database, "rooms/miss2027/adminSelections"),
-          (snap) => setAdminSelections(snap.val() || { tour1: [], tour2: [], tour3: [] }),
-          (error) => console.error("Selections sync:", error)),
         onValue(ref(database, "rooms/miss2027/votesOpen"),
           (snap) => setVotesOpen(snap.val() === true),
           (error) => console.error("Votes sync:", error)),
@@ -101,6 +69,9 @@ export function AppProvider({ children }) {
           (snap) => setGameId(snap.val() || "loading"),
           (error) => console.error("Game ID sync:", error))
       ];
+      if(firebaseUser.uid===import.meta.env.VITE_ADMIN_UID&&!firebaseUser.isAnonymous){
+        subscriptions.push(onValue(ref(database,"rooms/miss2027/adminSelections"),snap=>setAdminSelections(snap.val()||{tour1:[],tour2:[],tour3:[]}),error=>console.error("Official selection sync:",error)));
+      }
       stopRoomListeners = () => subscriptions.forEach(stop => stop());
     }, (error) => {
       setConnectionsError(error?.message || "Authentification indisponible");

@@ -79,24 +79,25 @@ export default function Login({ setUser }) {
     const label = isPublic ? "Accéder au concours en salle publique" : "Accéder au concours";
     if (canEnter) return <button type="button" className="group-entry-green" onClick={action} disabled={disabled || pending}
       style={{...greenButton,opacity:disabled || pending ? .55 : 1}}>{label}</button>;
-    return <div role="status" style={{padding:"15px 12px",borderRadius:13,
-      background:"linear-gradient(145deg,#192b50,#101b40)",border:"1px solid #d6b674",
-      color:"white",fontWeight:800,textAlign:"center"}}>
+    return <button type="button" className="group-entry-green group-entry-countdown" disabled
+      aria-label={connectionsError ? "Impossible de vérifier les connexions" : !connectionsLoaded ? "Connexion au serveur en cours" : remaining.total > 0 ? label + " dans " + remaining.days + " jours, " + remaining.hours + " heures, " + remaining.minutes + " minutes et " + remaining.seconds + " secondes" : "En attente de l’administrateur"}>
       {connectionsError ? "⚠️ Impossible de vérifier les connexions"
         : !connectionsLoaded ? "⏳ Connexion au serveur en cours…"
         : remaining.total > 0 ? <>
-          <div style={{fontFamily:"Georgia, serif",fontSize:"clamp(17px,4.8vw,23px)",color:"#fff0d0",marginBottom:14}}>{label} dans :</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:7,fontVariantNumeric:"tabular-nums"}}>
-            {[["Jours",remaining.days],["Heures",remaining.hours],["Min",remaining.minutes],["Sec",remaining.seconds]].map(([unit,value]) => (
-              <div key={unit} style={{padding:"10px 2px",border:"1px solid rgba(255,220,155,.65)",borderRadius:10,background:"rgba(8,11,34,.65)"}}>
-                <div style={{fontSize:"clamp(24px,7vw,39px)",color:"#fff0c2",lineHeight:1.2}}>{String(value).padStart(2,"0")}</div>
-                <div style={{fontSize:11,fontWeight:700,color:"#ffdb9b",marginTop:3}}>{unit}</div>
-              </div>
+          <span className="group-entry-countdown-label">{label} dans :</span>
+          <span className="group-entry-clock" aria-hidden="true">
+            {[["j",remaining.days],["h",remaining.hours],["min",remaining.minutes],["s",remaining.seconds]].map(([unit,value]) => (
+              <span key={unit} className="group-entry-clock-part">
+                <span className="group-entry-clock-number">{String(value).padStart(2,"0")}</span>
+                <span className="group-entry-clock-unit">{unit}</span>
+              </span>
             ))}
-          </div>
-          <div style={{fontSize:12,marginTop:12,fontWeight:600}}>Samedi 12 décembre · 20 h 40 (heure de Paris)</div>
-        </> : "⏳ En attente de l’ouverture du concours par l’administrateur"}
-    </div>;
+          </span>
+        </> : <>
+          <span className="group-entry-countdown-label">{label}</span>
+          <span className="group-entry-clock-wait">En attente de l’administrateur</span>
+        </>}
+    </button>;
   }
 
   async function loginAdmin() {
@@ -152,10 +153,26 @@ export default function Login({ setUser }) {
             box-shadow:0 0 12px rgba(39,131,255,.25)!important;font-size:16px;
           }
           .tv-login-shell .group-entry-panel button.group-entry-green {
-            background:linear-gradient(110deg,#003b26,#006f42,#009e63)!important;
-            color:#fff!important;border:2px solid #15ef98!important;
+            background:linear-gradient(135deg,#008743,#00c96b,#00a854)!important;
+            color:#fff!important;border:2px solid #46ff9b!important;
             box-shadow:0 0 9px #00e58a,0 0 20px rgba(0,235,137,.35)!important;font-size:16px;
           }
+          .tv-login-shell .group-entry-panel button.group-entry-countdown:disabled {
+            opacity:1!important;cursor:not-allowed;
+            min-height:90px;padding:15px 8px!important;
+            box-sizing:border-box;display:grid;gap:10px;align-content:center;
+            text-align:center;line-height:1.35;
+          }
+          .group-entry-countdown-label { display:block;color:#fff;font-size:16px;font-weight:800; }
+          .group-entry-clock {
+            display:flex;justify-content:center;align-items:baseline;gap:clamp(5px,2vw,13px);
+            white-space:nowrap;font-variant-numeric:tabular-nums;color:#ff2020;
+            text-shadow:0 1px 2px #002b17,0 0 1px #002b17;
+          }
+          .group-entry-clock-part {display:inline-flex;gap:2px;align-items:baseline;}
+          .group-entry-clock-number {font-size:clamp(21px,6.4vw,30px);font-weight:900;line-height:1.1;}
+          .group-entry-clock-unit {font-size:clamp(12px,3.5vw,16px);font-weight:800;}
+          .group-entry-clock-wait {font-size:13px;color:#fff;}
           .tv-login-shell .group-entry-panel button.group-entry-back {
             background:transparent!important;color:#c6d3ee!important;
             border:0!important;box-shadow:none!important;font-size:14px;

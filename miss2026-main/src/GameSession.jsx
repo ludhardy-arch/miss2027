@@ -4,9 +4,11 @@ import {AppContext} from "./context/AppContext";
 import {auth} from "./firebase";
 import Player from "./pages/Player";
 import Waiting from "./pages/Waiting";
+import ChatBubble from "./components/ChatBubble";
+const roomChat=body=>request("/chat",body);
 
 const API="https://miss2027-test-api.onrender.com";
-const errors={not_registered:"Inscription introuvable. Retourne à l’accueil.",game_changed:"La partie a été réinitialisée.",round_changed:"Le tour a changé.",votes_closed:"Les votes sont fermés.",invalid_vote:"Sélection non valide.",invalid_favorite:"Choisis ton coup de cœur parmi les 12 Miss.",already_voted:"Ton vote est déjà enregistré.",too_many_requests:"Trop de demandes. Réessaie dans un instant."};
+const errors={not_registered:"Inscription introuvable. Retourne à l’accueil.",game_changed:"La partie a été réinitialisée.",round_changed:"Le tour a changé.",votes_closed:"Les votes sont fermés.",invalid_vote:"Sélection non valide.",invalid_favorite:"Choisis ton coup de cœur parmi les 12 Miss.",already_voted:"Ton vote est déjà enregistré.",chat_blocked:"Ton accès au chat est bloqué.",invalid_message:"Message invalide (500 caractères maximum).",too_many_requests:"Trop de demandes. Réessaie dans un instant."};
 async function request(path,body){
  const user=auth.currentUser;
  if(window.location.origin!=="https://miss2027-test.onrender.com"||!user)throw Error("Session test indisponible.");

@@ -5,6 +5,7 @@ import {auth} from "./firebase";
 import Player from "./pages/Player";
 import Waiting from "./pages/Waiting";
 import ChatBubble from "./components/ChatBubble";
+import FinalShow from "./components/FinaleOverlay";
 const roomChat=body=>request("/chat",body);
 
 const API="https://miss2027-test-api.onrender.com";
@@ -46,7 +47,7 @@ export default function GameSession({user,setUser,waiting}){
    return()=>{alive.current=false;serial.current++;clearInterval(timer);document.removeEventListener("visibilitychange",visible);};
  },[user.uid,user.groupId,user.gameId]);
  // Refresh immediately whenever the national controls accessible to players change.
- useEffect(()=>{if(alive.current&&view&&national.tour!==view.tour)void refresh();},[national.tour]);
+ useEffect(()=>{if(alive.current&&view&&(national.tour!==view.tour||national.finaleStarted!==view.finaleStarted))void refresh();},[national.tour,national.finaleStarted]);
  async function vote(tour,selection,favorite){
    if(!view||failure)throw Error("Connexion en cours. Réessaie.");
    await request("/game/vote",{gameId:view.gameId,tour,selection,...(tour===1?{favorite}:{})});
@@ -56,6 +57,6 @@ export default function GameSession({user,setUser,waiting}){
  const context={...national,tour:view.tour,votesOpen:view.votesOpen&&!failure,adminSelections:view.adminSelections,gameId:view.gameId,players:{[user.pseudo]:view.ownVote},groupTrend:view.trend,updateFirstRoundWithFavorite:(_pseudo,selection,favorite)=>vote(1,selection,favorite),updatePlayerVote:(_pseudo,tour,selection)=>vote(tour,selection)};
  return <AppContext.Provider value={context}>
    {failure&&<p role="alert" style={{textAlign:"center",color:"#ffb3b3"}}>{failure} <button onClick={()=>void refresh()}>Réessayer</button></p>}
-   {view.finaleStarted?<main className="tv-page tv-show-v3"><h2>Le show final arrive !</h2><p>Les résultats multigroupes ne sont pas encore raccordés sur cette version test.</p><button onClick={leave}>Retour à l’accueil</button></main>:waiting?<Waiting user={user}/>:<Player user={user} setUser={setUser}/>}
+   {view.finaleStarted?(view.final?<FinalShow frozenRanking={view.final.local} national={view.final} groupName={view.group.name} showKey={"miss2027-show-"+view.final.version+"-"+user.uid}/>:<main className="tv-page tv-show-v3"><h2>Le show final arrive !</h2><p>Résultats en attente.</p><button onClick={()=>void refresh()}>Actualiser</button></main>):waiting?<Waiting user={user}/>:<Player user={user} setUser={setUser}/>}
  </AppContext.Provider>;
 }

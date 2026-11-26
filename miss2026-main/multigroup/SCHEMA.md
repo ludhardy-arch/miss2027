@@ -17,20 +17,20 @@ Sous events/{eventId} (identifiant immuable d'une édition/partie) :
 | groups/{groupId} | name, type private/public, ownerUid si privé, inscriptions ouvertes, capacité |
 | groupDirectory/{groupId} | nom affichable/recherchable si autorisé ; jamais d'adresse mail ni de secret |
 | groupMembers/{groupId}/{uid} | true, appartenance active |
-| playerGroups/{uid}/{groupId} | true, index inverse |
+| playerGroup/{uid} | groupId unique, index inverse (privé OU public) |
 | chats/{groupId}/{messageId} | uid, pseudo affiché, texte, date, état de modération |
 | results/{version}/groups/{groupId} | classement local figé, accès membres |
-| results/{version}/players/{uid} | score, rang national, total national, rangs par groupe |
+| results/{version}/players/{uid} | score, rang national, total national, identifiant et rang du groupe |
 | results/{version}/nationalTop | podium national et ex aequo, sans votes ni liste complète |
 | control/resultsVersion | version publiée, basculée après préparation complète des résultats |
 
 Les données de vérification des invitations et mots de passe de groupe doivent être séparées des données lisibles par les clients. Vérification côté serveur (hachage adapté aux mots de passe, limitation des tentatives, invitation révocable). Le mot de passe du compte créateur relève de Firebase Auth et ne doit jamais être enregistré en clair dans RTDB.
 
-Les index d'appartenance doivent être cohérents : écritures groupées par un service de confiance, avec allocation atomique des places publiques (30 maximum) et contrôle d'une seule salle publique par UID si cette règle est confirmée. La recherche ne doit pas divulguer les participants ni les secrets. Un même UID peut rejoindre plusieurs groupes privés. Pas de duplication des votes.
+Les index d'appartenance doivent être cohérents : écritures groupées par un service de confiance, avec allocation atomique des places publiques (30 maximum) et contrôle obligatoire d'un seul groupe par UID, privé ou public. La recherche ne doit pas divulguer les participants ni les secrets. Un UID ne peut appartenir qu'à un seul groupe. Pas de duplication des votes.
 
 ## Identité et droits
 
-- Anonyme : UID stable sur le navigateur tant que l'identité est conservée. Prévoir la persistance locale et le passage d'un lien d'invitation à l'autre sans recréer l'utilisateur. Aujourd'hui la persistance est par onglet.
+- Anonyme : UID stable sur le navigateur tant que l'identité est conservée. Prévoir la persistance locale et la reconnexion au même groupe sans recréer l'utilisateur. Aujourd'hui la persistance est par onglet.
 - Créateur : compte email/mot de passe. Si déjà anonyme, lier le compte ou prévoir une migration contrôlée, sans perdre ses votes.
 - Administrateur national : rôle vérifié côté serveur, distinct des créateurs.
 - Créateur : modération et gestion de ses membres, aucun accès aux votes des autres, au barème ou à la régie.
@@ -43,14 +43,13 @@ Une régie unique. À la fin, figer officiellement résultats, votes, éligibili
 
 Calcul et publication à effectuer par un backend de confiance, jamais en téléchargeant tous les votes nationaux chez chaque joueur. Publier les vues nécessaires et basculer resultsVersion une fois le calcul terminé. Prévoir reprise/idempotence du calcul. Une seule révélation nationale par session du show.
 
-Proposition UI, à valider : show local du groupe actif avec animations actuelles, résumé des résultats dans les autres groupes, puis rang national personnel et lauréat(s). Le groupe actif doit être choisi ou mémorisé avant le show; pas de vote à refaire. Pour un groupe seul, vide, ou ex aequo, prévoir scène adaptée. Ne pas rejouer automatiquement tout le show pour chaque groupe.
+Show local du groupe unique avec animations actuelles, puis rang national personnel et lauréat(s). Pour un groupe seul, vide, ou ex aequo, prévoir scène adaptée.
 
 ## Décisions encore ouvertes
 
 - Autorisation de rejoindre des groupes après début du vote (recommandation : figer les appartenances pour le classement avant ouverture du premier tour; à valider).
 - Éligibilité des inscrits n'ayant pas joué, votes partiels et départage final (le calculateur demande explicitement eligibleUids).
-- Nombre de groupes privés autorisés, visibilité dans la recherche, récupération des invités sur autre appareil.
-- Un seul groupe public par joueur : hypothèse retenue dans les tests, à confirmer.
+- Visibilité dans la recherche, récupération des invités sur autre appareil, changement éventuel de groupe avant le premier tour. Un seul groupe par joueur est validé.
 - Mise en place d'un backend de confiance, règles Firebase, authentification créateurs, déploiement, capacité et tests de charge.
 
 ## Test unitaire
@@ -58,3 +57,7 @@ Proposition UI, à valider : show local du groupe actif avec animations actuelle
 Depuis miss2026-main : node --test multigroup/finalResults.test.js
 
 Les tests ne contactent pas Firebase. La validation du moteur ne valide pas les règles, la concurrence des inscriptions, les droits, ni la compatibilité de l'interface.
+
+## Accueil — décision du 26 novembre
+
+Sans invitation : trois boutons uniquement, aucun champ pseudo initial. Accéder au concours en salle publique dans : + chrono, puis bouton vert dès ouverture par la régie. Rejoindre un groupe. Créer / Gérer son groupe. Pseudo uniquement après choix de jouer/rejoindre. Avec invitation : bienvenue dans le groupe (nom issu de la vérification serveur), pseudo, accès/chrono. Aucun bouton deuxième groupe. Le code de recherche et gestion et l'attribution effective du groupe doivent être raccordés au backend avant activation. Couronnes, instructions, démo et accès admin inchangés.

@@ -13,8 +13,7 @@ import {
 import Login from "./pages/Login";
 import Demo from "./pages/Demo";
 import Admin from "./pages/Admin";
-import Player from "./pages/Player";
-import Waiting from "./pages/Waiting";
+import GameSession from "./GameSession";
 
 import { AppContext } from "./context/AppContext";
 import FinaleOverlay from "./components/FinaleOverlay";
@@ -47,7 +46,7 @@ function RouterContent() {
         firebaseUser.isAnonymous || !import.meta.env.VITE_ADMIN_UID ||
         firebaseUser.uid !== import.meta.env.VITE_ADMIN_UID
       )) return null;
-      if (old.role === "player" && !firebaseUser.isAnonymous) return null;
+      if (old.role === "player" && (!old.groupId || !old.gameId || firebaseUser.uid===import.meta.env.VITE_ADMIN_UID)) return null;
       return old;
     });
     setAuthReady(true);
@@ -62,13 +61,6 @@ function RouterContent() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) {
-      const saved = sessionStorage.getItem("miss_user");
-      if (saved) setUser(JSON.parse(saved));
-    }
-  }, []);
-
-  useEffect(() => {
     if (!user) return;
 
     if (user.role === "admin" && location.pathname !== "/admin") {
@@ -76,7 +68,7 @@ function RouterContent() {
       return;
     }
 
-    if (user.role === "player" && location.pathname !== "/player") {
+    if (user.role === "player" && !["/player","/waiting"].includes(location.pathname)) {
       navigate("/player", { replace: true });
       return;
     }
@@ -99,7 +91,7 @@ function RouterContent() {
   }, [user, gameId, navigate]);
 
   const shouldShowFinale =
-    finaleStarted && user && location.pathname !== "/login";
+    false; // National multigroup result publication will be connected separately.
 
   // The interactive demo needs no Firebase identity and cannot mutate the game.
   if (location.pathname === "/demo") return <Demo />;
@@ -136,7 +128,7 @@ function RouterContent() {
           path="/player"
           element={
             user?.role === "player" ? (
-              <Player user={user} setUser={setUser} />
+              <GameSession user={user} setUser={setUser} waiting={false} />
             ) : (
               <Navigate to="/login" replace />
             )
@@ -146,7 +138,7 @@ function RouterContent() {
         <Route
           path="/waiting"
           element={
-            user ? <Waiting user={user} /> : <Navigate to="/login" replace />
+            user?.role==="player" ? <GameSession user={user} setUser={setUser} waiting={true} /> : <Navigate to="/login" replace />
           }
         />
 

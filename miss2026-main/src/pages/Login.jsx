@@ -140,7 +140,7 @@ export default function Login({ setUser }) {
   const notice = message => <p role="status" style={{margin:0,color:"#e0e8ff",fontSize:14,lineHeight:1.5}}>{message}</p>;
   const canEnter = connectionsLoaded && connectionsOpen && !connectionsError;
   function accessControl(isPublic, action, disabled=false) {
-    const label = isPublic ? "Accéder au concours en salle publique" : "Accéder au concours";
+    const label = isPublic ? "Accéder au groupe public" : "Accéder au concours";
     if (canEnter) return <button type="button" className="group-entry-green" onClick={action} disabled={disabled || pending}
       style={{...greenButton,opacity:disabled || pending ? .55 : 1}}>{label}</button>;
     return <button type="button" className="group-entry-green group-entry-countdown" disabled

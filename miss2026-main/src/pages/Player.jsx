@@ -27,6 +27,7 @@ export default function Player({ user, setUser }) {
     updateFirstRoundWithFavorite,
     players,
     gameId,
+    groupTrend,
   } = useContext(AppContext);
 
   const navigate = useNavigate();
@@ -86,8 +87,8 @@ export default function Player({ user, setUser }) {
   }, [hasVotedThisTour, navigate]);
 
   // Brouillons propres à cette partie, au joueur et au tour.
-  const draftKey = `miss2027_${gameId}_${tour === 3 ? "ranking" : "selection"}_tour${tour}_${user.pseudo}`;
-  const favoriteKey = `miss2027_${gameId}_favorite_tour1_${user.pseudo}`;
+  const draftKey = `miss2027_${gameId}_${tour === 3 ? "ranking" : "selection"}_tour${tour}_${user.uid}`;
+  const favoriteKey = `miss2027_${gameId}_favorite_tour1_${user.uid}`;
 
   // Charger le brouillon avant d'autoriser sa sauvegarde :
   // évite d'écraser des choix existants par l'état React initial vide.
@@ -105,12 +106,10 @@ export default function Player({ user, setUser }) {
     };
 
     if (tour === 3) {
-      const legacy = `miss2027_ranking_tour3_${user.pseudo}`;
-      const saved = readDraft(draftKey, readDraft(legacy, {}));
+      const saved = readDraft(draftKey, {});
       setRanking(saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {});
     } else {
-      const legacy = `miss2027_selection_tour${tour}_${user.pseudo}`;
-      const saved = readDraft(draftKey, readDraft(legacy, []));
+      const saved = readDraft(draftKey, []);
       const eligible = new Set(candidateIds);
       const valid = Array.isArray(saved)
         ? [...new Set(saved.map(Number))].filter(id => eligible.has(id)).slice(0, maxSelect)
@@ -215,13 +214,14 @@ export default function Player({ user, setUser }) {
       if (entry) ordered.push(Number(entry[0]));
     }
 
+    setVotePending(true);
     try {
       await updatePlayerVote(user.pseudo, 3, ordered);
       navigate("/waiting");
     } catch (error) {
       console.error("Échec enregistrement du vote :", error);
         alert(`Vote non enregistré (${error?.code || "erreur inconnue"}). ${error?.message || "Réessaie ou contacte l’administrateur."}`);
-    }
+    }finally{setVotePending(false);}
   };
 
   // Couleurs des choix du joueur, indépendamment des résultats officiels.
@@ -312,7 +312,7 @@ export default function Player({ user, setUser }) {
         </div>
       )}
 
-      <header className="tv-show-header"><span className="tv-kicker">✦ MISS FRANCE 2027 · LE GRAND SHOW ✦</span><span className="tv-live-pill">● PRONOSTICS EN DIRECT</span><h1>À VOUS DE JOUER</h1><p>Bienvenue <strong>{user.pseudo}</strong></p><div className="tv-tour-tag">{subtitle}</div></header>
+      <header className="tv-show-header"><span className="tv-kicker">✦ MISS FRANCE 2027 · LE GRAND SHOW ✦</span><span className="tv-live-pill">● PRONOSTICS EN DIRECT</span><h1>À VOUS DE JOUER</h1><p>Bienvenue <strong>{user.pseudo}</strong></p>{user.groupName&&<p>{user.groupName} · {groupTrend?.total||0} inscrits</p>}<div className="tv-tour-tag">{subtitle}</div></header>
 
       {/* ⭐ Bannière votes fermés */}
       {!votesOpen && (
@@ -534,8 +534,8 @@ export default function Player({ user, setUser }) {
         {voteFeedback && <p role="status" aria-live="polite" style={{ color: "#ffe4a0", padding: "8px", fontWeight: 700 }}>{voteFeedback}</p>}
       </div>
 
-      <Leaderboard />
-      <ChatBubble user={user} />
+      {!user.groupId&&<Leaderboard />}
+      {!user.groupId&&<ChatBubble user={user} />}
 
       {/* ⭐⭐ Bulle bleue sélection ⭐⭐ */}
       <SelectionBubble user={user} tour={tour} selection={selection} />

@@ -47,7 +47,7 @@ export default function GameSession({user,setUser,waiting}){
    return()=>{alive.current=false;serial.current++;clearInterval(timer);document.removeEventListener("visibilitychange",visible);};
  },[user.uid,user.groupId,user.gameId]);
  // Refresh immediately whenever the national controls accessible to players change.
- useEffect(()=>{if(alive.current&&view&&(national.tour!==view.tour||national.finaleStarted!==view.finaleStarted))void refresh();},[national.tour,national.finaleStarted]);
+ useEffect(()=>{if(alive.current&&view&&(national.tour!==view.tour||national.finaleStarted!==view.finaleStarted||national.votesOpen!==view.votesOpen))void refresh();},[national.tour,national.finaleStarted,national.votesOpen]);
  async function vote(tour,selection,favorite){
    if(!view||failure)throw Error("Connexion en cours. Réessaie.");
    await request("/game/vote",{gameId:view.gameId,tour,selection,...(tour===1?{favorite}:{})});

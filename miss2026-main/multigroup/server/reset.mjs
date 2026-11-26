@@ -2,7 +2,7 @@
 const without=(value,keys)=>Object.fromEntries(Object.entries(value||{}).filter(([key])=>!keys.includes(key)));
 const voteFields=["tour1","tour2","tour3","favorite","points","score","rank","ranking","results","votes"];
 const gameFields=["votes","results","nationalTop","leaderboard","scores","rankings"];
-const registrationFields=["registration","groups","groupDirectory","groupMembers","playerGroup","players","invitations","invites","groupSecrets","chats","chat",...gameFields];
+const registrationFields=["registration","groups","groupDirectory","groupMembers","playerGroup","players","invitations","invites","groupSecrets","chats","chat","chatModeration",...gameFields];
 const resetControl=(control,id)=>({...without(control,["resultsVersion","finalePhase","finaleStage","resultsPublished"]),gameId:id,tour:1,votesOpen:false,finaleStarted:false});
 const hasVotes=players=>Object.values(players||{}).some(p=>p&&["tour1","tour2","tour3","favorite","votes"].some(k=>p[k]!=null));
 export function resetContest(root,kind,id){

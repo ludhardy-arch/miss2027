@@ -94,6 +94,7 @@ export default function Admin({ user, setUser }) {
   const [resetFeedback,setResetFeedback]=useState("");
   const [ranking, setRanking] = useState({});
   const [savingFinalRanking, setSavingFinalRanking] = useState(false);
+  const [publishing,setPublishing]=useState(false);
   const [advancingTour, setAdvancingTour] = useState(false);
   const [votesExpanded, setVotesExpanded] = useState(false);
   const [rankExpanded, setRankExpanded] = useState(false);
@@ -176,6 +177,12 @@ export default function Admin({ user, setUser }) {
     savedFinalRanking.length === 5 &&
     finalRankingOrder.every((id, index) => id !== null && Number(savedFinalRanking[index]) === id);
 
+  async function launchShow(){
+    if(publishing||votesOpen||finaleStarted||!finalRankingValidated)return;
+    if(!window.confirm("Lancer définitivement le show pour toutes les salles ? Les résultats seront figés."))return;
+    setPublishing(true);
+    try{await adminRequest("/admin/finale",{gameId:String(gameId),confirmed:true});setNationalView(await adminRequest("/admin/game"));}catch(e){reportActionError(e);}finally{setPublishing(false);}
+  }
   const handleValidate = async () => {
     if (savingFinalRanking) return;
     if (tour === 3 && finalRankingValidated) return;
@@ -293,7 +300,7 @@ export default function Admin({ user, setUser }) {
     <div className="tv-page tv-admin-page tv-show-v3">
       <style>{votePulseKeyframes}</style>
 
-      {finaleStarted && <p role="status">Show national en préparation sur cette version test.</p>}
+      {finaleStarted && <p role="status">Show national lancé : résultats figés.</p>}
 
       <header className="regie-header">
         <div><span className="regie-eyebrow">♛ MISS FRANCE 2027</span><h1>RÉGIE DU DIRECT</h1><p>PILOTAGE DU CONCOURS <strong>TOUR {tour} / 3</strong></p></div>
@@ -329,9 +336,9 @@ export default function Admin({ user, setUser }) {
 
       <section className="regie-controls"><h2>COMMANDES DE LA RÉGIE</h2><div className="regie-control-grid">
         <button type="button" className={"regie-switch "+(connectionsOpen?"is-on":"is-off")} onClick={()=>safely(()=>updateConnectionsOpen(!connectionsOpen))}><span>⇥</span><b>CONNEXIONS</b><strong>{connectionsOpen?"ON":"OFF"}</strong></button>
-        <button type="button" className={"regie-switch "+(votesOpen?"is-on":"is-off")} onClick={()=>safely(()=>updateVotesOpen(!votesOpen))}><span>✉</span><b>VOTES</b><strong>{votesOpen?"ON":"OFF"}</strong></button>
+        <button type="button" className={"regie-switch "+(votesOpen?"is-on":"is-off")} disabled={finaleStarted} onClick={()=>safely(()=>updateVotesOpen(!votesOpen))}><span>✉</span><b>VOTES</b><strong>{votesOpen?"ON":"OFF"}</strong></button>
         <button type="button" disabled={!demoLoaded} className={"regie-switch "+(demoEnabled?"is-on":"is-off")} onClick={()=>safely(()=>updateDemoEnabled(!demoEnabled))}><span>▣</span><b>MODE DÉMO</b><strong>{!demoLoaded?"…":demoEnabled?"ON":"OFF"}</strong></button>
-        <button type="button" className="regie-show" disabled title="Publication multigroupes à raccorder"><span>♛</span><b>SHOW FINAL</b><strong>{finaleStarted?"SHOW LANCÉ":"LANCER LE SHOW"}</strong></button>
+        <button type="button" className="regie-show" disabled={publishing||votesOpen||finaleStarted||!finalRankingValidated} onClick={()=>void launchShow()}><span>♛</span><b>SHOW FINAL</b><strong>{finaleStarted?"SHOW LANCÉ":publishing?"PUBLICATION…":"LANCER LE SHOW"}</strong></button>
       </div></section>
 
       <div className="regie-info-grid">

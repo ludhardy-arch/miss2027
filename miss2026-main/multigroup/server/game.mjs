@@ -112,3 +112,11 @@ export function publishFinal(root,{gameId}){
  const next=stateWith(root,{...event,results});
  return {state:{...next,rooms:{...root.rooms,miss2027:{...room,votesOpen:false,connectionsOpen:false,finaleStarted:true}}},result:{accepted:true,total:results.nationalTotal}};
 }
+
+export function setVoteOpening(root,{gameId,open}){
+ const room=root?.rooms?.miss2027;
+ if(!room?.gameId||String(room.gameId)!==gameId)return fail("game_changed");
+ if(typeof open!=="boolean")return fail("invalid_action");
+ if(room.finaleStarted===true)return fail("game_finished");
+ return {state:{...root,rooms:{...root.rooms,miss2027:{...room,votesOpen:open,registrationLocked:room.registrationLocked===true||open}}},result:{votesOpen:open}};
+}

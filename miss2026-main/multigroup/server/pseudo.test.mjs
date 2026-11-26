@@ -11,11 +11,11 @@ test("pseudo uniqueness is global, case and accents ignored, while own name is a
  assert.equal(pseudoAvailable(s,"ludo","u1"),true);
  assert.equal(pseudoAvailable(s,"Ludo2","u2"),true);
  assert.equal(pseudoAvailable(s,"   ","u2"),false);
- assert.equal(createGroup(s,{...creator,uid:"u2",id:"g2",pseudo:"LUDO"}).code,"pseudo_taken");
+ assert.equal(createGroup(s,{...creator,uid:"u2",id:"g2",name:"Groupe 2",pseudo:"LUDO"}).code,"pseudo_taken");
  assert.equal(joinGroup(s,{uid:"u2",id:"g1",pseudo:"ludo",verifiedSecret:"hash",now:2}).code,"pseudo_taken");
  assert.equal(registerPublic(root,{uid:"u2",pseudo:"Ludo",now:2}).code,"pseudo_taken");
  const pub=registerPublic(root,{uid:"u2",pseudo:"Autre",now:2}).state;
- assert.equal(createGroup(pub.events.miss2027.registration,{...creator,uid:"u3",id:"g3",pseudo:"autre"}).code,"pseudo_taken");
+ assert.equal(createGroup(pub.events.miss2027.registration,{...creator,uid:"u3",id:"g3",name:"Groupe 3",pseudo:"autre"}).code,"pseudo_taken");
 });
 test("invited users cannot duplicate a pseudo; removing a member releases it",()=>{
  const digest="a".repeat(64);

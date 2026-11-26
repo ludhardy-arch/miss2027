@@ -31,7 +31,7 @@ function emailError(err){
   return err.message||"Opération impossible.";
 }
 
-const groupErrors={group_full:"Ce groupe est complet (30 participants maximum).",pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",owner_session_expired:"La session de gestion a expiré. Reconnecte-toi comme créateur.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",verified_email_required:"Vérifie de nouveau ton adresse e-mail avant de continuer.",owner_required:"Cette adresse e-mail n’est pas celle du créateur de ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
+const groupErrors={group_name_taken:"Nom du groupe déjà pris. Choisis-en un autre.",group_full:"Ce groupe est complet (30 participants maximum).",pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",owner_session_expired:"La session de gestion a expiré. Reconnecte-toi comme créateur.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",verified_email_required:"Vérifie de nouveau ton adresse e-mail avant de continuer.",owner_required:"Cette adresse e-mail n’est pas celle du créateur de ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
 async function groupRequest(path,body) {
   if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Ce service est réservé au site test.");
   const user=auth.currentUser;
@@ -94,6 +94,24 @@ export default function Login({ setUser }) {
     return()=>{active=false;clearTimeout(timer);};
   },[pseudoKey,pseudoRetry,firebaseIdentity]);
   const pseudoFeedback=()=>!pseudoStatus?null:<div aria-live="polite" style={{fontSize:13,fontWeight:600,color:pseudoStatus==="available"?"#78ffbd":pseudoStatus==="taken"||pseudoStatus==="error"?"#ff929a":"#c6d3ee"}}>{pseudoStatus==="available"?"✓ Pseudo disponible":pseudoStatus==="taken"?"✗ Pseudo déjà pris":pseudoStatus==="error"?<>Vérification indisponible. <button type="button" onClick={()=>setPseudoRetry(n=>n+1)} style={{fontSize:12,padding:"3px 8px"}}>Réessayer</button></>:"Vérification du pseudo…"}</div>;
+  const nameKey=screen==="create-group"&&creatorName.trim()?JSON.stringify([firebaseIdentity,gameId,creatorName.trim()]):"";
+  const [nameCheck,setNameCheck]=useState({key:"",status:""});
+  const [nameRetry,setNameRetry]=useState(0);
+  const nameStatus=!nameKey?"":nameCheck.key===nameKey?nameCheck.status:"checking";
+  const nameReady=nameStatus==="available";
+  useEffect(()=>{
+    if(!nameKey||!firebaseIdentity)return;
+    let active=true;
+    setNameCheck({key:nameKey,status:"checking"});
+    const timer=setTimeout(async()=>{
+      try{
+        const result=await groupRequest("/groups/name",{name:creatorName.trim()});
+        if(active)setNameCheck({key:nameKey,status:result.available===true?"available":"taken"});
+      }catch{if(active)setNameCheck({key:nameKey,status:"error"});}
+    },750);
+    return()=>{active=false;clearTimeout(timer);};
+  },[nameKey,nameRetry,firebaseIdentity]);
+  const nameFeedback=()=>!nameStatus?null:<div aria-live="polite" style={{fontSize:13,fontWeight:600,color:nameStatus==="available"?"#78ffbd":nameStatus==="taken"||nameStatus==="error"?"#ff929a":"#c6d3ee"}}>{nameStatus==="available"?"✓ Nom du groupe disponible":nameStatus==="taken"?"✗ Nom du groupe déjà pris":nameStatus==="error"?<>Vérification indisponible. <button type="button" onClick={()=>setNameRetry(n=>n+1)} style={{fontSize:12,padding:"3px 8px"}}>Réessayer</button></>:"Vérification du nom du groupe…"}</div>;
   const [adminUid, setAdminUid] = useState("");
   const [remaining, setRemaining] = useState(getRemainingTime);
   useEffect(() => {
@@ -226,7 +244,7 @@ export default function Login({ setUser }) {
   }
   async function requestCreatorEmail(event,intent){
     event.preventDefault();
-    if(pending||!creatorEmail.trim()||(intent==="create"&&!pseudoReady))return;
+    if(pending||!creatorEmail.trim()||(intent==="create"&&(!pseudoReady||!nameReady)))return;
     setPending(true);setError("");setEmailNotice("");setCreatorPassword("");
     try{
       if(intent==="create"&&auth.currentUser){
@@ -273,7 +291,7 @@ export default function Login({ setUser }) {
   },[emailLink]);
   async function createRealGroup(event){
     event.preventDefault();
-    if(!verifiedCreator||verifiedCreator.intent!=="create"||verifiedCreator.uid!==auth.currentUser?.uid||pending||!creatorName.trim()||!pseudoReady||creatorPassword.length<6)return;
+    if(!verifiedCreator||verifiedCreator.intent!=="create"||verifiedCreator.uid!==auth.currentUser?.uid||pending||!nameReady||!pseudoReady||creatorPassword.length<6)return;
     setPending(true);setError("");
     try{
       const result=await groupRequest("/groups/create",{name:creatorName.trim(),pseudo:creatorPseudo.trim(),password:creatorPassword});
@@ -536,6 +554,7 @@ export default function Login({ setUser }) {
           </label>
           <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Nom du groupe
             <input autoComplete="off" maxLength={80} required placeholder="Nom du groupe" value={creatorName} onChange={e=>setCreatorName(e.target.value)} disabled={pending} style={inputStyle}/>
+            {nameFeedback()}
           </label>
           <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton adresse e-mail
             <input type="email" autoComplete="email" required placeholder="exemple@example.com" value={creatorEmail} onChange={e=>setCreatorEmail(e.target.value)} readOnly={!!verifiedCreator} disabled={pending} style={inputStyle}/>
@@ -546,10 +565,10 @@ export default function Login({ setUser }) {
               <input type="password" autoComplete="new-password" minLength={6} maxLength={128} required placeholder="Mot de passe (6 caractères minimum)" value={creatorPassword} onChange={e=>setCreatorPassword(e.target.value)} disabled={pending} style={inputStyle}/>
             </label>
             <p style={{fontSize:12,color:"#c6d3ee",margin:0,lineHeight:1.5}}>Crée un mot de passe pour le groupe. N’utilise pas de mot de passe personnel.</p>
-            <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!creatorName.trim()||!pseudoReady||creatorPassword.length<6}>{pending?"Création…":"Créer mon groupe"}</button>
+            <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!nameReady||!pseudoReady||creatorPassword.length<6}>{pending?"Création…":"Créer mon groupe"}</button>
           </> : <>
             {notice("Vérifie d’abord ton e-mail pour protéger la gestion de ton groupe. Tu choisiras ensuite son mot de passe.")}
-            <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!creatorName.trim()||!pseudoReady||!creatorEmail.trim()}>{pending?"Envoi…":"Vérifier mon e-mail"}</button>
+            <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!nameReady||!pseudoReady||!creatorEmail.trim()}>{pending?"Envoi…":"Vérifier mon e-mail"}</button>
           </>}
           {emailNotice&&<p role="status" style={{margin:0,color:"#78ffbd",fontSize:14}}>{emailNotice}</p>}
           <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setVerifiedCreator(null);setCreatorPassword("");setEmailNotice("");openEntry("manage");}}>Retour</button>

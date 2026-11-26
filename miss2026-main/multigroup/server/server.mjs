@@ -45,17 +45,19 @@ async function matches(password,encoded) {
 function reply(res,status,body){res.writeHead(status,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});res.end(JSON.stringify(body));}
 async function body(req){
   if(!/^application\/json(?:;|$)/i.test(req.headers["content-type"]||""))throw Object.assign(Error("invalid_content_type"),{status:415});
-  let data="",size=0;
-  for await(const chunk of req){size+=chunk.length;if(size>8192)throw Object.assign(Error("payload_too_large"),{status:413});data+=chunk.toString("utf8");}
-  try{const parsed=JSON.parse(data);if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))throw Error();return parsed;}catch{throw Object.assign(Error("invalid_json"),{status:400});}
+  const chunks=[];let size=0;
+  for await(const chunk of req){size+=chunk.length;if(size>8192)throw Object.assign(Error("payload_too_large"),{status:413});chunks.push(chunk);}
+  try{const parsed=JSON.parse(Buffer.concat(chunks).toString("utf8"));if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))throw Error();return parsed;}catch{throw Object.assign(Error("invalid_json"),{status:400});}
 }
 async function atomic(operation){
   let outcome;
   const tx=await registry.transaction(current=>{
     outcome=operation(current);
-    return outcome.state;
+    // A first local snapshot can be null even when remote data exists. A no-op
+    // allows the server to detect conflicts and retry, without deleting state.
+    return outcome.state===undefined?current:outcome.state;
   },undefined,false);
-  if(!tx.committed)return {status:409,body:{error:outcome?.code||"conflict"}};
+  if(!tx.committed||outcome?.code)return {status:409,body:{error:outcome?.code||"conflict"}};
   return {status:200,body:outcome.result};
 }
 const server=http.createServer(async(req,res)=>{

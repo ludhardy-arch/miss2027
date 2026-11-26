@@ -4,7 +4,7 @@ import {promisify} from "node:util";
 import {initializeApp,cert} from "firebase-admin/app";
 import {getAuth} from "firebase-admin/auth";
 import {getDatabase} from "firebase-admin/database";
-import {createGroup,joinGroup,searchGroups,registerPublic,membershipView} from "./registration.mjs";
+import {createGroup,joinGroup,searchGroups,registerPublic,membershipView,pseudoAvailable,normalizePseudo} from "./registration.mjs";
 import {locked,ownerView,manageGroup,invitationView,acceptInvitation} from "./management.mjs";
 import {chatView,chatAction} from "./chat.mjs";
 import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
@@ -242,6 +242,12 @@ const server=http.createServer(async(req,res)=>{
         return reply(res,result.status,result.status===200&&token?{...result.body,token}:result.body);
       }
       return reply(res,405,{error:"method_not_allowed"});
+    }
+    if(req.method==="POST"&&url.pathname==="/groups/pseudo"){
+      const b=await body(req);
+      if(!validString(b.pseudo,1,24)||!normalizePseudo(b.pseudo))return reply(res,400,{error:"invalid_fields"});
+      const state=(await registry.get()).val();
+      return reply(res,200,{available:pseudoAvailable(state,b.pseudo,uid)});
     }
     if(req.method==="GET"&&url.pathname==="/groups/me"){
       const event=(await getDatabase(app).ref("events/miss2027").get()).val()||{};

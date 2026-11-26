@@ -236,7 +236,7 @@ export default function Login({ setUser }) {
       const draft={email:creatorEmail.trim(),name:creatorName.trim(),pseudo:creatorPseudo.trim(),intent,at:Date.now()};
       try{localStorage.setItem(CREATOR_DRAFT,JSON.stringify(draft));}catch{}
       await sendSignInLinkToEmail(auth,draft.email,{url:window.location.origin+"/?creatorFlow="+intent,handleCodeInApp:true});
-      setEmailNotice("Lien envoyé ! Ouvre le message Firebase dans ta boîte e-mail et clique sur le lien. Aucun groupe n’est encore créé.");
+      setEmailNotice("Clique sur le lien reçu par e-mail pour valider ton adresse.");
     }catch(err){setError(emailError(err));}
     finally{setPending(false);}
   }

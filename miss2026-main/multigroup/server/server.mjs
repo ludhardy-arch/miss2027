@@ -9,16 +9,22 @@ import {createGroup,joinGroup,searchGroups} from "./registration.mjs";
 const PROJECT="miss2027-test-v2";
 const DATABASE="https://miss2027-test-v2-default-rtdb.europe-west1.firebasedatabase.app";
 const ORIGIN="https://miss2027-test.onrender.com";
-if(process.env.ENABLE_TEST_REGISTRATION!=="true") {
+const registrationEnabled=process.env.ENABLE_TEST_REGISTRATION==="true";
+const diagnosticEnabled=process.env.ENABLE_TEST_FIREBASE_CHECK==="true";
+if(!registrationEnabled&&!diagnosticEnabled) {
   // Dormant service: never initializes Firebase or accepts registration requests.
   http.createServer((req,res)=>{
     res.writeHead(req.url==="/health"?200:503,{"Content-Type":"application/json","Cache-Control":"no-store"});
     res.end(JSON.stringify({testOnly:true,registrationEnabled:false}));
   }).listen(Number(process.env.PORT||3000),"0.0.0.0");
 } else {
-const credentials=JSON.parse(process.env.FIREBASE_TEST_SERVICE_ACCOUNT_JSON||"{}");
-if(credentials.project_id!==PROJECT || !credentials.client_email?.endsWith("@"+PROJECT+".iam.gserviceaccount.com")) throw Error("Only the test Firebase service account is allowed");
-const app=initializeApp({credential:cert(credentials),projectId:PROJECT,databaseURL:DATABASE});
+let credentials;
+try { credentials=JSON.parse(process.env.FIREBASE_TEST_SERVICE_ACCOUNT_JSON||"{}"); }
+catch { throw Error("Test Firebase credential is not valid JSON"); }
+if(credentials.project_id!==PROJECT || credentials.client_email!=="miss2027-test-api@"+PROJECT+".iam.gserviceaccount.com") throw Error("Only the dedicated test Firebase service account is allowed");
+let app;
+try { app=initializeApp({credential:cert(credentials),projectId:PROJECT,databaseURL:DATABASE}); }
+catch { throw Error("Test Firebase credential could not be initialized"); }
 const auth=getAuth(app);
 const registry=getDatabase(app).ref("events/miss2027/registration");
 const derive=promisify(scrypt);
@@ -66,10 +72,36 @@ async function atomic(operation){
   if(!tx.committed||outcome?.code)return {status:409,body:{error:outcome?.code||"conflict"}};
   return {status:200,body:outcome.result};
 }
+const readiness={auth:"pending",databaseRead:"pending",databaseWrite:"pending"};
+async function check(label,work){
+  let timer;
+  try {
+    await Promise.race([work(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error("timeout")),20000);})]);
+    readiness[label]="ok";
+  }catch{readiness[label]="failed";}
+  finally{clearTimeout(timer);}
+}
+async function verifyTestFirebase(){
+  await Promise.all([
+    check("auth",async()=>{await auth.listUsers(1);}),
+    check("databaseRead",async()=>{await registry.get();}),
+    check("databaseWrite",async()=>{
+      const ref=getDatabase(app).ref("_testDiagnostics/"+randomUUID());
+      try{
+        await ref.set({testOnly:true});
+        if((await ref.get()).val()?.testOnly!==true)throw Error("verification_failed");
+      }finally{await ref.remove();}
+    })
+  ]);
+  console.log("TEST_FIREBASE_CHECK "+JSON.stringify(readiness));
+}
+const ready=()=>Object.values(readiness).every(value=>value==="ok");
+void verifyTestFirebase();
 const server=http.createServer(async(req,res)=>{
   try {
     const url=new URL(req.url,"http://localhost");
-    if(url.pathname==="/health"&&req.method==="GET")return reply(res,200,{ok:true,testOnly:true});
+    if(url.pathname==="/health"&&req.method==="GET")return reply(res,ready()?200:503,{ok:ready(),testOnly:true,registrationEnabled:registrationEnabled&&ready(),firebase:readiness});
+    if(!registrationEnabled||!ready())return reply(res,503,{error:"test_registration_disabled"});
     if(req.headers.origin!==ORIGIN)return reply(res,403,{error:"origin_not_allowed"});
     res.setHeader("Access-Control-Allow-Origin",ORIGIN);
     res.setHeader("Vary","Origin");

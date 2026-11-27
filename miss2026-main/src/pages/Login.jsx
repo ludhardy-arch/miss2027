@@ -575,7 +575,6 @@ export default function Login({ setUser }) {
         </form>}
         {screen === "joined-group" && joinedGroup && <>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:21}}>Bienvenue {joinedGroup.pseudo} dans le groupe {joinedGroup.name} !</h2>
-          {notice("Tu es bien inscrit dans ce groupe sur la base de test, sous le pseudo "+joinedGroup.pseudo+".")}
           {joinedGroup.type==="public" && <p style={{margin:0,color:"#78ffbd",fontWeight:800}}>Salle publique · {joinedGroup.memberCount}/30 inscrits lors de ta connexion</p>}
           <section style={{padding:12,border:"1px solid #64a9ea",borderRadius:13,textAlign:"left"}}>
             <h3 style={{margin:"0 0 10px",color:"#ffe5ad"}}>Participants ({lobbyMembers.length}/30)</h3>

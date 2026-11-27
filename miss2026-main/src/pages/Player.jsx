@@ -364,11 +364,9 @@ export default function Player({ user, setUser }) {
               borderRadius:12,padding:"11px",marginTop:12,color:"#ffe4a9",
               fontSize:14,lineHeight:1.45,textAlign:"center",fontWeight:700
             }}>❤️ +20 points bonus si ton coup de cœur devient Miss France 2027.</div>
-            <div aria-live="polite" style={{marginTop:10,fontSize:13,color:"#ffd3e5",textAlign:"center",fontWeight:700}}>
-              {favorite && selection.includes(favorite)
-                ? `❤️ Ton coup de cœur : ${CANDIDATES.find(c => c.id === favorite)?.label || "Miss choisie"}`
-                : "♡ Un seul coup de cœur possible"}
-            </div>
+            {favorite && selection.includes(favorite) && <div aria-live="polite" style={{marginTop:10,fontSize:13,color:"#ffd3e5",textAlign:"center",fontWeight:700}}>
+              ❤️ Ton coup de cœur : {CANDIDATES.find(c => c.id === favorite)?.label || "Miss choisie"}
+            </div>}
           </section>
         )}
 

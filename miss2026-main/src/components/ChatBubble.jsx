@@ -1,4 +1,5 @@
  import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { database } from "../firebase";
 import { ref, push, onValue, get } from "firebase/database";
 
@@ -16,6 +17,9 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
   const [text, setText] = useState("");
   const [chatError, setChatError] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError,setSendError]=useState("");
+  const sendingRef=useRef(false);
+  const readVersion=useRef(0);
   const [unread, setUnread] = useState(0);
   const [chatBlocked, setChatBlocked] = useState(false);
 
@@ -80,8 +84,9 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
       if(!active||busy||document.visibilityState==="hidden")return;
       busy=true;
       try{
+        const version=readVersion.current;
         const data=await groupRequest();
-        if(!active)return;
+        if(!active||version!==readVersion.current)return;
         const next=data.messages||[],last=next.at(-1);
         if(lastMessageRef.current&&last&&last.id!==lastMessageRef.current&&!open&&last.uid!==user.uid)setUnread(u=>u+1);
         lastMessageRef.current=last?.id||null;setMessages(next);setChatBlocked(data.blocked===true);setChatError("");
@@ -102,18 +107,25 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
   // Envoi message
   const sendMessage = async () => {
     const message = text.trim();
-    if (!message || sending) return;
+    if (!message || sendingRef.current) return;
     if (!inDemo && chatBlocked) { setChatError("Ton accès à l’écriture dans le chat est bloqué par l’administrateur."); return; }
     if (message.length > 500) {
       setChatError("Message trop long (500 caractères maximum).");
       return;
     }
+    sendingRef.current=true;
     setSending(true);
-    setChatError("");
+    setSendError("");setChatError("");
     try {
       if (groupRequest) {
-        await groupRequest({text:message});
-        const data=await groupRequest();setMessages(data.messages||[]);setChatBlocked(data.blocked===true);setText("");return;
+        const result=await groupRequest({text:message});
+        if(result.accepted!==true)throw Error("Envoi non confirmé.");
+        readVersion.current++;
+        setText(current=>current===message||current.trim()===message?"":current);
+        try{
+          const data=await groupRequest();setMessages(data.messages||[]);setChatBlocked(data.blocked===true);
+        }catch(e){setChatError("Message envoyé. Actualisation en attente.");}
+        return;
       }
       if (inDemo && onDemoSend) { await onDemoSend(message);setText("");return; }
       if (inDemo) {setText("");return;}
@@ -128,13 +140,13 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
       });
       setText("");
     } catch (error) {
-      setChatError("Message non envoyé : " + (error?.code || error?.message));
+      setSendError("Envoi non confirmé : " + (error?.message || error?.code));
     } finally {
-      setSending(false);
+      sendingRef.current=false;setSending(false);
     }
   };
 
-  return (
+  return createPortal(
     <>
       {/* Bulle flottante */}
       <div
@@ -186,8 +198,8 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
             position: "fixed",
             bottom: 90,
             right: 20,
-            width: 260,
-            height: 330,
+            width: "min(340px, calc(100vw - 32px))",
+            height: "min(400px, 55dvh)",
             background: "rgba(10,10,20,0.95)",
             borderRadius: 12,
             boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
@@ -215,6 +227,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
           <div
             style={{
               flex: 1,
+              minHeight: 0,
               overflowY: "auto",
               padding: 10,
               display: "flex",
@@ -259,6 +272,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
             <div ref={messagesEndRef}></div>
           </div>
 
+          {sendError&&<p role="alert" style={{color:"#ffb3b3",padding:8,margin:0,fontSize:12}}>{sendError}</p>}
           {chatError && <p role="alert" style={{ color: "#ffb3b3", padding: 8, margin: 0, fontSize: 12 }}>{chatError}</p>}
           {chatBlocked && !inDemo && <p role="status" style={{color:"#ffd699",fontWeight:700,padding:"9px",margin:0,textAlign:"center"}}>🔇 Ton accès à l’écriture dans le chat a été bloqué par l’administrateur.</p>}
           {/* Input */}
@@ -272,11 +286,15 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
             <input
               value={text}
               onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+              onKeyDown={(e) => {if(e.key==="Enter"&&!e.nativeEvent.isComposing){e.preventDefault();void sendMessage();}}}
+              aria-label="Message à envoyer"
               placeholder={chatBlocked && !inDemo ? "Écriture bloquée" : "Écrire…"}
               disabled={chatBlocked && !inDemo}
               style={{
-                flex: 1,
+                flex: "1 1 0",
+                minWidth: 0,
+                width: 0,
+                fontSize: 16,
                 borderRadius: 6,
                 padding: 6,
                 border: "none",
@@ -284,10 +302,18 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
               }}
             />
             <button
+              type="button"
+              aria-label="Envoyer le message"
               onClick={sendMessage}
-              disabled={sending || (chatBlocked && !inDemo)}
+              disabled={sending || !text.trim() || (chatBlocked && !inDemo)}
               style={{
                 marginLeft: 6,
+                marginTop: 0,
+                width: 44,
+                minWidth: 44,
+                minHeight: 44,
+                flex: "0 0 44px",
+                boxShadow: "none",
                 background: "#ff4da6",
                 color: "white",
                 border: "none",
@@ -297,7 +323,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
                 cursor: "pointer",
               }}
             >
-              ➤
+              {sending?"…":"➤"}
             </button>
           </div>
         </div>
@@ -318,6 +344,6 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
         }
       `}
       </style>
-    </>
+    </>, document.body
   );
 }

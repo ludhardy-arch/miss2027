@@ -160,12 +160,14 @@ const server=http.createServer(async(req,res)=>{
       if(admin&&(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com"))return reply(res,403,{error:"admin_required"});
       if(req.method==="GET"){
         const view=chatView(await directRootRead(),{uid,admin,groupId:url.searchParams.get("groupId")});
+        if(view.code)console.log("TEST_CHAT_READ "+JSON.stringify({status:403,error:view.code,admin}));
         return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
       }
       if(req.method==="POST"){
         if(limited("chat:"+uid,12))return reply(res,429,{error:"too_many_requests"});
         const b=await body(req),id=randomUUID(),now=Date.now();
         const result=await directRootChange(root=>chatAction(root,{uid,admin,groupId:b.groupId,text:b.text,id,now,action:admin?b.action:"send",targetUid:admin?b.targetUid:undefined}));
+        console.log("TEST_CHAT_WRITE "+JSON.stringify({status:result.status,error:result.body?.error,admin,accepted:result.body?.accepted===true}));
         return reply(res,result.status,result.body);
       }
       return reply(res,405,{error:"method_not_allowed"});

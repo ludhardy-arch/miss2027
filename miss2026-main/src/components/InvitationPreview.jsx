@@ -1,6 +1,7 @@
 import React,{useEffect,useRef,useState} from "react";
 import {createPortal} from "react-dom";
 import "./InvitationPreview.css";
+import {createInvitationImage,invitationMessage,invitationText} from "./invitationImage.mjs";
 const channels=[
  {id:"sms",label:"SMS",color:"#259d50",symbol:"✉"},
  {id:"whatsapp",label:"WhatsApp",color:"#128c55",symbol:"☎"},
@@ -11,27 +12,38 @@ const channels=[
 export default function InvitationPreview({group,load,onClose}){
  const [card,setCard]=useState(null),[passwordRequired,setPasswordRequired]=useState(false),[password,setPassword]=useState("");
  const [busy,setBusy]=useState(true),[status,setStatus]=useState(""),[error,setError]=useState("");
+ const [imageFile,setImageFile]=useState(null),[imageNotice,setImageNotice]=useState("");
  const active=useRef(true),inFlight=useRef(false),panel=useRef(null),loadRef=useRef(load);loadRef.current=load;
  const count=Math.min(30,Math.max(0,Number(group.memberCount)||0)),remaining=30-count;
  const blocked=remaining===0||group.locked;
  async function getCard(pw){
-  if(inFlight.current)return;inFlight.current=true;setBusy(true);setError("");setStatus("");
-  try{const result=await loadRef.current(pw);if(active.current){setPasswordRequired(!!result.passwordRequired);setCard(result.passwordRequired?null:result);setPassword("");}}
+  if(inFlight.current)return;inFlight.current=true;setBusy(true);setError("");setStatus("");setImageFile(null);setImageNotice("");
+  try{
+   const result=await loadRef.current(pw);
+   if(active.current){setPasswordRequired(!!result.passwordRequired);setCard(result.passwordRequired?null:result);setPassword("");}
+   if(!result.passwordRequired){try{const file=await createInvitationImage({name:group.name,password:result.password});if(active.current)setImageFile(file);}catch{if(active.current)setImageNotice("Image indisponible : le partage du texte et du lien reste possible.");}}
+  }
   catch(e){if(active.current)setError(e.message||"Invitation indisponible.");}
   finally{inFlight.current=false;if(active.current)setBusy(false);}
  }
  useEffect(()=>{active.current=true;const previous=document.body.style.overflow;document.body.style.overflow="hidden";panel.current?.focus();if(!blocked)void getCard();else setBusy(false);
  return()=>{active.current=false;document.body.style.overflow=previous;};},[group.id]);
- const message=()=>["INVITATION À LA SOIRÉE MISS FRANCE 2027","Samedi 12 décembre à 21 h","Ouverture de la salle à 20 h 40","","Nom du groupe : "+group.name,"Mot de passe du groupe : "+card.password,"","JE REJOINS MES AMIS","Choisis ton pseudo et c’est parti !"].join("\n");
- const full=()=>message()+"\n"+card.link;
- async function copy(){
-  if(!card||blocked)return;
-  try{await navigator.clipboard.writeText(full());setStatus("Invitation copiée !");}
-  catch{setStatus("Copie manuellement le message ci-dessous.");}
+ const full=()=>invitationText(group.name,card.password,card.link);
+ const short=()=>invitationMessage(group.name,card.link);
+ function canShareImage(){
+  try{return !!(imageFile&&navigator.share&&navigator.canShare&&navigator.canShare({files:[imageFile]}));}catch{return false;}
  }
- function share(channel){
+ async function copy(linkOnly=false){
+  if(!card||blocked)return;
+  try{await navigator.clipboard.writeText(linkOnly?card.link:full());setStatus(linkOnly?"Lien copié !":"Invitation copiée !");}
+  catch{setStatus("Copie manuellement le message ou le lien ci-dessous.");}
+ }
+ function saveImage(){
+  if(!imageFile||blocked)return;
+  const url=URL.createObjectURL(imageFile),a=document.createElement("a");a.href=url;a.download=imageFile.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+ }
+ function shareText(channel){
   if(!card||blocked||busy)return;
-  setStatus("");
   const text=full(),enc=encodeURIComponent;
   if(channel==="sms"){
    const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
@@ -39,14 +51,23 @@ export default function InvitationPreview({group,load,onClose}){
   }
   if(channel==="whatsapp"){window.open("https://wa.me/?text="+enc(text),"_blank","noopener,noreferrer");return;}
   if(channel==="mail"){window.location.href="mailto:?subject="+enc("Invitation à la soirée Miss France 2027")+"&body="+enc(text);return;}
+  if(navigator.share){navigator.share({title:"Invitation à la soirée Miss France 2027",text}).catch(e=>{if(e.name!=="AbortError")setStatus("Partage indisponible. Copie l’invitation ci-dessous.");});}
+  else void copy();
+ }
+ function share(channel){
+  if(!card||blocked||busy)return;
+  setStatus("");
   if(channel==="facebook"&&!window.confirm("Cette invitation contient les accès du groupe. Partage-la uniquement avec tes amis, jamais en public. Continuer ?"))return;
-  if(navigator.share){
-    // The system decides which installed messaging applications and recipient pickers are available.
-    navigator.share({title:"Invitation à la soirée Miss France 2027",text:message(),url:card.link}).catch(e=>{if(e.name!=="AbortError"){setStatus("Le partage n’est pas disponible. Copie l’invitation, puis colle-la dans "+(channel==="facebook"?"Facebook":"Messenger")+".");}});
-  }else{
-    void copy();
-    setStatus("Copie l’invitation puis colle-la dans "+(channel==="facebook"?"Facebook":"Messenger")+".");
+  if(canShareImage()){
+   // Pre-rendered file: invoke directly in the user's tap, without awaiting a network request.
+   // The OS chooses the app; the website cannot force Messages or a specific contact.
+   const data={files:[imageFile],text:short()};
+   navigator.share(data).then(()=>{setStatus("Partage terminé. Vérifie que le lien accompagne bien l’image.");}).catch(e=>{
+    if(e.name!=="AbortError")setStatus("L’application n’a pas accepté le partage avec image. Utilise le partage texte ci-dessous, ou enregistre l’image et copie le lien.");
+   });
+   return;
   }
+  shareText(channel);
  }
  return createPortal(<div className="miss-invite-overlay"><section className="miss-invite-panel miss-invite-menu" role="dialog" aria-modal="true" aria-label="Inviter mes amis" tabIndex={-1} ref={panel} onKeyDown={e=>{if(e.key==="Escape")onClose();}}>
   <header className="miss-invite-top"><h2>Inviter mes amis</h2><button type="button" onClick={onClose} aria-label="Fermer">✕</button></header>
@@ -54,9 +75,11 @@ export default function InvitationPreview({group,load,onClose}){
   {group.locked&&<p className="miss-invite-error">Les inscriptions sont fermées.</p>}
   {busy&&!blocked&&<p role="status" className="miss-invite-hint">Préparation de l’invitation…</p>}
   {passwordRequired&&!blocked&&<form onSubmit={e=>{e.preventDefault();if(password.length>=6)void getCard(password);}}><p className="miss-invite-hint">Pour ce groupe créé avant la nouvelle invitation, confirme une seule fois son mot de passe.</p><input className="miss-invite-secret" type="password" aria-label="Mot de passe du groupe" autoComplete="off" autoCapitalize="none" minLength={6} maxLength={128} required value={password} onChange={e=>setPassword(e.target.value)} disabled={busy}/><button className="miss-invite-action" type="submit" disabled={busy||password.length<6}>Confirmer le mot de passe</button></form>}
+  {card&&!blocked&&!busy&&<p className="miss-invite-hint">{canShareImage()?"Invitation avec image : sélectionne l’application souhaitée dans le menu de partage de ton téléphone.":"Partage texte disponible. Le téléphone ne permet pas ici de joindre automatiquement une image."}</p>}
+  {imageNotice&&<p className="miss-invite-hint">{imageNotice}</p>}
   <div className="miss-invite-channels">{channels.map(ch=><button key={ch.id} className="miss-invite-channel" type="button" style={{background:ch.color}} disabled={!card||blocked||busy} onClick={()=>share(ch.id)}><span className="miss-invite-symbol" aria-hidden="true">{ch.symbol}</span><span>Inviter par {ch.label}</span><span aria-hidden="true">›</span></button>)}</div>
   {error&&<><p role="alert" className="miss-invite-error">{error}</p>{!passwordRequired&&!blocked&&<button type="button" className="miss-invite-secondary" disabled={busy} onClick={()=>void getCard()}>Réessayer</button>}</>}
-  {card&&!blocked&&<><button type="button" className="miss-invite-secondary" onClick={copy}>Copier l’invitation</button><details><summary>Message et lien à partager</summary><textarea readOnly value={full()} rows={9} aria-label="Invitation privée" onFocus={e=>e.target.select()}/></details></>}
+  {card&&!blocked&&!busy&&<><button type="button" className="miss-invite-secondary" onClick={()=>copy(true)}>Copier le lien</button><details><summary>Autres options de partage</summary>{imageFile&&<button type="button" className="miss-invite-secondary" onClick={saveImage}>Enregistrer l’image</button>}<button type="button" className="miss-invite-secondary" onClick={()=>shareText("sms")}>Envoyer par SMS sans image</button><button type="button" className="miss-invite-secondary" onClick={()=>copy()}>Copier le message complet</button><textarea readOnly value={full()} rows={7} aria-label="Invitation privée" onFocus={e=>e.target.select()}/></details></>}
   {status&&<p role="status" className="miss-invite-status">{status}</p>}
   <button type="button" className="miss-invite-cancel" onClick={onClose}>Annuler</button>
  </section></div>,document.body);

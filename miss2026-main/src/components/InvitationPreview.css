@@ -44,3 +44,5 @@
 .miss-invite-channel span:last-child{font-size:25px;text-align:right}
 .miss-invite-cancel{width:100%;margin-top:18px;padding:12px;background:transparent;border:0;color:#b6d0ff;font-size:15px;cursor:pointer}
 .miss-invite-secret{width:100%;margin:0 0 12px;border:1px solid #6689ba;border-radius:9px;padding:12px;font-size:16px;color:#fff;background:#0a1533}
+
+.miss-invite-menu .miss-invite-hint{margin:12px 0;color:#c4d9f5;font-size:13px;line-height:1.45}

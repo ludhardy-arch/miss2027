@@ -24,8 +24,10 @@ export function enterGame(root,{uid,now}){
 export function gameView(root,uid){
  const {room,event,group,entered}=context(root,uid);
  if(isExcluded(event.registration,uid))return fail("player_removed");
- if(!group||!entered)return fail("not_registered");
+ if(!group)return fail("not_registered");
  if(!room?.gameId)return fail("game_unavailable");
+ // Distinguish a verified membership without entry from missing/failed membership.
+ if(!entered)return fail("lobby_required");
  const tour=Number(room.tour||1), own=event.votes?.[uid]||{};
  const key="tour"+tour;
  const published=room.finaleStarted===true&&event.results?.gameId===String(room.gameId)?event.results:null;

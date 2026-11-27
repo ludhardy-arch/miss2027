@@ -3,7 +3,7 @@ const without=(value,keys)=>Object.fromEntries(Object.entries(value||{}).filter(
 const voteFields=["tour1","tour2","tour3","favorite","points","score","rank","ranking","results","votes"];
 const gameFields=["votes","results","nationalTop","leaderboard","scores","rankings"];
 const registrationFields=["registration","groups","groupDirectory","groupMembers","playerGroup","players","invitations","invites","groupSecrets","chats","chat","chatModeration","chatReports",...gameFields];
-const resetControl=(control,id)=>({...without(control,["resultsVersion","finalePhase","finaleStage","resultsPublished"]),gameId:id,tour:1,votesOpen:false,finaleStarted:false});
+const resetControl=(control,id)=>({...without(control,["resultsVersion","finalePhase","finaleStage","resultsPublished"]),gameId:id,tour:1,connectionsOpen:false,votesOpen:false,finaleStarted:false});
 const hasVotes=players=>Object.values(players||{}).some(p=>p&&["tour1","tour2","tour3","favorite","votes"].some(k=>p[k]!=null&&(typeof p[k]!=="object"||Object.keys(p[k]).length>0)));
 const count=value=>Object.keys(value||{}).length;
 export function registrationCounts(root){const e=root?.events?.miss2027||{},r=e.registration||{};return {groups:count(r.groups),players:count(r.membership),chats:count(e.chats),entered:count(e.players)};}
@@ -11,7 +11,7 @@ export function verifyReset(root,kind,id){
  const room=root?.rooms?.miss2027,e=root?.events?.miss2027||{};
  if(room?.gameId!==id)return false;
  if(kind==="registrations")return e.registration?.epoch===id&&Object.values(registrationCounts(root)).every(n=>n===0)&&!count(room.players)&&!count(room.chat)&&!count(e.invitations)&&!count(e.chatModeration)&&!count(e.chatReports);
- return room.tour===1&&room.votesOpen===false&&room.finaleStarted===false&&!count(e.votes)&&!Object.values(room.adminSelections||{}).some(v=>count(v))&&!hasVotes(room.players)&&!e.results;
+ return room.tour===1&&room.connectionsOpen===false&&room.votesOpen===false&&room.finaleStarted===false&&e.control?.connectionsOpen===false&&!count(e.players)&&!count(e.votes)&&!Object.values(room.adminSelections||{}).some(v=>count(v))&&!hasVotes(room.players)&&!e.results;
 }
 export function resetContest(root,kind,id){
   if(root!==null&&(!root||typeof root!=="object"||Array.isArray(root)))return {code:"room_not_initialized"};
@@ -23,8 +23,10 @@ export function resetContest(root,kind,id){
   const control=event.control||{};
   let newRoom,newEvent;
   if(kind==="game"){
-    newRoom={...without(room,gameFields),players:Object.fromEntries(Object.entries(room.players||{}).map(([key,p])=>[key,without(p,voteFields)])),adminSelections:{},tour:1,votesOpen:false,registrationLocked:false,finaleStarted:false,gameId:id};
-    newEvent={...without(event,[...gameFields,"officialSelections"]),control:resetControl(control,id)};
+    newRoom={...without(room,gameFields),players:Object.fromEntries(Object.entries(room.players||{}).map(([key,p])=>[key,without(p,voteFields)])),adminSelections:{},tour:1,connectionsOpen:false,votesOpen:false,registrationLocked:false,finaleStarted:false,gameId:id};
+    // The event.players registry is permission to enter this game, not group registration.
+    // Invalidate it only on an explicit game reset, in the same atomic write.
+    newEvent={...without(event,[...gameFields,"officialSelections","players"]),control:resetControl(control,id)};
   }else if(kind==="registrations"){
     // Do not erase participants from a live or completed round. Reset the game first.
     const reasons=[];

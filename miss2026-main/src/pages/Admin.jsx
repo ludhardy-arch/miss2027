@@ -161,7 +161,7 @@ export default function Admin({ user, setUser }) {
   const resetWord=resetKind==="game"?"JEU":"INSCRIPTIONS";
   async function confirmReset(){
     if(resetBusy||!resetKind||resetConfirmation!==resetWord)return;
-    if(!window.confirm(resetKind==="game"?"Dernière confirmation : effacer les votes et résultats, sans supprimer les inscriptions ?":"Dernière confirmation : supprimer tous les joueurs, groupes et invitations ?"))return;
+    if(!window.confirm(resetKind==="game"?"Dernière confirmation : effacer les votes et résultats, fermer les connexions et renvoyer les joueurs dans leur groupe, sans supprimer les inscriptions ?":"Dernière confirmation : supprimer tous les joueurs, groupes et invitations ?"))return;
     setResetBusy(true);setResetFeedback("");
     try{
       const current=auth.currentUser;
@@ -175,8 +175,8 @@ export default function Admin({ user, setUser }) {
         const messages={reset_not_verified:"Impossible de confirmer la suppression dans Firebase.",conflict:"Conflit de données : aucune confirmation de suppression.",reset_game_first:"Remets d’abord le jeu à zéro avant de supprimer les inscriptions.",admin_required:"Compte administrateur non autorisé.",room_not_initialized:"La régie n’est pas encore initialisée.",too_many_requests:"Réessaie dans une minute.",test_registration_disabled:"Serveur test indisponible."};
         throw Error((messages[result.error]||"Réinitialisation refusée.")+(why?" ("+why+")":""));
       }
-      if(result.kind!==resetKind||!result.gameId||result.verified!==true||(resetKind==="registrations"&&(result.remaining?.groups!==0||result.remaining?.players!==0)))throw Error("Réponse inattendue : vérifie les données avant de recommencer.");
-      setResetFeedback(resetKind==="game"?"Jeu remis à zéro. Joueurs et groupes conservés.":`${result.before?.groups??0} groupe(s) et ${result.before?.players??0} inscription(s) supprimés. Vérification Firebase : 0 groupe, 0 joueur.`);
+      if(result.kind!==resetKind||!result.gameId||result.verified!==true||(resetKind==="game"&&result.remaining?.entered!==0)||(resetKind==="registrations"&&(result.remaining?.groups!==0||result.remaining?.players!==0)))throw Error("Réponse inattendue : vérifie les données avant de recommencer.");
+      setResetFeedback(resetKind==="game"?"Jeu remis à zéro. Connexions fermées, joueurs renvoyés dans leur groupe. Inscriptions conservées.":`${result.before?.groups??0} groupe(s) et ${result.before?.players??0} inscription(s) supprimés. Vérification Firebase : 0 groupe, 0 joueur.`);
       setResetKind("");setResetConfirmation("");
       setNationalView(await adminRequest("/admin/game"));
     }catch(err){const message="Attention : "+(err.message||"réponse inconnue")+". Vérifie l’état du concours avant toute nouvelle tentative.";setResetFeedback(message);window.alert(message);}
@@ -463,7 +463,7 @@ export default function Admin({ user, setUser }) {
         <div style={{display:"grid",gap:12,marginTop:12}}>
           <div style={{border:"1px solid #dd9b48",borderRadius:12,padding:12,background:"rgba(172,106,28,.12)"}}>
             <button type="button" disabled={resetBusy} style={{width:"100%",background:"#986020",border:"1px solid #ffc87e",color:"#fff",fontWeight:800}} onClick={()=>{setResetKind("game");setResetConfirmation("");setResetFeedback("");}}>Remettre le jeu à zéro</button>
-            <p>Efface les votes, coups de cœur, sélections officielles et résultats. Retour au premier tour, votes fermés.</p>
+            <p>Efface les votes, coups de cœur, sélections officielles et résultats. Retour au premier tour, votes et connexions fermés. Les joueurs retournent dans leur groupe.</p>
             <p style={{color:"#8fffc1"}}>✓ Conserve les joueurs, les groupes, les invitations et le chat.</p>
           </div>
           <div style={{border:"1px solid #f26c77",borderRadius:12,padding:12,background:"rgba(160,40,65,.14)"}}>

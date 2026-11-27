@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {resetContest,verifyReset} from "./reset.mjs";
 import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal,setVoteOpening,setConnectionOpening,protectedControlChange} from "./game.mjs";
 const fixture=()=>({rooms:{miss2027:{gameId:"g1",connectionsOpen:true,votesOpen:true,tour:1,adminSelections:{}}},events:{miss2027:{registration:{groups:{a:{name:"A",members:{u1:{pseudo:"X"},u2:{pseudo:"Y"}}},b:{name:"B",members:{u3:{pseudo:"X"}}}},membership:{u1:"a",u2:"a",u3:"b"}}}}});
 const ballot={uid:"u1",gameId:"g1",tour:1,selection:Array.from({length:12},(_,i)=>i+1),favorite:1,now:2};
@@ -120,4 +121,31 @@ test("admin group directory contains public and private rooms without credential
  assert.deepEqual(view.groups,[{id:"g",name:"Poupoule",type:"private",memberCount:1,ownerPseudo:"Jen"},{id:"p",name:"Salle publique 1",type:"public",memberCount:0,ownerPseudo:null}]);
  assert.equal(JSON.stringify(view.groups).includes("hidden"),false);
  assert.equal(JSON.stringify(view.groups).includes("secret"),false);
+});
+
+test("reset returns all registered entrants to lobby; closing controls alone never ejects current entrants",()=>{
+ let r=enter(enter(enter(fixture(),"u1"),"u2"),"u3");
+ r=castVote(r,ballot).state;
+ r=setConnectionOpening(r,{gameId:"g1",open:false}).state;
+ assert.equal(gameView(r,"u1").result.ownVote.tour1.length,12);
+ assert.equal(gameView(r,"u2").result.gameId,"g1");
+ assert.equal(enterGame(r,{uid:"u1",now:2}).result.gameId,"g1");
+ const registration=structuredClone(r.events.miss2027.registration);
+ const fresh=resetContest(r,"game","g2").state;
+ assert.equal(verifyReset(fresh,"game","g2"),true);
+ assert.deepEqual(fresh.events.miss2027.registration,registration);
+ for(const uid of ["u1","u2","u3"]){
+  assert.equal(gameView(fresh,uid).code,"lobby_required");
+  assert.equal(enterGame(fresh,{uid,now:3}).code,"public_closed");
+  assert.equal(adminGameView(fresh).players[uid].entered,false);
+ }
+ assert.equal(gameView(fresh,"other").code,"not_registered");
+ assert.equal(castVote(fresh,ballot).code,"not_registered");
+ let opened=setConnectionOpening(fresh,{gameId:"g2",open:true}).state;
+ opened=enter(opened,"u1");
+ assert.deepEqual(gameView(opened,"u1").result.ownVote,{});
+ assert.equal(gameView(opened,"u2").code,"lobby_required");
+ opened=setConnectionOpening(opened,{gameId:"g2",open:false}).state;
+ assert.equal(gameView(JSON.parse(JSON.stringify(opened)),"u1").result.gameId,"g2");
+ assert.equal(gameView(opened,"u2").code,"lobby_required");
 });

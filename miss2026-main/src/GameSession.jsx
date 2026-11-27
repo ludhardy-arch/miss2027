@@ -37,6 +37,11 @@ export default function GameSession({user,setUser,waiting}){
      setView(data);setFailure("");
    }catch(e){
      if(!alive.current||seq!==serial.current)return;
+     if(e.code==="lobby_required"){
+       // The fresh authenticated server read confirms membership still exists,
+       // but the player has no entry authorization for this game. No logout.
+       setView(null);setUser(null);navigate("/login",{replace:true});return;
+     }
      if(e.code==="player_removed"){setView(null);setFailure(e.message);return;}
      if(e.code==="not_registered"){
        if(++missing.current>=2){setFailure("Inscription introuvable après vérification. Réessaie ou retourne volontairement à l’accueil.");}
@@ -55,7 +60,7 @@ export default function GameSession({user,setUser,waiting}){
    return()=>{alive.current=false;serial.current++;clearInterval(timer);document.removeEventListener("visibilitychange",visible);window.removeEventListener("online",visible);};
  },[user.uid,user.groupId,user.gameId]);
  // Refresh immediately whenever the national controls accessible to players change.
- useEffect(()=>{if(alive.current&&view&&(national.tour!==view.tour||national.finaleStarted!==view.finaleStarted||national.votesOpen!==view.votesOpen))void refresh();},[national.tour,national.finaleStarted,national.votesOpen]);
+ useEffect(()=>{if(alive.current&&view&&(national.tour!==view.tour||national.finaleStarted!==view.finaleStarted||national.votesOpen!==view.votesOpen||(national.gameId&&national.gameId!=="loading"&&national.gameId!==view.gameId)))void refresh();},[national.tour,national.finaleStarted,national.votesOpen,national.gameId]);
  async function vote(tour,selection,favorite){
    if(!view||failure)throw Error("Connexion en cours. Réessaie.");
    const result=await request("/game/vote",{gameId:view.gameId,tour,selection,...(tour===1?{favorite}:{})});

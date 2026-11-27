@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
 import {searchGroups,membershipView} from "./registration.mjs";
 const root={other:{keep:true},rooms:{other:{keep:true},miss2027:{tour:3,votesOpen:true,connectionsOpen:true,demoEnabled:false,finaleStarted:true,gameId:"old",players:{Alice:{uid:"u1",connected:true,chatBlocked:true,tour1:[1],favorite:1,score:20}},chat:{m:"hello"},adminSelections:{tour1:[1]}}},events:{miss2027:{registration:{groups:{g:{name:"Test",type:"private",registrationsOpen:true,members:{u1:{pseudo:"Alice"}}}},membership:{u1:"g"}},votes:{u1:{tour1:[1]}},results:{v:1},control:{tour:3,resultsVersion:"v",connectionsOpen:true,custom:1}}}};
-test("game reset preserves memberships, chat, flags and unrelated roots",()=>{
+test("game reset preserves memberships and chat, closes access and preserves unrelated roots",()=>{
  const r=resetContest(root,"game","new").state;
  assert.deepEqual(r.events.miss2027.registration,root.events.miss2027.registration);
  assert.deepEqual(r.rooms.miss2027.players,{Alice:{uid:"u1",connected:true,chatBlocked:true}});
  assert.deepEqual(r.rooms.miss2027.chat,root.rooms.miss2027.chat);
- assert.equal(r.rooms.miss2027.connectionsOpen,true);
+ assert.equal(r.rooms.miss2027.connectionsOpen,false);
+ assert.equal(r.events.miss2027.control.connectionsOpen,false);
  assert.equal(r.rooms.miss2027.demoEnabled,false);
  assert.equal(r.rooms.miss2027.tour,1);
  assert.equal(r.events.miss2027.results,undefined);
@@ -72,4 +73,20 @@ test("game reset keeps reports; registration reset clears them",()=>{
  const r=structuredClone(root);r.events.miss2027.chatReports={g:{m:{status:"pending"}}};
  const game=resetContest(r,"game","g").state;assert.deepEqual(game.events.miss2027.chatReports,r.events.miss2027.chatReports);
  const cleared=resetContest(game,"registrations","r").state;assert.equal(cleared.events.miss2027.chatReports,undefined);assert.equal(verifyReset(cleared,"registrations","r"),true);
+});
+
+test("game reset revokes only entry authorizations and verifies all entrants have returned to lobby",()=>{
+ const before=structuredClone(root);
+ const e=before.events.miss2027;e.players={u1:{groupId:"g",enteredAt:1}};e.chats={g:{m:{text:"hello"}}};e.chatModeration={u1:true};
+ const r=resetContest(before,"game","fresh").state;
+ assert.deepEqual(r.events.miss2027.registration,e.registration);
+ assert.deepEqual(r.events.miss2027.chats,e.chats);
+ assert.deepEqual(r.events.miss2027.chatModeration,e.chatModeration);
+ assert.deepEqual(registrationCounts(r),{groups:1,players:1,chats:1,entered:0});
+ assert.equal(verifyReset(r,"game","fresh"),true);
+ const stale=structuredClone(r);stale.events.miss2027.players=e.players;
+ assert.equal(verifyReset(stale,"game","fresh"),false);
+ stale.events.miss2027.players={};stale.rooms.miss2027.connectionsOpen=true;
+ assert.equal(verifyReset(stale,"game","fresh"),false);
+ assert.deepEqual(before.events.miss2027.players,e.players);
 });

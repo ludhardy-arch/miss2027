@@ -380,7 +380,7 @@ export default function Player({ user, setUser }) {
         <LegendItem colorClass="border-grey" text="Jamais sélectionnée" />
       </div>
 
-      <div className="tv-section-heading"><span>✦ LE CASTING · LES CANDIDATES</span><strong>{tour === 1 ? `${selection.length} / 12` : tour === 2 ? `${selection.length} / 5` : "CLASSEMENT FINAL"}</strong></div>
+      <div className="tv-section-heading" style={{justifyContent:"flex-end"}}><strong>{tour === 1 ? `${selection.length} / 12` : tour === 2 ? `${selection.length} / 5` : "CLASSEMENT FINAL"}</strong></div>
       {/* ⭐ Tours 1 & 2 */}
       {tour !== 3 && (
         <div className="grid">

@@ -37,6 +37,7 @@ export default function Player({ user, setUser }) {
     if (!window.confirm("Voulez-vous vraiment vous déconnecter ?")) return;
 
     // Keep anonymous Firebase identity so this browser can reclaim the pseudo.
+    sessionStorage.setItem("miss_manual_exit",user.uid);
     sessionStorage.removeItem("miss_user");
     setUser(null);
     navigate("/login", { replace: true });
@@ -392,7 +393,7 @@ export default function Player({ user, setUser }) {
             </div>
           </section>
         )}
-        <h3>◈ LE CODE COULEUR DU JEU</h3>
+
 
         <LegendItem colorClass="border-green" text={tour === 1 ? "Sélection des 12 Miss" : tour === 2 ? "Sélection des 5 Miss" : "Classement des 5 finalistes"} />
         {tour === 2 && <LegendItem colorClass="border-blue" text="Vous aviez déjà sélectionné cette Miss au premier tour." />}

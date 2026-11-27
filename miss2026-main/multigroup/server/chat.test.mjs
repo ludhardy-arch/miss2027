@@ -18,3 +18,12 @@ test("private warning and enforced block/unblock",()=>{
  r=chatAction(r,{uid:"admin",admin:true,groupId:"a",action:"unblock",targetUid:"u1"}).state;
  assert.equal(chatAction(r,{uid:"u1",text:"Yes",id:"m2",now:2}).result.accepted,true);
 });
+
+test("registered guests can chat before contest opening; removal revokes access",()=>{
+ const r=fixture();delete r.events.miss2027.players;
+ const sent=chatAction(r,{uid:"u1",text:"Salut",id:"early",now:1});assert.equal(sent.result.accepted,true);
+ assert.equal(chatView(sent.state,{uid:"u2"}).result.messages[0].text,"Salut");
+ assert.equal(chatView(sent.state,{uid:"u3"}).result.messages.length,0);
+ delete sent.state.events.miss2027.registration.membership.u2;
+ assert.equal(chatView(sent.state,{uid:"u2"}).code,"not_registered");
+});

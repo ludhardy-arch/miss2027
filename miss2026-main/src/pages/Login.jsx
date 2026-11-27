@@ -2,6 +2,7 @@ import React, { useContext, useState, useEffect, useRef } from "react";
 import { AppContext } from "../context/AppContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { auth } from "../firebase";
+import ChatBubble from "../components/ChatBubble";
 import { GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
  
 // 12 décembre 2026, 20 h 40 à Paris (heure d'hiver : UTC+1).
@@ -20,6 +21,7 @@ function getRemainingTime() {
 
 const GROUP_API="https://miss2027-test-api.onrender.com";
 const groupErrors={creation_not_verified:"La création du groupe n’a pas pu être confirmée. Réessaie de retrouver ton groupe.",group_name_taken:"Nom du groupe déjà pris. Choisis-en un autre.",group_full:"Ce groupe est complet (30 participants maximum).",pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",owner_required:"Seul le créateur reconnu sur son navigateur peut gérer ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
+const lobbyChat=body=>groupRequest("/chat",body);
 async function groupRequest(path,body) {
   if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Ce service est réservé au site test.");
   const user=auth.currentUser;
@@ -42,6 +44,9 @@ export default function Login({ setUser }) {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [groupPassword, setGroupPassword] = useState("");
   const [joinedGroup, setJoinedGroup] = useState(null);
+  const [lobbyMembers,setLobbyMembers]=useState([]);
+  const [lobbyError,setLobbyError]=useState("");
+  const restoredIdentity=useRef(null);
   const [firebaseIdentity,setFirebaseIdentity]=useState(null);
   const [recoverableGroup,setRecoverableGroup]=useState(null);
   const [recoveryStatus,setRecoveryStatus]=useState("idle");
@@ -127,7 +132,42 @@ export default function Login({ setUser }) {
   }, []);
 
   const searchGeneration=useRef(0);
-  useEffect(()=>{searchGeneration.current++;setGroupResults(null);setSelectedGroup(null);setRecoverableGroup(null);setJoinedGroup(null);setOwnerGroup(null);setInviteGroup(null);setInviteLink("");setEntryMode(mode=>["joined-group","join-group","creator-confirm","creator-dashboard"].includes(mode)?"home":mode);},[gameId]);
+  useEffect(()=>{searchGeneration.current++;setGroupResults(null);setSelectedGroup(null);},[gameId]);
+  useEffect(()=>{
+    if(!firebaseIdentity||firebaseIdentity===import.meta.env.VITE_ADMIN_UID||invitation||restoredIdentity.current===firebaseIdentity)return;
+    let active=true;
+    groupRequest("/groups/me").then(async result=>{
+      if(!active)return;
+      restoredIdentity.current=firebaseIdentity;
+      if(!result.group)return;
+      if(result.group.isOwner){
+        const owner=await groupRequest("/groups/owner/manage");
+        if(active){setOwnerGroup(owner.group);setEntryMode("creator-dashboard");}
+      }else{setJoinedGroup(result.group);setEntryMode("joined-group");}
+    }).catch(e=>{if(active)setError(e.message);});
+    return()=>{active=false;};
+  },[firebaseIdentity,invitation]);
+  const lobbyGroup=screen==="joined-group"?joinedGroup:["creator-confirm","creator-dashboard"].includes(screen)?ownerGroup:null;
+  useEffect(()=>{
+    if(!lobbyGroup?.id)return;
+    let active=true,busy=false;
+    async function poll(){
+      if(!active||busy||document.visibilityState==="hidden")return;
+      busy=true;
+      try{
+        const data=await groupRequest("/groups/me");
+        if(!active)return;
+        if(data.group?.id!==lobbyGroup.id){setJoinedGroup(null);setOwnerGroup(null);setEntryMode("home");setError("Ton inscription n’est plus active.");return;}
+        setLobbyMembers(data.members||[]);setLobbyError("");
+        if(data.group.isOwner)setOwnerGroup(old=>old?.id===data.group.id?{...old,...data.group,members:data.members||old.members}:old);
+        else setJoinedGroup(data.group);
+      }catch(e){if(active)setLobbyError(e.message);}
+      finally{busy=false;}
+    }
+    void poll();const timer=setInterval(poll,15000);
+    window.addEventListener("online",poll);document.addEventListener("visibilitychange",poll);
+    return()=>{active=false;clearInterval(timer);window.removeEventListener("online",poll);document.removeEventListener("visibilitychange",poll);};
+  },[lobbyGroup?.id,firebaseIdentity]);
   // Recover from Firebase, not a cached group name or a pseudo. Do not redirect
   // automatically: the owner must remain free to manage the group or open the demo.
   useEffect(()=>{
@@ -246,6 +286,7 @@ export default function Login({ setUser }) {
     try{
       const result=await groupRequest("/groups/create",{name:creatorName.trim(),pseudo:creatorPseudo.trim(),password:creatorPassword});
       if(!result.group?.isOwner||result.group.id!==result.id)throw Error("Création non confirmée par le serveur. Essaie de retrouver ton groupe.");
+      restoredIdentity.current=firebaseIdentity;
       setOwnerGroup(result.group);
       setEntryMode("creator-confirm");
     }catch(err){
@@ -293,6 +334,7 @@ export default function Login({ setUser }) {
       const result=await groupRequest("/game/enter",{});
       const uid=auth.currentUser?.uid;
       if(!uid||!result.group?.id||!result.gameId)throw Error("Entrée dans le concours non confirmée.");
+      sessionStorage.removeItem("miss_manual_exit");
       setUser({role:"player",uid,pseudo:result.group.pseudo,groupId:result.group.id,groupName:result.group.name,gameId:result.gameId});
       navigate("/player",{replace:true});
     }catch(err){setError(err.message||"Accès impossible.");}
@@ -315,7 +357,7 @@ export default function Login({ setUser }) {
   const notice = message => <p role="status" style={{margin:0,color:"#e0e8ff",fontSize:14,lineHeight:1.5}}>{message}</p>;
   const canEnter = connectionsLoaded && connectionsOpen && !connectionsError;
   function accessControl(isPublic, action, disabled=false, resume=false) {
-    const label = isPublic ? "Accéder au groupe public" : "Accéder au concours";
+    const label = isPublic ? "Rejoindre un groupe public" : "Accéder au concours";
     if (canEnter || (resume && connectionsLoaded && !connectionsError)) return <button type="button" className="group-entry-green" onClick={action} disabled={disabled || pending}
       style={{...greenButton,opacity:disabled || pending ? .55 : 1}}>{label}</button>;
     return <button type="button" className="group-entry-green group-entry-countdown" disabled
@@ -393,10 +435,11 @@ export default function Login({ setUser }) {
             <span style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.5 }}>{item.text}</span>
           </div>
         ))}
-        <div style={{ textAlign: "center", margin: "8px 5px 10px", padding: "10px 8px", color: "#ffe6b3", fontWeight: 700, fontSize: 15, lineHeight: 1.4 }}>
-          👑 Et pour finir : le show final pour découvrir les résultats !
+        <div style={{textAlign:"center",padding:"17px 12px",margin:"12px 0",borderRadius:14,border:"1px solid #d6aa65",background:"linear-gradient(135deg,#493054,#261b38)",color:"#ffe6b3"}}>
+          <div style={{fontSize:24}}>👑</div><strong style={{fontSize:19,letterSpacing:".04em"}}>LE SHOW FINAL</strong>
+          <p style={{fontSize:14,lineHeight:1.5,margin:"6px 0 0"}}>Découvre ton classement juste après l’élection de Miss France !</p>
         </div>
-        <p style={{ color: "#ffd49c", margin: "17px 7px 5px", fontSize: 14 }}>✨ Attends l'ouverture des votes à chaque tour.</p>
+        <div style={{display:"flex",alignItems:"center",gap:10,textAlign:"left",borderTop:"1px solid #755581",padding:"12px 4px 2px",color:"#f4d6ee",fontSize:14,lineHeight:1.5}}><span style={{fontSize:23}}>⏳</span><span>À chaque tour, attends l’ouverture des votes pour valider tes choix.</span></div>
       </section>
         </div>
       </div>
@@ -451,7 +494,7 @@ export default function Login({ setUser }) {
           ) : recoveryStatus==="failed" ? (
             <button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={recoverGroup}>Vérifier mon inscription</button>
           ) : (
-            <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||recoveryStatus==="loading"} onClick={() => openEntry("join")}>Rejoindre un groupe</button>
+            <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||recoveryStatus==="loading"} onClick={() => openEntry("join")}>Rejoindre mon groupe d’amis ou de famille</button>
           )}
           <button type="button" className="group-entry-blue" style={entryButton} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>
         </>}
@@ -492,6 +535,10 @@ export default function Login({ setUser }) {
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:21}}>Bienvenue dans {joinedGroup.name} !</h2>
           {notice("Tu es bien inscrit dans ce groupe sur la base de test, sous le pseudo "+joinedGroup.pseudo+".")}
           {joinedGroup.type==="public" && <p style={{margin:0,color:"#78ffbd",fontWeight:800}}>Salle publique · {joinedGroup.memberCount}/30 inscrits lors de ta connexion</p>}
+          <section style={{padding:12,border:"1px solid #64a9ea",borderRadius:13,textAlign:"left"}}>
+            <h3 style={{margin:"0 0 10px",color:"#ffe5ad"}}>Participants ({lobbyMembers.length}/30)</h3>
+            {lobbyMembers.map(member=><div key={member.pseudo} style={{padding:"7px 0",color:"#e0e8ff"}}>{member.pseudo}{member.isOwner?" · Créateur":""}</div>)}
+          </section>
           {accessControl(false,enterContest,false,joinedGroup.entered===true)}
           {joinedGroup.isOwner&&<button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={()=>startCreatorFlow("creator-login")}>Gérer mon groupe</button>}
         </>}
@@ -538,6 +585,8 @@ export default function Login({ setUser }) {
             </section>
           </>}
         </>}
+        {lobbyGroup&&firebaseIdentity&&<ChatBubble key={lobbyGroup.id} user={{uid:firebaseIdentity,pseudo:lobbyGroup.pseudo}} groupRequest={lobbyChat} groupName={lobbyGroup.name}/>}
+        {lobbyGroup&&lobbyError&&<p role="alert" style={{color:"#ffd0cf"}}>{lobbyError}</p>}
         {screen !== "home" && <button type="button" className="group-entry-back" disabled={pending} onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}
         {error && <p role="alert" style={{color:"#ffd0cf",margin:0}}>{error}</p>}
         {adminUid && <p>Ton UID Firebase : <code>{adminUid}</code> — à renseigner dans Render et dans les règles Firebase.</p>}

@@ -25,13 +25,14 @@ export default function GameSession({user,setUser,waiting}){
  const national=useContext(AppContext),navigate=useNavigate();
  const [view,setView]=useState(null),[failure,setFailure]=useState("");
  const serial=useRef(0),alive=useRef(false);
- const leave=()=>{setUser(null);navigate("/login",{replace:true});};
+ const leave=()=>{sessionStorage.setItem("miss_manual_exit",user.uid);setUser(null);navigate("/login",{replace:true});};
  async function refresh(){
    const seq=++serial.current;
    try{
      const data=await request("/game/state");
      if(!alive.current||seq!==serial.current)return;
-     if(data.group?.id!==user.groupId||data.gameId!==user.gameId){leave();return;}
+     if(data.group?.id!==user.groupId){leave();return;}
+     if(data.gameId!==user.gameId){setView(null);setUser(old=>({...old,gameId:data.gameId}));return;}
      setView(data);setFailure("");
    }catch(e){
      if(!alive.current||seq!==serial.current)return;
@@ -44,7 +45,8 @@ export default function GameSession({user,setUser,waiting}){
    const timer=setInterval(()=>{if(document.visibilityState!=="hidden")void refresh();},20000);
    const visible=()=>{if(document.visibilityState==="visible")void refresh();};
    document.addEventListener("visibilitychange",visible);
-   return()=>{alive.current=false;serial.current++;clearInterval(timer);document.removeEventListener("visibilitychange",visible);};
+   window.addEventListener("online",visible);
+   return()=>{alive.current=false;serial.current++;clearInterval(timer);document.removeEventListener("visibilitychange",visible);window.removeEventListener("online",visible);};
  },[user.uid,user.groupId,user.gameId]);
  // Refresh immediately whenever the national controls accessible to players change.
  useEffect(()=>{if(alive.current&&view&&(national.tour!==view.tour||national.finaleStarted!==view.finaleStarted||national.votesOpen!==view.votesOpen))void refresh();},[national.tour,national.finaleStarted,national.votesOpen]);

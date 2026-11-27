@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
-import { initializeAuth, browserSessionPersistence, browserPopupRedirectResolver } from "firebase/auth";
+import { initializeAuth, browserLocalPersistence, browserSessionPersistence, browserPopupRedirectResolver } from "firebase/auth";
 
 // Test branch: no production fallback. Configure a separate Firebase project in Render.
 const firebaseConfig = {
@@ -36,7 +36,7 @@ export const database = getDatabase(app);
 // Independent Firebase session in each browser tab. It survives a refresh,
 // but is not shared as a permanent login between tabs.
 export const auth = initializeAuth(app, {
-  persistence: browserSessionPersistence,
+  persistence: [browserLocalPersistence, browserSessionPersistence],
   popupRedirectResolver: browserPopupRedirectResolver,
 });
 

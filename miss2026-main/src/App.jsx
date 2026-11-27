@@ -39,29 +39,48 @@ function RouterContent() {
   });
 
   const [authReady, setAuthReady] = useState(false);
-  useEffect(() => onAuthStateChanged(auth, firebaseUser => {
-    setUser(old => {
-      if (!firebaseUser || !old || old.uid !== firebaseUser.uid) return null;
-      if (old.role === "admin" && (
-        firebaseUser.isAnonymous || !import.meta.env.VITE_ADMIN_UID ||
-        firebaseUser.uid !== import.meta.env.VITE_ADMIN_UID
-      )) return null;
-      if (old.role === "player" && (!old.groupId || !old.gameId || firebaseUser.uid===import.meta.env.VITE_ADMIN_UID)) return null;
-      return old;
+  const [recoveryError,setRecoveryError]=useState("");
+  const [retry,setRetry]=useState(0);
+  useEffect(()=>{
+    let active=true,seq=0;
+    const stop=onAuthStateChanged(auth,async firebaseUser=>{
+      const n=++seq;
+      setRecoveryError("");setAuthReady(false);
+      if(!firebaseUser){setUser(null);setAuthReady(true);return;}
+      if(firebaseUser.uid===import.meta.env.VITE_ADMIN_UID){
+        setUser(old=>old?.role==="admin"&&old.uid===firebaseUser.uid&&!firebaseUser.isAnonymous?old:null);
+        setAuthReady(true);return;
+      }
+      try{
+        if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Origine test invalide.");
+        const token=await firebaseUser.getIdToken();
+        const res=await fetch("https://miss2027-test-api.onrender.com/groups/me",{headers:{Authorization:"Bearer "+token},cache:"no-store",signal:AbortSignal.timeout(45000)});
+        if(!res.ok)throw Error("Reconnexion temporairement indisponible.");
+        const data=await res.json();
+        if(!active||seq!==n||auth.currentUser?.uid!==firebaseUser.uid)return;
+        const manual=sessionStorage.getItem("miss_manual_exit")===firebaseUser.uid;
+        if(data.group?.entered&&data.gameId&&!manual){
+          setUser({role:"player",uid:firebaseUser.uid,pseudo:data.group.pseudo,groupId:data.group.id,groupName:data.group.name,gameId:data.gameId});
+        }else setUser(null);
+        setAuthReady(true);
+      }catch(e){
+        if(active&&seq===n){setRecoveryError(e.message||"Reconnexion indisponible.");}
+      }
     });
-    setAuthReady(true);
-  }), []);
+    return()=>{active=false;stop();};
+  },[retry]);
   const { finaleStarted, players, adminSelections, gameId } = useContext(AppContext);
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
+    if (!authReady) return;
     if (user) sessionStorage.setItem("miss_user", JSON.stringify(user));
     else sessionStorage.removeItem("miss_user");
-  }, [user]);
+  }, [user,authReady]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!authReady||!user) return;
 
     if (user.role === "admin" && location.pathname !== "/admin") {
       navigate("/admin", { replace: true });
@@ -72,23 +91,7 @@ function RouterContent() {
       navigate("/player", { replace: true });
       return;
     }
-  }, [user]);
-
-  // A new game ID means the administrator reset the contest. Every player,
-  // including on another phone, must leave the old session and start fresh.
-  useEffect(() => {
-    if (!user || user.role !== "player" || !gameId || gameId === "loading") return;
-    if (!user.gameId) {
-      setUser(old => old?.role === "player" && !old.gameId ? { ...old, gameId } : old);
-      return;
-    }
-    if (String(user.gameId) !== String(gameId)) {
-      Object.keys(localStorage).filter(key => /^miss2027_(?:selection_|ranking_|[^_]+_(?:selection_|ranking_))/.test(key)).forEach(key => localStorage.removeItem(key));
-      sessionStorage.removeItem("miss_user");
-      setUser(null);
-      navigate("/login", { replace: true });
-    }
-  }, [user, gameId, navigate]);
+  }, [user,authReady]);
 
   const shouldShowFinale =
     false; // National multigroup result publication will be connected separately.
@@ -96,7 +99,7 @@ function RouterContent() {
   // The interactive demo needs no Firebase identity and cannot mutate the game.
   if (location.pathname === "/demo") return <Demo />;
 
-  if (!authReady) return <p>Connexion en cours…</p>;
+  if (!authReady) return <main className="tv-page"><p role="status">{recoveryError||"Récupération de ta session…"}</p>{recoveryError&&<button onClick={()=>setRetry(n=>n+1)}>Réessayer</button>}</main>;
 
   return (
     <>

@@ -57,6 +57,8 @@ export function createGroup(state,{uid,id,name,pseudo,secret,now}) {
 export function joinGroup(state,{uid,id,pseudo,verifiedSecret,now}) {
   const s=state||{};
   const g=s.groups?.[id];
+  const existing=membershipView(s,uid);
+  if(existing?.id===id)return {state:s,result:{id,name:g.name,group:existing,alreadyRegistered:true}};
   if(s.membership?.[uid])return fail("already_member");
   if(!g||g.type==="public")return fail("unavailable");
   if(g.secret!==verifiedSecret)return fail("invalid_password");

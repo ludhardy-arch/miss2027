@@ -84,3 +84,12 @@ test("registration lock survives closing the first vote window",()=>{
  assert.equal(closed.state.rooms.miss2027.votesOpen,false);
  assert.equal(setVoteOpening(root,{gameId:"old",open:true}).code,"game_changed");
 });
+
+test("fresh server reads restore every saved ballot after disconnect; reset does not accept stale votes",()=>{
+ let r=enter(fixture(),"u1");r=castVote(r,ballot).state;
+ let restored=gameView(JSON.parse(JSON.stringify(r)),"u1").result;assert.deepEqual(restored.ownVote.tour1,ballot.selection);assert.equal(restored.ownVote.favorite,1);
+ r.rooms.miss2027.tour=2;r.rooms.miss2027.adminSelections.tour1=ballot.selection;r=castVote(r,{...ballot,tour:2,selection:[1,2,3,4,5]}).state;
+ r.rooms.miss2027.tour=3;r.rooms.miss2027.adminSelections.tour2=[1,2,3,4,5];r=castVote(r,{...ballot,tour:3,selection:[5,4,3,2,1]}).state;
+ restored=gameView(JSON.parse(JSON.stringify(r)),"u1").result;assert.deepEqual(restored.ownVote.tour2,[1,2,3,4,5]);assert.deepEqual(restored.ownVote.tour3,[5,4,3,2,1]);assert.equal(restored.ownVote.favorite,1);
+ r.rooms.miss2027.gameId="new";assert.equal(castVote(r,ballot).code,"game_changed");
+});

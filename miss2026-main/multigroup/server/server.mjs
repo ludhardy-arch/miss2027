@@ -159,14 +159,13 @@ const server=http.createServer(async(req,res)=>{
       const admin=url.pathname==="/admin/chat";
       if(admin&&(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com"))return reply(res,403,{error:"admin_required"});
       if(req.method==="GET"){
-        const snapshot=await getDatabase(app).ref("events/miss2027").get();
-        const view=chatView({events:{miss2027:snapshot.val()}},{uid,admin,groupId:url.searchParams.get("groupId")});
+        const view=chatView(await directRootRead(),{uid,admin,groupId:url.searchParams.get("groupId")});
         return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
       }
       if(req.method==="POST"){
         if(limited("chat:"+uid,12))return reply(res,429,{error:"too_many_requests"});
         const b=await body(req),id=randomUUID(),now=Date.now();
-        const result=await atomic(root=>chatAction(root,{uid,admin,groupId:b.groupId,text:b.text,id,now,action:admin?b.action:"send",targetUid:admin?b.targetUid:undefined}),getDatabase(app).ref());
+        const result=await directRootChange(root=>chatAction(root,{uid,admin,groupId:b.groupId,text:b.text,id,now,action:admin?b.action:"send",targetUid:admin?b.targetUid:undefined}));
         return reply(res,result.status,result.body);
       }
       return reply(res,405,{error:"method_not_allowed"});
@@ -208,17 +207,17 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==="POST"&&url.pathname==="/game/enter"){
       if(uid==="fma5bvfcCRYoS1kBf0CUFdBVowJ3")return reply(res,403,{error:"admin_cannot_register"});
       const now=Date.now();
-      const result=await atomic(root=>enterGame(root,{uid,now}),getDatabase(app).ref());
+      const result=await directRootChange(root=>enterGame(root,{uid,now}));
       return reply(res,result.status,result.body);
     }
     if(req.method==="GET"&&url.pathname==="/game/state"){
-      const view=gameView((await getDatabase(app).ref().get()).val(),uid);
+      const view=gameView(await directRootRead(),uid);
       return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
     }
     if(req.method==="POST"&&url.pathname==="/game/vote"){
       if(limited("vote:"+uid,8))return reply(res,429,{error:"too_many_requests"});
       const b=await body(req),now=Date.now();
-      const result=await atomic(root=>castVote(root,{uid,gameId:b.gameId,tour:b.tour,selection:b.selection,favorite:b.favorite,now}),getDatabase(app).ref());
+      const result=await directRootChange(root=>castVote(root,{uid,gameId:b.gameId,tour:b.tour,selection:b.selection,favorite:b.favorite,now}));
       return reply(res,result.status,result.body);
     }
     if(req.method==="POST"&&url.pathname==="/groups/invite/preview"){
@@ -232,7 +231,7 @@ const server=http.createServer(async(req,res)=>{
       const b=await body(req);
       if(!validInvite(b.token)||!validString(b.pseudo,1,24))return reply(res,400,{error:"invalid_fields"});
       const digest=digestInvite(b.token),now=Date.now();
-      const result=await atomic(root=>acceptInvitation(root,{uid,digest,pseudo:b.pseudo.trim(),now}),getDatabase(app).ref());
+      const result=await directRootChange(root=>acceptInvitation(root,{uid,digest,pseudo:b.pseudo.trim(),now}));
       return reply(res,result.status,result.body);
     }
     if(url.pathname==="/groups/owner/manage"){
@@ -251,19 +250,20 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==="POST"&&url.pathname==="/groups/name"){
       const b=await body(req);
       if(!validString(b.name,1,80)||!normalizePseudo(b.name))return reply(res,400,{error:"invalid_fields"});
-      const state=(await registry.get()).val();
+      const state=(await directRootRead())?.events?.miss2027?.registration;
       return reply(res,200,{available:groupNameAvailable(state,b.name)});
     }
     if(req.method==="POST"&&url.pathname==="/groups/pseudo"){
       const b=await body(req);
       if(!validString(b.pseudo,1,24)||!normalizePseudo(b.pseudo))return reply(res,400,{error:"invalid_fields"});
-      const state=(await registry.get()).val();
+      const state=(await directRootRead())?.events?.miss2027?.registration;
       return reply(res,200,{available:pseudoAvailable(state,b.pseudo,b.creating===true?null:uid)});
     }
     if(req.method==="GET"&&url.pathname==="/groups/me"){
-      const event=(await directRootRead())?.events?.miss2027||{};
+      const root=await directRootRead(),event=root?.events?.miss2027||{};
       const group=membershipView(event.registration,uid);
-      return reply(res,200,{group:group?{...group,entered:event.players?.[uid]?.groupId===group.id}:null});
+      const members=group?Object.entries(event.registration.groups[group.id].members||{}).map(([id,m])=>({...(group.isOwner?{id}:{}),pseudo:m.pseudo,isOwner:event.registration.groups[group.id].ownerUid===id})):[];
+      return reply(res,200,{group:group?{...group,entered:event.players?.[uid]?.groupId===group.id}:null,members,gameId:root?.rooms?.miss2027?.gameId?String(root.rooms.miss2027.gameId):null});
     }
     if(req.method==="POST"&&url.pathname==="/groups/public"){
       if(limited("public:"+uid,5))return reply(res,429,{error:"too_many_requests"});
@@ -271,14 +271,14 @@ const server=http.createServer(async(req,res)=>{
       if(!validString(b.pseudo,1,24))return reply(res,400,{error:"invalid_fields"});
       if(uid==="fma5bvfcCRYoS1kBf0CUFdBVowJ3")return reply(res,403,{error:"admin_cannot_register"});
       const now=Date.now();
-      const result=await atomic(root=>locked(root)&&!membershipView(root?.events?.miss2027?.registration,uid)?{code:"membership_locked"}:registerPublic(root,{uid,pseudo:b.pseudo.trim(),now}),getDatabase(app).ref());
+      const result=await directRootChange(root=>locked(root)&&!membershipView(root?.events?.miss2027?.registration,uid)?{code:"membership_locked"}:registerPublic(root,{uid,pseudo:b.pseudo.trim(),now}));
       return reply(res,result.status,result.body);
     }
     if(req.method==="GET"&&url.pathname==="/groups/search"){
       const query=url.searchParams.get("q");
       if(!validString(query,1,80))return reply(res,400,{error:"invalid_query"});
-      const snap=await registry.get();
-      return reply(res,200,{groups:searchGroups(snap.val(),query)});
+      const state=(await directRootRead())?.events?.miss2027?.registration;
+      return reply(res,200,{groups:searchGroups(state,query)});
     }
     if(req.method==="POST"&&url.pathname==="/groups/create"){
       if(uid==="fma5bvfcCRYoS1kBf0CUFdBVowJ3")return reply(res,403,{error:"admin_cannot_register"});
@@ -305,10 +305,10 @@ const server=http.createServer(async(req,res)=>{
       const b=await body(req);
       if(!validId(b.id)||!validString(b.pseudo,1,24)||!validString(b.password,6,128))return reply(res,400,{error:"invalid_fields"});
       if(limited("group:"+b.id,30))return reply(res,429,{error:"too_many_requests"});
-      const group=(await registry.child("groups").child(b.id).get()).val();
+      const group=(await directRootRead())?.events?.miss2027?.registration?.groups?.[b.id];
       if(!group||group.type==="public"||!await matches(b.password,group.secret))return reply(res,403,{error:"group_or_password_invalid"});
       const now=Date.now();
-      const result=await atomic(root=>registrationChange(root,s=>joinGroup(s,{uid,id:b.id,pseudo:b.pseudo.trim(),verifiedSecret:group.secret,now})),getDatabase(app).ref());
+      const result=await directRootChange(root=>registrationChange(root,s=>joinGroup(s,{uid,id:b.id,pseudo:b.pseudo.trim(),verifiedSecret:group.secret,now})));
       return reply(res,result.status,result.body);
     }
     return reply(res,404,{error:"not_found"});

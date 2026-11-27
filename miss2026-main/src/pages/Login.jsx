@@ -150,15 +150,18 @@ export default function Login({ setUser }) {
   const lobbyGroup=screen==="joined-group"?joinedGroup:["creator-confirm","creator-dashboard"].includes(screen)?ownerGroup:null;
   useEffect(()=>{
     if(!lobbyGroup?.id)return;
-    let active=true,busy=false;
+    let active=true,busy=false,missing=0;
     async function poll(){
       if(!active||busy||document.visibilityState==="hidden")return;
       busy=true;
       try{
         const data=await groupRequest("/groups/me");
         if(!active)return;
-        if(data.group?.id!==lobbyGroup.id){setJoinedGroup(null);setOwnerGroup(null);setEntryMode("home");setError("Ton inscription n’est plus active.");return;}
-        setLobbyMembers(data.members||[]);setLobbyError("");
+        if(data.group?.id!==lobbyGroup.id){
+          if(++missing<2){setLobbyError("Vérification de ton inscription en cours…");return;}
+          setJoinedGroup(null);setOwnerGroup(null);setEntryMode("home");setError("Ton inscription n’est plus active après vérification.");return;
+        }
+        missing=0;setLobbyMembers(data.members||[]);setLobbyError("");
         if(data.group.isOwner)setOwnerGroup(old=>old?.id===data.group.id?{...old,...data.group,members:data.members||old.members}:old);
         else setJoinedGroup(data.group);
       }catch(e){if(active)setLobbyError(e.message);}
@@ -328,7 +331,7 @@ export default function Login({ setUser }) {
   }
   async function enterContest(event){
     event.preventDefault();
-    if(pending)return;
+    if(pending||lobbyError)return;
     setPending(true);setError("");
     try{
       const result=await groupRequest("/game/enter",{});
@@ -549,7 +552,7 @@ export default function Login({ setUser }) {
             <h3 style={{margin:"0 0 10px",color:"#ffe5ad"}}>Participants ({lobbyMembers.length}/30)</h3>
             {lobbyMembers.map(member=><div key={member.pseudo} style={{padding:"7px 0",color:"#e0e8ff"}}>{member.pseudo}{member.isOwner?" · Créateur":""}</div>)}
           </section>
-          {accessControl(false,enterContest,false,joinedGroup.entered===true)}
+          {accessControl(false,enterContest,!!lobbyError,joinedGroup.entered===true)}
           {joinedGroup.isOwner&&<button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={()=>startCreatorFlow("creator-login")}>Gérer mon groupe</button>}
         </>}
         {screen === "manage" && <>
@@ -585,7 +588,7 @@ export default function Login({ setUser }) {
           {ownerGroup.invitationActive&&<button type="button" className="group-entry-danger" disabled={pending} onClick={()=>{if(window.confirm("Désactiver le lien d’invitation ?"))void ownerAction("revoke");}}>Désactiver le lien</button>}
           {inviteStatus&&notice(inviteStatus)}
           {pending&&<p role="status" style={{color:"#ffe5ad",margin:0}}>Communication avec le serveur…</p>}
-          {accessControl(false,enterContest,false,ownerGroup.entered===true)}
+          {accessControl(false,enterContest,!!lobbyError,ownerGroup.entered===true)}
           {screen==="creator-confirm"?<button type="button" className="group-entry-blue" style={entryButton} onClick={()=>{setCreatorPassword("");openEntry("creator-dashboard");}}>Gérer mon groupe</button>:<>
             <section style={{display:"grid",gap:10,padding:12,border:"1px solid #64a9ea",borderRadius:13,background:"rgba(84,118,189,.13)",textAlign:"left"}}>
               <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Participants ({ownerGroup.memberCount}/30)</h3><button type="button" className="group-entry-blue" disabled={pending} onClick={refreshOwner}>Actualiser la liste</button>

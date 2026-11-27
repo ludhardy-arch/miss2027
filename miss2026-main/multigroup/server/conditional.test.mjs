@@ -27,3 +27,17 @@ test("confirmed creation survives a fresh read and owner can issue an invitation
  const denied=await conditionalWrite({...io,operation:root=>manageGroup(root,{uid:"stranger",action:"invite",digest})});assert.equal(denied.body.error,"owner_required");
  const invited=await conditionalWrite({...io,operation:root=>manageGroup(root,{uid:"owner",action:"invite",digest})});assert.equal(invited.status,200);assert.equal(invitationView((await io.read()).state,digest).result.group.id,"g");
 });
+
+import {setVoteOpening,protectedControlChange} from "./game.mjs";
+import {joinGroup} from "./registration.mjs";
+test("opening votes retries after concurrent registration; no player erased",async()=>{
+ let registration=createGroup(null,{uid:"owner",id:"g",name:"G",pseudo:"Owner",secret:"hash",now:1}).state;
+ let state={rooms:{miss2027:{gameId:"g1",votesOpen:false,connectionsOpen:true}},events:{miss2027:{registration}}},etag="a",writes=0;
+ const result=await conditionalWrite({read:async()=>({state:structuredClone(state),etag}),write:async(next,match)=>{
+  assert.equal(match,etag);
+  if(++writes===1){const joined=joinGroup(state.events.miss2027.registration,{uid:"guest",id:"g",pseudo:"Guest",verifiedSecret:"hash",now:2});state.events.miss2027.registration=joined.state;etag="b";return {ok:false};}
+  state=next;return {ok:true,state};
+ },operation:root=>protectedControlChange(root,r=>setVoteOpening(r,{gameId:"g1",open:true}))});
+ assert.equal(result.status,200);assert.equal(writes,2);
+ assert.equal(state.rooms.miss2027.votesOpen,true);assert.deepEqual(Object.keys(state.events.miss2027.registration.membership).sort(),["guest","owner"]);
+});

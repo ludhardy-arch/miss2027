@@ -24,24 +24,29 @@ async function request(path,body){
 export default function GameSession({user,setUser,waiting}){
  const national=useContext(AppContext),navigate=useNavigate();
  const [view,setView]=useState(null),[failure,setFailure]=useState("");
- const serial=useRef(0),alive=useRef(false);
+ const serial=useRef(0),alive=useRef(false),missing=useRef(0);
  const leave=()=>{try{sessionStorage.setItem("miss_manual_exit",user.uid);}catch{}setUser(null);navigate("/login",{replace:true});};
  async function refresh(){
    const seq=++serial.current;
    try{
      const data=await request("/game/state");
      if(!alive.current||seq!==serial.current)return;
-     if(data.group?.id!==user.groupId){leave();return;}
+     if(data.group?.id!==user.groupId){setFailure("Vérification de ton inscription en cours…");return;}
+     missing.current=0;
      if(data.gameId!==user.gameId){setView(null);setUser(old=>({...old,gameId:data.gameId}));return;}
      setView(data);setFailure("");
    }catch(e){
      if(!alive.current||seq!==serial.current)return;
-     if(e.code==="not_registered"){leave();return;}
+     if(e.code==="not_registered"){
+       if(++missing.current>=2){setFailure("Inscription introuvable après vérification. Réessaie ou retourne volontairement à l’accueil.");}
+       else setFailure("Vérification de ton inscription en cours…");
+       return;
+     }
      setFailure(e.message);
    }
  }
  useEffect(()=>{
-   alive.current=true;setView(null);setFailure("");void refresh();
+   alive.current=true;missing.current=0;setView(null);setFailure("");void refresh();
    const timer=setInterval(()=>{if(document.visibilityState!=="hidden")void refresh();},20000);
    const visible=()=>{if(document.visibilityState==="visible")void refresh();};
    document.addEventListener("visibilitychange",visible);

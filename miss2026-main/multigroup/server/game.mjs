@@ -120,3 +120,19 @@ export function setVoteOpening(root,{gameId,open}){
  if(room.finaleStarted===true)return fail("game_finished");
  return {state:{...root,rooms:{...root.rooms,miss2027:{...room,votesOpen:open,registrationLocked:room.registrationLocked===true||open}}},result:{votesOpen:open}};
 }
+
+// Opening/closing connections must never replace registrations, players, ballots or chats.
+export function setConnectionOpening(root,{gameId,open}){
+ const room=root?.rooms?.miss2027;
+ if(!room?.gameId||String(room.gameId)!==gameId)return fail("game_changed");
+ if(typeof open!=="boolean")return fail("invalid_action");
+ if(open&&room.finaleStarted===true)return fail("game_finished");
+ return {state:{...root,rooms:{...root.rooms,miss2027:{...room,connectionsOpen:open,...(open?{demoEnabled:false}:{})}}},result:{connectionsOpen:open}};
+}
+// A control switch is not a reset. The entire event must survive unchanged.
+export function protectedControlChange(root,operation){
+ const next=operation(root);
+ if(next.code)return next;
+ if(!next.state||next.state.events!==root?.events||next.state.rooms?.miss2027?.gameId!==root?.rooms?.miss2027?.gameId)return fail("control_data_changed");
+ return next;
+}

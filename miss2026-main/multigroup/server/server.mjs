@@ -9,7 +9,7 @@ import {locked,ownerView,manageGroup,invitationView,acceptInvitation} from "./ma
 import {chatView,chatAction} from "./chat.mjs";
 import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
 import {conditionalWrite} from "./conditional.mjs";
-import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal,setVoteOpening} from "./game.mjs";
+import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal,setVoteOpening,setConnectionOpening,protectedControlChange} from "./game.mjs";
 
 const PROJECT="miss2027-test-v2";
 const DATABASE="https://miss2027-test-v2-default-rtdb.europe-west1.firebasedatabase.app";
@@ -172,23 +172,28 @@ const server=http.createServer(async(req,res)=>{
       }
       return reply(res,405,{error:"method_not_allowed"});
     }
-    if(url.pathname==="/admin/game"||url.pathname==="/admin/round"||url.pathname==="/admin/finale"||url.pathname==="/admin/votes"){
+    if(url.pathname==="/admin/game"||url.pathname==="/admin/round"||url.pathname==="/admin/finale"||url.pathname==="/admin/votes"||url.pathname==="/admin/connections"){
       if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});
-      if(req.method==="GET"&&url.pathname==="/admin/game")return reply(res,200,adminGameView((await getDatabase(app).ref().get()).val()));
-      if(req.method==="POST"&&url.pathname==="/admin/votes"){
-        const b=await body(req);
-        const result=await atomic(root=>setVoteOpening(root,{gameId:b.gameId,open:b.open}),getDatabase(app).ref());
+      if(req.method==="GET"&&url.pathname==="/admin/game")return reply(res,200,adminGameView(await directRootRead()));
+      if(req.method==="POST"&&["/admin/votes","/admin/connections"].includes(url.pathname)){
+        const b=await body(req),kind=url.pathname.endsWith("/votes")?"votes":"connections";
+        let before;
+        const result=await directRootChange(root=>{
+          before=registrationCounts(root);
+          return protectedControlChange(root,r=>(kind==="votes"?setVoteOpening:setConnectionOpening)(r,{gameId:b.gameId,open:b.open}));
+        });
+        console.log("TEST_ADMIN_CONTROL "+JSON.stringify({kind,open:b.open===true,status:result.status,error:result.body?.error||null,before,after:result.status===200?registrationCounts(result.state):null}));
         return reply(res,result.status,result.body);
       }
       if(req.method==="POST"&&url.pathname==="/admin/finale"){
         const b=await body(req);
         if(b.confirmed!==true)return reply(res,400,{error:"confirmation_required"});
-        const result=await atomic(root=>publishFinal(root,{gameId:b.gameId}),getDatabase(app).ref());
+        const result=await directRootChange(root=>publishFinal(root,{gameId:b.gameId}));
         return reply(res,result.status,result.body);
       }
       if(req.method==="POST"&&url.pathname==="/admin/round"){
         const b=await body(req);
-        const result=await atomic(root=>advanceRound(root,{gameId:b.gameId,tour:b.tour,selection:b.selection}),getDatabase(app).ref());
+        const result=await directRootChange(root=>advanceRound(root,{gameId:b.gameId,tour:b.tour,selection:b.selection}));
         return reply(res,result.status,result.body);
       }
       return reply(res,405,{error:"method_not_allowed"});

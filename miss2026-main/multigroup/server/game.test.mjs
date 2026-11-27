@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal,setVoteOpening} from "./game.mjs";
+import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal,setVoteOpening,setConnectionOpening,protectedControlChange} from "./game.mjs";
 const fixture=()=>({rooms:{miss2027:{gameId:"g1",connectionsOpen:true,votesOpen:true,tour:1,adminSelections:{}}},events:{miss2027:{registration:{groups:{a:{name:"A",members:{u1:{pseudo:"X"},u2:{pseudo:"Y"}}},b:{name:"B",members:{u3:{pseudo:"X"}}}},membership:{u1:"a",u2:"a",u3:"b"}}}}});
 const ballot={uid:"u1",gameId:"g1",tour:1,selection:Array.from({length:12},(_,i)=>i+1),favorite:1,now:2};
 const enter=(root,uid)=>enterGame(root,{uid,now:1}).state;
@@ -92,4 +92,23 @@ test("fresh server reads restore every saved ballot after disconnect; reset does
  r.rooms.miss2027.tour=3;r.rooms.miss2027.adminSelections.tour2=[1,2,3,4,5];r=castVote(r,{...ballot,tour:3,selection:[5,4,3,2,1]}).state;
  restored=gameView(JSON.parse(JSON.stringify(r)),"u1").result;assert.deepEqual(restored.ownVote.tour2,[1,2,3,4,5]);assert.deepEqual(restored.ownVote.tour3,[5,4,3,2,1]);assert.equal(restored.ownVote.favorite,1);
  r.rooms.miss2027.gameId="new";assert.equal(castVote(r,ballot).code,"game_changed");
+});
+
+test("three registered players survive connections and votes opened or closed in any order",()=>{
+ let r=fixture();r.rooms.miss2027.connectionsOpen=false;r.rooms.miss2027.votesOpen=false;
+ const event=structuredClone(r.events);
+ for(const [fn,open] of [[setConnectionOpening,true],[setVoteOpening,true],[setConnectionOpening,false],[setVoteOpening,false],[setConnectionOpening,true]]){
+  const result=protectedControlChange(r,root=>fn(root,{gameId:"g1",open}));
+  assert.equal(result.code,undefined);r=result.state;
+  assert.deepEqual(r.events,event);
+  assert.equal(adminGameView(r).groupCount,2);assert.equal(Object.keys(adminGameView(r).players).length,3);
+ }
+ for(const uid of ["u1","u2","u3"])r=enter(r,uid);
+ r=setVoteOpening(r,{gameId:"g1",open:true}).state;r=castVote(r,ballot).state;
+ const saved=structuredClone(r.events);
+ r=protectedControlChange(r,root=>setVoteOpening(root,{gameId:"g1",open:false})).state;
+ assert.deepEqual(r.events,saved);
+ assert.deepEqual(gameView(r,"u1").result.ownVote.tour1,ballot.selection);
+ assert.equal(protectedControlChange(r,root=>({state:{...root,events:{}},result:{}})).code,"control_data_changed");
+ assert.equal(protectedControlChange(r,root=>({state:{...root,rooms:{miss2027:{gameId:"bad"}}},result:{}})).code,"control_data_changed");
 });

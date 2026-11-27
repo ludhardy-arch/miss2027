@@ -55,6 +55,7 @@ export default function Admin({ user, setUser }) {
     finaleStarted,
   } = useContext(AppContext);
 
+  const [controlBusy,setControlBusy]=useState(false);
   const [nationalView,setNationalView]=useState(null);
   const [nationalError,setNationalError]=useState("");
   const players=nationalView?.players||{};
@@ -73,6 +74,11 @@ export default function Admin({ user, setUser }) {
     const data=await res.json();
     if(!res.ok)throw Error(({close_votes_first:"Ferme les votes avant de valider.",game_changed:"La partie a changé.",round_changed:"Le tour a changé.",invalid_vote:"Sélection officielle non valide."})[data.error]||"Serveur de la régie indisponible.");
     return data;
+  }
+  async function toggleControl(kind,open){
+    if(controlBusy||!gameId||gameId==="loading")return;
+    setControlBusy(true);
+    try{await adminRequest("/admin/"+kind,{gameId:String(gameId),open});setNationalView(await adminRequest("/admin/game"));}catch(e){reportActionError(e);}finally{setControlBusy(false);}
   }
   useEffect(()=>{
     let active=true,busy=false;
@@ -339,8 +345,8 @@ export default function Admin({ user, setUser }) {
       {rankExpanded && <section className="regie-expand"><h3>CLASSEMENT DES JOUEURS</h3><div className="regie-standing-list">{standings.map((p,i)=><div key={p.uid}><strong>{i===0?"👑":String(i+1).padStart(2,"0")}</strong><span>{p.pseudo}</span><b>{p.points} pts</b></div>)}</div>{!standings.length&&<p>Aucun score pour le moment.</p>}</section>}
 
       <section className="regie-controls"><h2>COMMANDES DE LA RÉGIE</h2><div className="regie-control-grid">
-        <button type="button" className={"regie-switch "+(connectionsOpen?"is-on":"is-off")} onClick={()=>safely(()=>updateConnectionsOpen(!connectionsOpen))}><span>⇥</span><b>CONNEXIONS</b><strong>{connectionsOpen?"ON":"OFF"}</strong></button>
-        <button type="button" className={"regie-switch "+(votesOpen?"is-on":"is-off")} disabled={finaleStarted} onClick={()=>safely(()=>adminRequest("/admin/votes",{gameId:String(gameId),open:!votesOpen}))}><span>✉</span><b>VOTES</b><strong>{votesOpen?"ON":"OFF"}</strong></button>
+        <button type="button" className={"regie-switch "+(connectionsOpen?"is-on":"is-off")} disabled={controlBusy||gameId==="loading"} onClick={()=>void toggleControl("connections",!connectionsOpen)}><span>⇥</span><b>CONNEXIONS</b><strong>{connectionsOpen?"ON":"OFF"}</strong></button>
+        <button type="button" className={"regie-switch "+(votesOpen?"is-on":"is-off")} disabled={controlBusy||finaleStarted||gameId==="loading"} onClick={()=>void toggleControl("votes",!votesOpen)}><span>✉</span><b>VOTES</b><strong>{votesOpen?"ON":"OFF"}</strong></button>
         <button type="button" disabled={!demoLoaded} className={"regie-switch "+(demoEnabled?"is-on":"is-off")} onClick={()=>safely(()=>updateDemoEnabled(!demoEnabled))}><span>▣</span><b>MODE DÉMO</b><strong>{!demoLoaded?"…":demoEnabled?"ON":"OFF"}</strong></button>
         <button type="button" className="regie-show" disabled={publishing||votesOpen||finaleStarted||!finalRankingValidated} onClick={()=>void launchShow()}><span>♛</span><b>SHOW FINAL</b><strong>{finaleStarted?"SHOW LANCÉ":publishing?"PUBLICATION…":"LANCER LE SHOW"}</strong></button>
       </div></section>

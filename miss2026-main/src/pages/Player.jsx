@@ -8,6 +8,8 @@ import Leaderboard from "../components/Leaderboard";
 import ChatBubble from "../components/ChatBubble";
 import SelectionBubble from "../components/SelectionBubble";
 import { CANDIDATES } from "../data/candidates";
+import {draftKeys,readSaved,writeSaved,sanitizeDraft} from "../sessionRecovery.mjs";
+const draftStorage=()=>{const stores=[];try{stores.push(window.localStorage);}catch{}try{stores.push(window.sessionStorage);}catch{}return stores;};
 
 // Animation bannière votes ouverts
 const votePulseKeyframes = `
@@ -37,8 +39,7 @@ export default function Player({ user, setUser }) {
     if (!window.confirm("Voulez-vous vraiment vous déconnecter ?")) return;
 
     // Keep anonymous Firebase identity so this browser can reclaim the pseudo.
-    sessionStorage.setItem("miss_manual_exit",user.uid);
-    sessionStorage.removeItem("miss_user");
+    try{sessionStorage.setItem("miss_manual_exit",user.uid);sessionStorage.removeItem("miss_user");}catch{}
     setUser(null);
     navigate("/login", { replace: true });
   };
@@ -88,39 +89,19 @@ export default function Player({ user, setUser }) {
   }, [hasVotedThisTour, navigate]);
 
   // Brouillons propres à cette partie, au joueur et au tour.
-  const draftKey = `miss2027_${gameId}_${tour === 3 ? "ranking" : "selection"}_tour${tour}_${user.uid}`;
-  const favoriteKey = `miss2027_${gameId}_favorite_tour1_${user.uid}`;
+  const {draft:draftKey,favorite:favoriteKey}=draftKeys(gameId,tour,user.uid);
 
   // Charger le brouillon avant d'autoriser sa sauvegarde :
   // évite d'écraser des choix existants par l'état React initial vide.
   useEffect(() => {
     if (hasVotedThisTour || !gameId || gameId === "loading") return;
     setLoadedDraftKey(null);
-    const readDraft = (key, fallback) => {
-      try {
-        const raw = localStorage.getItem(key);
-        return raw === null ? fallback : JSON.parse(raw);
-      } catch (error) {
-        console.warn("Brouillon local illisible :", error);
-        return fallback;
-      }
-    };
-
-    if (tour === 3) {
-      const saved = readDraft(draftKey, {});
-      setRanking(saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {});
-    } else {
-      const saved = readDraft(draftKey, []);
-      const eligible = new Set(candidateIds);
-      const valid = Array.isArray(saved)
-        ? [...new Set(saved.map(Number))].filter(id => eligible.has(id)).slice(0, maxSelect)
-        : [];
-      setSelection(valid);
-      if (tour === 1) {
-        const rawFavorite = localStorage.getItem(favoriteKey);
-        const picked = rawFavorite === null ? null : Number(rawFavorite);
-        setFavorite(picked !== null && valid.includes(picked) ? picked : null);
-      }
+    const storage=draftStorage();
+    const saved=sanitizeDraft(readSaved(storage,draftKey,tour===3?{}:[]),tour,candidateIds);
+    if(tour===3)setRanking(saved);
+    else{
+      setSelection(saved);
+      if(tour===1){const picked=readSaved(storage,favoriteKey,null);setFavorite(saved.includes(picked)?picked:null);}
     }
     setLoadedDraftKey(draftKey);
   }, [draftKey, favoriteKey, tour, hasVotedThisTour, gameId, user.pseudo]);
@@ -129,31 +110,28 @@ export default function Player({ user, setUser }) {
   // avec EXACTEMENT les mêmes clés que celles utilisées au chargement.
   useEffect(() => {
     if (hasVotedThisTour || loadedDraftKey !== draftKey) return;
-    if (tour === 3) localStorage.setItem(draftKey, JSON.stringify(ranking));
-    else localStorage.setItem(draftKey, JSON.stringify(selection));
+    writeSaved(draftStorage(),draftKey,tour===3?ranking:selection);
   }, [draftKey, loadedDraftKey, hasVotedThisTour, tour, selection, ranking]);
 
   useEffect(() => {
     if (tour !== 1 || hasVotedThisTour || loadedDraftKey !== draftKey) return;
-    if (favorite === null) localStorage.removeItem(favoriteKey);
-    else localStorage.setItem(favoriteKey, String(favorite));
+    writeSaved(draftStorage(),favoriteKey,favorite);
   }, [tour, hasVotedThisTour, loadedDraftKey, draftKey, favoriteKey, favorite]);
 
   // Sélection pour tour 1 & 2
   const handleClickMiss = (id) => {
-    if (!votesOpen || hasVotedThisTour || tour === 3) return;
-    if (selection.includes(id)) {
-      setSelection(selection.filter((x) => x !== id));
-      if (tour === 1 && favorite === id) setFavorite(null);
-    }
-    else if (selection.length < maxSelect)
-      setSelection([...selection, id]);
+    if (!votesOpen || hasVotedThisTour || tour === 3 || loadedDraftKey!==draftKey) return;
+    const next=selection.includes(id)?selection.filter(x=>x!==id):selection.length<maxSelect?[...selection,id]:selection;
+    writeSaved(draftStorage(),draftKey,next);
+    setSelection(next);
+    if(tour===1&&favorite!==null&&!next.includes(favorite)){writeSaved(draftStorage(),favoriteKey,null);setFavorite(null);}
   };
 
   const handleFavorite = (event, id) => {
     event.stopPropagation();
     if (tour !== 1 || !votesOpen || hasVotedThisTour || votePending || !selection.includes(id)) return;
-    setFavorite(current => current === id ? null : id);
+    if(loadedDraftKey!==draftKey)return;
+    const next=favorite===id?null:id;writeSaved(draftStorage(),favoriteKey,next);setFavorite(next);
     setVoteFeedback("");
   };
 
@@ -162,7 +140,7 @@ export default function Player({ user, setUser }) {
 
   // Validation du vote
   const handleValidate = async () => {
-    if (votePending) return;
+    if (votePending || loadedDraftKey!==draftKey) return;
     if (!votesOpen) { setVoteFeedback("Les votes ne sont pas ouverts."); return; }
 
     if (tour === 1 || tour === 2) {
@@ -487,16 +465,11 @@ export default function Player({ user, setUser }) {
                 value={ranking[miss.id] || ""}
                 onChange={(e) => {
                   const newRank = Number(e.target.value);
-                  setRanking((prev) => {
-                    const updated = { ...prev };
-
-                    Object.keys(updated).forEach((mid) => {
-                      if (updated[mid] === newRank) delete updated[mid];
-                    });
-
-                    updated[miss.id] = newRank;
-                    return updated;
-                  });
+                  if(loadedDraftKey!==draftKey)return;
+                  const updated={...ranking};
+                  for(const mid of Object.keys(updated))if(updated[mid]===newRank||Number(mid)===miss.id)delete updated[mid];
+                  if(newRank>=1&&newRank<=5)updated[miss.id]=newRank;
+                  writeSaved(draftStorage(),draftKey,updated);setRanking(updated);
                 }}
                 disabled={!votesOpen || hasVotedThisTour}
                 style={{

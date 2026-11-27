@@ -25,7 +25,7 @@ export default function GameSession({user,setUser,waiting}){
  const national=useContext(AppContext),navigate=useNavigate();
  const [view,setView]=useState(null),[failure,setFailure]=useState("");
  const serial=useRef(0),alive=useRef(false);
- const leave=()=>{sessionStorage.setItem("miss_manual_exit",user.uid);setUser(null);navigate("/login",{replace:true});};
+ const leave=()=>{try{sessionStorage.setItem("miss_manual_exit",user.uid);}catch{}setUser(null);navigate("/login",{replace:true});};
  async function refresh(){
    const seq=++serial.current;
    try{
@@ -52,7 +52,9 @@ export default function GameSession({user,setUser,waiting}){
  useEffect(()=>{if(alive.current&&view&&(national.tour!==view.tour||national.finaleStarted!==view.finaleStarted||national.votesOpen!==view.votesOpen))void refresh();},[national.tour,national.finaleStarted,national.votesOpen]);
  async function vote(tour,selection,favorite){
    if(!view||failure)throw Error("Connexion en cours. Réessaie.");
-   await request("/game/vote",{gameId:view.gameId,tour,selection,...(tour===1?{favorite}:{})});
+   const result=await request("/game/vote",{gameId:view.gameId,tour,selection,...(tour===1?{favorite}:{})});
+   if(result.accepted!==true)throw Error("Le vote n’a pas été confirmé.");
+   setView(old=>old?.gameId===view.gameId?{...old,ownVote:{...old.ownVote,["tour"+tour]:selection,...(tour===1?{favorite}:{})}}:old);
    await refresh();
  }
  if(!view)return <main className="tv-page"><p role="status">{failure||"Connexion à ton groupe…"}</p>{failure&&<button onClick={()=>void refresh()}>Réessayer</button>}<button onClick={leave}>Retour à l’accueil</button></main>;

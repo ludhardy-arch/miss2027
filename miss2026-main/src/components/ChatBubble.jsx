@@ -75,7 +75,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
   useEffect(() => {
     if (!groupRequest) return;
     let active=true,busy=false;
-    lastMessageRef.current=null;setMessages([]);setUnread(0);setChatBlocked(false);
+    // Keep the last successful view during reconnects and while opening the bubble.
     async function poll(){
       if(!active||busy||document.visibilityState==="hidden")return;
       busy=true;
@@ -89,7 +89,8 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
       finally{busy=false;}
     }
     void poll();const timer=setInterval(poll,open?8000:15000);
-    return()=>{active=false;clearInterval(timer);};
+    window.addEventListener("online",poll);document.addEventListener("visibilitychange",poll);
+    return()=>{active=false;clearInterval(timer);window.removeEventListener("online",poll);document.removeEventListener("visibilitychange",poll);};
   },[groupRequest,open,user.uid]);
   // Scroll auto
   useEffect(() => {

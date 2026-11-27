@@ -138,12 +138,11 @@ export default function Login({ setUser }) {
     let active=true;
     groupRequest("/groups/me").then(async result=>{
       if(!active)return;
-      restoredIdentity.current=firebaseIdentity;
-      if(!result.group)return;
+      if(!result.group){restoredIdentity.current=firebaseIdentity;return;}
       if(result.group.isOwner){
         const owner=await groupRequest("/groups/owner/manage");
-        if(active){setOwnerGroup(owner.group);setEntryMode("creator-dashboard");}
-      }else{setJoinedGroup(result.group);setEntryMode("joined-group");}
+        if(active){restoredIdentity.current=firebaseIdentity;setOwnerGroup(owner.group);setEntryMode("creator-dashboard");}
+      }else{restoredIdentity.current=firebaseIdentity;setJoinedGroup(result.group);setEntryMode("joined-group");}
     }).catch(e=>{if(active)setError(e.message);});
     return()=>{active=false;};
   },[firebaseIdentity,invitation]);
@@ -334,7 +333,7 @@ export default function Login({ setUser }) {
       const result=await groupRequest("/game/enter",{});
       const uid=auth.currentUser?.uid;
       if(!uid||!result.group?.id||!result.gameId)throw Error("Entrée dans le concours non confirmée.");
-      sessionStorage.removeItem("miss_manual_exit");
+      try{sessionStorage.removeItem("miss_manual_exit");}catch{}
       setUser({role:"player",uid,pseudo:result.group.pseudo,groupId:result.group.id,groupName:result.group.name,gameId:result.gameId});
       navigate("/player",{replace:true});
     }catch(err){setError(err.message||"Accès impossible.");}

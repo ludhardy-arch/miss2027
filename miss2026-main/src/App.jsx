@@ -19,6 +19,7 @@ import { AppContext } from "./context/AppContext";
 import FinaleOverlay from "./components/FinaleOverlay";
 import { auth } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import {restoredPlayer} from "./sessionRecovery.mjs";
 
 export default function App() {
   return (
@@ -58,10 +59,8 @@ function RouterContent() {
         if(!res.ok)throw Error("Reconnexion temporairement indisponible.");
         const data=await res.json();
         if(!active||seq!==n||auth.currentUser?.uid!==firebaseUser.uid)return;
-        const manual=sessionStorage.getItem("miss_manual_exit")===firebaseUser.uid;
-        if(data.group?.entered&&data.gameId&&!manual){
-          setUser({role:"player",uid:firebaseUser.uid,pseudo:data.group.pseudo,groupId:data.group.id,groupName:data.group.name,gameId:data.gameId});
-        }else setUser(null);
+        let manual=false;try{manual=sessionStorage.getItem("miss_manual_exit")===firebaseUser.uid;}catch{}
+        setUser(restoredPlayer(firebaseUser.uid,data,manual));
         setAuthReady(true);
       }catch(e){
         if(active&&seq===n){setRecoveryError(e.message||"Reconnexion indisponible.");}
@@ -75,8 +74,8 @@ function RouterContent() {
 
   useEffect(() => {
     if (!authReady) return;
-    if (user) sessionStorage.setItem("miss_user", JSON.stringify(user));
-    else sessionStorage.removeItem("miss_user");
+    try{if (user) sessionStorage.setItem("miss_user", JSON.stringify(user));
+    else sessionStorage.removeItem("miss_user");}catch{}
   }, [user,authReady]);
 
   useEffect(() => {

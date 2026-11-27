@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 
 import Leaderboard from "../components/Leaderboard";
 import ChatBubble from "../components/ChatBubble";
+import RulesToggle from "../components/RulesToggle";
 import SelectionBubble from "../components/SelectionBubble";
 import { CANDIDATES } from "../data/candidates";
 import {draftKeys,readSaved,writeSaved,sanitizeDraft} from "../sessionRecovery.mjs";
@@ -333,11 +334,7 @@ export default function Player({ user, setUser }) {
       >
         {tour === 1 && (
           <div style={{marginBottom:16}}>
-            <button type="button" aria-expanded={showVoteRules} aria-controls="player-vote-rules" onClick={()=>setShowVoteRules(open=>!open)}
-              style={{display:"flex",alignItems:"center",justifyContent:"center",position:"relative",boxSizing:"border-box",width:"100%",minHeight:52,padding:"12px 32px",margin:0,borderRadius:12,border:"2px solid #e9a2df",background:"linear-gradient(135deg,#66245f,#ad498f,#672565)",color:"#fff",fontSize:15,fontWeight:800,boxShadow:"0 0 13px rgba(225,107,210,.45)"}}>
-              Tour 1 · Comment voter ?
-              <span aria-hidden="true" style={{position:"absolute",right:13,fontSize:20,lineHeight:1,transform:showVoteRules?"rotate(180deg)":"rotate(0deg)",transition:"transform .18s ease"}}>⌄</span>
-            </button>
+            <RulesToggle compact open={showVoteRules} controls="player-vote-rules" onToggle={()=>setShowVoteRules(open=>!open)}>Tour 1 · Comment voter ?</RulesToggle>
           {showVoteRules&&<section id="player-vote-rules" aria-label="Comment voter au premier tour" style={{
             border: "1px solid #d57eb9",
             borderRadius: 16,

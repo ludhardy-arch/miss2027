@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { auth, simulatedPlayerApp } from "../firebase";
 import {TEST_ORIGIN,testPlayerUrl,adminSessionUrl} from "../testPlayerSession.mjs";
 import ChatBubble from "../components/ChatBubble";
+import RulesToggle from "../components/RulesToggle";
 import { signInWithCustomToken, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
  
 // 12 décembre 2026, 20 h 40 à Paris (heure d'hiver : UTC+1).
@@ -425,11 +426,7 @@ export default function Login({ setUser }) {
         <p style={{ margin: "0 auto", maxWidth: 330, fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic", fontSize: "clamp(21px, 5.5vw, 27px)", lineHeight: 1.35, color: "#fff9ee" }}>Qui aura le <span style={{ color: "#f2c784" }}>meilleur pronostic ?</span></p>
       </header>
       <div style={{width:"min(100%,600px)",margin:"0 auto 16px"}}>
-        <button type="button" aria-expanded={showRules} aria-controls="howto-rules" onClick={() => setShowRules(open => !open)}
-          style={{display:"flex",alignItems:"center",justifyContent:"center",position:"relative",boxSizing:"border-box",width:"100%",height:74,minHeight:74,padding:"18px 42px",borderRadius:13,border:"2px solid #e2a6ff",background:"linear-gradient(135deg,#512578,#8944b4,#512578)",color:"#fff",fontSize:18,fontWeight:800,boxShadow:"0 0 6px #d88aff, 0 0 18px rgba(200,105,255,.75), 0 0 32px rgba(166,71,242,.42), inset 0 0 12px rgba(226,166,255,.28)"}}>
-          Comment jouer ?
-          <span aria-hidden="true" style={{position:"absolute",right:18,fontSize:20,lineHeight:1,transform:showRules?"rotate(180deg)":"rotate(0deg)",transition:"transform .18s ease"}}>⌄</span>
-        </button>
+        <RulesToggle open={showRules} controls="howto-rules" onToggle={()=>setShowRules(open=>!open)}>Comment jouer ?</RulesToggle>
         <div id="howto-rules" hidden={!showRules}>
       <section className="tv-howto tv-howto-v3" aria-label="Comment jouer" style={{ background: "linear-gradient(160deg, #231131, #18112d)", border: "1px solid #bc79be", color: "white", borderRadius: 22, padding: "18px 12px", marginBottom: 0, marginTop: 10, boxShadow: "0 10px 28px rgba(37,12,56,.23)" }}>
         <div style={{textAlign:"left",padding:"12px",marginBottom:14,borderRadius:14,background:"rgba(148,92,205,.17)",border:"1px solid #bc79be",fontSize:15,lineHeight:1.5}}>

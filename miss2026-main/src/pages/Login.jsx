@@ -471,6 +471,18 @@ export default function Login({ setUser }) {
             border:2px solid #80caff!important;
             box-shadow:0 0 7px rgba(82,173,255,.85),0 0 19px rgba(39,131,255,.6),0 0 30px rgba(39,131,255,.23)!important;font-size:16px;
           }
+          /* Explicit styles override the older first-of-type gold rule. */
+          .tv-login-shell .group-entry-panel button.group-entry-invite {
+            background:linear-gradient(110deg,#b94b24 0%,#c52c68 48%,#8136bd 100%)!important;
+            border:2px solid #ff9acf!important;color:#fff!important;
+            box-shadow:0 0 9px rgba(255,115,181,.8),0 0 22px rgba(229,54,147,.38)!important;
+            font-size:16px;
+          }
+          .tv-login-shell .group-entry-panel button.group-entry-participants {
+            background:linear-gradient(110deg,#142650,#203e75)!important;
+            color:#ffe5ad!important;border:0!important;box-shadow:none!important;
+            font-size:17px;
+          }
           .tv-login-shell .group-entry-panel button.group-entry-green {
             background:linear-gradient(135deg,#008743,#00c96b,#00a854)!important;
             color:#fff!important;border:2px solid #46ff9b!important;
@@ -602,7 +614,7 @@ export default function Login({ setUser }) {
           {accessControl(false,enterContest,!!lobbyError,ownerGroup.entered===true)}
           {screen==="creator-confirm"?<button type="button" className="group-entry-blue" style={entryButton} onClick={()=>{setCreatorPassword("");openEntry("creator-dashboard");}}>Gérer mon groupe</button>:<>
             <section style={{display:"grid",gap:showParticipants?10:0,border:"1px solid #64a9ea",borderRadius:13,background:"rgba(84,118,189,.13)",textAlign:"left",overflow:"hidden"}}>
-              <button type="button" aria-expanded={showParticipants} aria-controls="owner-participants" onClick={()=>setShowParticipants(open=>!open)} style={{...entryButton,minHeight:54,position:"relative",margin:0,padding:"14px 36px",border:0,borderRadius:12,background:"linear-gradient(110deg,#142650,#203e75)",boxShadow:"none",color:"#ffe5ad",fontSize:17}}>Participants ({ownerGroup.memberCount}/30)<span aria-hidden="true" style={{position:"absolute",right:14,top:"50%",transform:showParticipants?"translateY(-50%) rotate(180deg)":"translateY(-50%)",transition:"transform .18s ease",color:"#d7e8ff",fontSize:22,lineHeight:1}}>⌄</span></button>
+              <button type="button" className="group-entry-participants" aria-expanded={showParticipants} aria-controls="owner-participants" onClick={()=>setShowParticipants(open=>!open)} style={{...entryButton,minHeight:54,position:"relative",margin:0,padding:"14px 36px",border:0,borderRadius:12,background:"linear-gradient(110deg,#142650,#203e75)",boxShadow:"none",color:"#ffe5ad",fontSize:17}}>Participants ({ownerGroup.memberCount}/30)<span aria-hidden="true" style={{position:"absolute",right:14,top:"50%",transform:showParticipants?"translateY(-50%) rotate(180deg)":"translateY(-50%)",transition:"transform .18s ease",color:"#d7e8ff",fontSize:22,lineHeight:1}}>⌄</span></button>
               <div id="owner-participants" hidden={!showParticipants} style={{padding:showParticipants?"0 12px 12px":0}}>{showParticipants&&<div style={{display:"grid",gap:10}}>
               <button type="button" className="group-entry-blue" disabled={pending} onClick={refreshOwner}>Actualiser la liste</button>
               {ownerGroup.members.map(member=><div key={member.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:10,borderRadius:9,background:"#1b315d"}}>

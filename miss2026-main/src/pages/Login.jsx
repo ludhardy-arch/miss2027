@@ -495,7 +495,7 @@ export default function Login({ setUser }) {
           ) : (
             <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||recoveryStatus==="loading"} onClick={() => openEntry("join")}>Rejoindre mon groupe d’amis ou de famille</button>
           )}
-          <button type="button" className="group-entry-blue" style={entryButton} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>
+          <button type="button" className="group-entry-gold" style={{...entryButton,background:"linear-gradient(135deg,#d9a42d,#ffe078,#e8b63e)",color:"#342303",border:"2px solid #ffdf77",boxShadow:"0 0 12px rgba(255,204,70,.42)"}} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>
         </>}
         {(screen === "public" || screen === "invite") && <>
           {screen === "invite" && <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Bienvenue {inviteGroup?"dans le groupe "+inviteGroup.name:"dans le groupe"}</h2>}

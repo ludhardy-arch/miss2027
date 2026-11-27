@@ -198,12 +198,14 @@ export default function Login({ setUser }) {
     try{
       const result=await groupRequest("/groups/recovery/code",{rotate:recoveryConfigured});
       captureRecovery(result);
-      if(!result.recoveryCode)setRecoveryNotice("Un code existe déjà. Tu peux en générer un nouveau.");
+      if(!result.recoveryCode){setRecoveryConfigured(true);setRecoveryNotice("Un code existe déjà. Si tu ne l’as plus, génère un nouveau code avec confirmation.");}
     }catch(e){setError(e.message);}finally{setPending(false);}
   }
   async function restoreAccount(event){
     event.preventDefault();
-    if(pending||!firebaseIdentity||!recoveryPseudo.trim()||recoveryInput.replace(/[\s-]/g,"").length!==32)return;
+    if(pending||!firebaseIdentity)return;
+    if(!recoveryPseudo.trim()){setError("Saisis ton pseudo.");return;}
+    if(!/^[a-f0-9]{32}$/i.test(recoveryInput.replace(/[\s-]/g,""))){setError("Utilise le code personnel de 32 caractères obtenu dans ton groupe, et non le mot de passe du groupe.");return;}
     setPending(true);setError("");
     try{
       const result=await groupRequest("/groups/recovery/login",{pseudo:recoveryPseudo.trim(),code:recoveryInput.trim()});
@@ -570,11 +572,11 @@ export default function Login({ setUser }) {
         </>}
         {screen === "recover-account" && <form onSubmit={restoreAccount} style={{display:"grid",gap:12}}>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:20}}>Retrouver mon compte</h2>
-          {notice("Saisis ton pseudo et ton code personnel pour retrouver ton groupe et tes votes validés.")}
+          {notice("Sur ce même téléphone, essaie d’abord de retrouver ta session sans code. Sur un autre appareil, utilise ton pseudo et le code personnel de 32 caractères obtenu dans ton groupe (pas le mot de passe du groupe).")}
           <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||!firebaseIdentity} onClick={recoverGroup}>Retrouver ma session sur cet appareil</button>
           <input aria-label="Pseudo de récupération" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={recoveryPseudo} onChange={e=>setRecoveryPseudo(e.target.value)} disabled={pending} style={inputStyle}/>
-          <input aria-label="Code personnel de récupération" type="password" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={64} placeholder="Mon code personnel" value={recoveryInput} onChange={e=>setRecoveryInput(e.target.value)} disabled={pending} style={inputStyle}/>
-          <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!firebaseIdentity||!recoveryPseudo.trim()||recoveryInput.replace(/[\s-]/g,"").length!==32}>{pending?"Récupération…":"Retrouver mon compte"}</button>
+          <input aria-label="Code personnel de récupération" type="password" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={64} placeholder="Code personnel (32 caractères)" value={recoveryInput} onChange={e=>{setRecoveryInput(e.target.value);setError("");}} disabled={pending} style={inputStyle}/>
+          <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!firebaseIdentity}>{pending?"Récupération…":"Retrouver mon compte"}</button>
           <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setRecoveryInput("");openEntry("join");}}>Retour</button>
         </form>}
         {screen === "join-group" && selectedGroup && <form onSubmit={submitRealGroup} style={{display:"grid",gap:12}}>

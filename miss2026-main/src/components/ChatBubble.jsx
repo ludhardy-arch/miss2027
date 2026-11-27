@@ -24,6 +24,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
   const readVersion=useRef(0);
   const [unread, setUnread] = useState(0);
   const [chatBlocked, setChatBlocked] = useState(false);
+  const [voteReminder,setVoteReminder]=useState(null),[dismissedReminder,setDismissedReminder]=useState(null);
   const [reports,setReports]=useState([]),[reportBusy,setReportBusy]=useState(null),[reportNotice,setReportNotice]=useState("");
   const marker=useRef(roomId?getReadMarker(user.uid,roomId):null);
   const openRef=useRef(open);openRef.current=open;
@@ -39,6 +40,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
     const next=data.messages||[];
     if(marker.current===null||openRef.current)markRead(next);
     else setUnread(countUnread(next,marker.current,user.uid));
+    setVoteReminder(data.voteReminder||null);
     setMessages(next);setChatBlocked(data.blocked===true);setReports(data.reports||[]);setChatError("");
   }
   async function reportRoom(){
@@ -187,6 +189,10 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
 
   const content=(
     <>
+      {!inline&&!inDemo&&voteReminder&&voteReminder.id!==dismissedReminder&&<div role="alert" style={{position:"fixed",top:"max(85px, env(safe-area-inset-top))",left:"50%",transform:"translateX(-50%)",width:"min(340px, calc(100vw - 24px))",boxSizing:"border-box",zIndex:2147483647,background:"#5c3f13",border:"2px solid #ffd778",borderRadius:12,padding:12,color:"#fff",boxShadow:"0 4px 20px #0008",display:"flex",alignItems:"center",gap:8}}>
+        <div style={{flex:1}}><b style={{color:"#ffe3aa"}}>Rappel de la régie</b><div>{voteReminder.text}</div></div>
+        <button type="button" aria-label="Fermer le rappel" onClick={()=>setDismissedReminder(voteReminder.id)} style={{width:32,minWidth:32,minHeight:32,padding:0,margin:0,background:"#735021",color:"#fff",boxShadow:"none"}}>✕</button>
+      </div>}
       {/* Bulle flottante */}
       {!inline&&<div
         style={{

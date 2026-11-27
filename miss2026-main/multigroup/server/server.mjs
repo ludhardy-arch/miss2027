@@ -174,7 +174,15 @@ const server=http.createServer(async(req,res)=>{
         if(limited("chat:"+uid,12))return reply(res,429,{error:"too_many_requests"});
         const b=await body(req),id=randomUUID(),now=Date.now();
         const action=admin?(b.action||"send"):["report","report_room"].includes(b.action)?b.action:"send";
-        const result=await directRootChange(root=>chatAction(root,{uid,admin,groupId:b.groupId,text:b.text,id,now,action,targetUid:admin?b.targetUid:undefined,messageId:b.messageId}));
+        const result=await directRootChange(root=>chatAction(root,{uid,admin,groupId:b.groupId,text:b.text,id,now,action,targetUid:admin?b.targetUid:undefined,messageId:b.messageId,gameId:b.gameId,tour:b.tour}));
+        if(action==="vote_reminder"&&result.status===200){
+          const fresh=await directRootRead();
+          const message=fresh?.events?.miss2027?.chats?.[b.groupId]?.[result.body.messageId];
+          const verified=message?.kind==="vote_reminder"&&message.targetUid===b.targetUid&&message.gameId===b.gameId&&message.tour===b.tour;
+          console.log("TEST_VOTE_REMINDER "+JSON.stringify({verified,alreadySent:result.body.alreadySent===true}));
+          if(!verified)return reply(res,409,{error:"reminder_not_verified"});
+          return reply(res,200,{...result.body,verified:true});
+        }
         if(action==="report_room"&&result.status===200){
           const receipt={uid,roomId:result.body.roomId,reportId:result.body.reportId};
           const fresh=await directRootRead(),verified=verifyRoomReport(fresh,receipt);

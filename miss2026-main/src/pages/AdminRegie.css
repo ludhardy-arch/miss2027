@@ -19,3 +19,12 @@
 .regie-chat-alerts{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}.tv-admin-page .regie-chat-alert-button{width:auto;min-height:36px!important;padding:7px 10px!important;background:#a42b43!important;border:1px solid #ff8793!important;border-radius:8px!important;font-size:13px!important;box-shadow:none!important}
 
 #regie-room-chat{scroll-margin-top:20px}.tv-admin-page .regie-chat-alert-button{font-weight:800!important;white-space:normal;overflow-wrap:anywhere}
+
+/* Vote follow-up by room: whole group header signals completion. */
+.regie-vote-group{border:1px solid #395783;border-radius:10px;overflow:hidden;background:#101e3a}
+.tv-admin-page .regie-vote-group-toggle{width:100%;display:flex;align-items:center;text-align:left;gap:8px;min-height:50px;padding:9px 10px!important;margin:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;color:white!important}
+.regie-vote-group-toggle>span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}.regie-vote-group-toggle small{display:block;font-size:11px;margin-top:3px;font-weight:600}.regie-vote-group-toggle>b{white-space:nowrap;font-size:18px}
+.tv-admin-page .regie-vote-group.complete{border-color:#37d88c}.tv-admin-page .regie-vote-group.complete .regie-vote-group-toggle{background:#09653e!important}
+.tv-admin-page .regie-vote-group.incomplete{border-color:#f5687d}.tv-admin-page .regie-vote-group.incomplete .regie-vote-group-toggle{background:#861c34!important}
+.tv-admin-page .regie-vote-group.empty .regie-vote-group-toggle{background:#273b58!important}
+.regie-vote-members{padding:6px;display:grid;gap:5px}.regie-vote-member{display:flex;align-items:center;gap:6px;min-width:0;padding:5px 6px;border-radius:6px;background:#152849;font-size:12px}.regie-vote-member>strong{flex:1;min-width:0;overflow-wrap:anywhere}.regie-vote-member>span{font-size:10px;font-weight:800;white-space:nowrap}.regie-vote-member.yes>span{color:#74ffc0}.regie-vote-member.no>span{color:#ff9eaa}.tv-admin-page .regie-vote-member .regie-vote-reminder{flex:0 0 auto;width:auto;min-width:0;min-height:32px!important;margin:0!important;padding:4px 7px!important;font-size:11px!important;letter-spacing:0!important;background:#9c303e!important;border:1px solid #ff8793!important;border-radius:6px!important;box-shadow:none!important}

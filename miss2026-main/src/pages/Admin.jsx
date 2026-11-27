@@ -104,13 +104,23 @@ export default function Admin({ user, setUser }) {
       setNationalView(await adminRequest("/admin/game"));
     }catch(e){reportActionError(e);}finally{setRemoving(null);}
   }
+  async function remindVoter(player){
+    if(reminderBusy||!votesOpen||finaleStarted||playerHasVoted(player))return;
+    if(!window.confirm("Envoyer un rappel de vote à "+player.pseudo+" ?"))return;
+    setReminderBusy(player.uid);
+    try{
+      const result=await adminRequest("/admin/chat",{action:"vote_reminder",groupId:player.groupId,targetUid:player.uid,gameId:String(gameId),tour:Number(tour)});
+      if(result.accepted!==true||result.verified!==true)throw Error("Envoi non confirmé.");
+      setReminderSent(old=>({...old,[String(gameId)+":"+tour+":"+player.uid]:Date.now()}));
+    }catch(e){reportActionError(e);}finally{setReminderBusy(null);}
+  }
   async function adminRequest(path,body){
     const current=auth.currentUser;
     if(!adminSession||window.location.origin!=="https://miss2027-test.onrender.com"||!current||current.uid!==import.meta.env.VITE_ADMIN_UID)throw Error("Action réservée à la régie test.");
     const token=await current.getIdToken();
     const res=await fetch("https://miss2027-test-api.onrender.com"+path,{method:body===undefined?"GET":"POST",headers:{Authorization:"Bearer "+token,...(body===undefined?{}:{"Content-Type":"application/json"})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(45000),cache:"no-store"});
     const data=await res.json();
-    if(!res.ok)throw Error(({close_votes_first:"Ferme les votes avant de valider.",game_changed:"La partie a changé.",round_changed:"Le tour a changé.",invalid_vote:"Sélection officielle non valide.",invalid_member:"Ce joueur ne fait plus partie de ce groupe.",game_finished:"Les résultats sont déjà publiés."})[data.error]||"Serveur de la régie indisponible.");
+    if(!res.ok)throw Error(({close_votes_first:"Ferme les votes avant de valider.",game_changed:"La partie a changé.",round_changed:"Le tour a changé.",invalid_vote:"Sélection officielle non valide.",invalid_member:"Ce joueur ne fait plus partie de ce groupe.",game_finished:"Les résultats sont déjà publiés.",votes_closed:"Les votes sont fermés.",already_voted:"Ce joueur a déjà validé son vote.",reminder_not_verified:"Le rappel n’a pas pu être confirmé."})[data.error]||"Serveur de la régie indisponible.");
     return data;
   }
   async function toggleControl(kind,open){
@@ -140,6 +150,9 @@ export default function Admin({ user, setUser }) {
   const [publishing,setPublishing]=useState(false);
   const [advancingTour, setAdvancingTour] = useState(false);
   const [votesExpanded, setVotesExpanded] = useState(false);
+  const [expandedVoteGroup,setExpandedVoteGroup]=useState(null);
+  const [reminderBusy,setReminderBusy]=useState(null);
+  const [reminderSent,setReminderSent]=useState({});
   const [rankExpanded, setRankExpanded] = useState(false);
   const [expandedGroup,setExpandedGroup]=useState(null);
   const [removing,setRemoving]=useState(null);
@@ -404,7 +417,30 @@ export default function Admin({ user, setUser }) {
         </div>
         {!groups.length&&<p className="regie-muted">Aucun groupe créé.</p>}
       </section>}
-      {votesExpanded && <section className="regie-expand"><h3>SUIVI DES VOTES · TOUR {tour}</h3><div className="regie-player-grid">{playerEntries.map(([pseudo,player])=><div key={pseudo} className={"regie-player-status "+(playerHasVoted(player)?"yes":"no")}><span>{player.pseudo} · {player.groupName}</span><b>{playerHasVoted(player)?"✓ VOTÉ":"✕ PAS VOTÉ"}</b></div>)}</div>{totalPlayers===0&&<p>Aucun joueur enregistré.</p>}</section>}
+      {votesExpanded&&<section className="regie-expand"><h3>SUIVI DES VOTES · TOUR {tour}</h3>
+        <div className="regie-group-list">
+          {groups.map(g=>{
+            const members=playerEntries.filter(([,p])=>p.groupId===g.id).sort(([,x],[,y])=>Number(!!playerHasVoted(x))-Number(!!playerHasVoted(y))||x.pseudo.localeCompare(y.pseudo,"fr"));
+            const count=members.filter(([,p])=>playerHasVoted(p)).length,total=members.length,opened=expandedVoteGroup===g.id;
+            const state=total===0?"empty":count===total?"complete":"incomplete";
+            return <div key={g.id} className={"regie-vote-group "+state}>
+              <button type="button" className="regie-vote-group-toggle" aria-expanded={opened} onClick={()=>setExpandedVoteGroup(old=>old===g.id?null:g.id)}>
+                <span><strong>{g.name}</strong><small>{total===0?"Aucun joueur inscrit":state==="complete"?"Tous les votes validés":(total-count)+" vote"+(total-count>1?"s":"")+" en attente"}</small></span>
+                <b>{count}/{total}</b><span aria-hidden="true">{opened?"⌃":"⌄"}</span>
+              </button>
+              {opened&&<div className="regie-vote-members">
+                {members.map(([uid,p])=>{const voted=!!playerHasVoted(p),sent=Date.now()-(reminderSent[String(gameId)+":"+tour+":"+uid]||0)<60000;return <div key={uid} className={"regie-vote-member "+(voted?"yes":"no")}>
+                  <strong>{p.pseudo}</strong><span>{voted?"✓ VOTÉ":"✕ PAS VOTÉ"}</span>
+                  {!voted&&<button type="button" className="regie-vote-reminder" disabled={!!reminderBusy||sent||!votesOpen||finaleStarted} onClick={()=>void remindVoter(p)}>{reminderBusy===uid?"Envoi…":sent?"Envoyé ✓":"Alerter"}</button>}
+                </div>})}
+                {!members.length&&<p className="regie-muted">Aucun joueur inscrit.</p>}
+              </div>}
+            </div>;
+          })}
+        </div>
+        {!groups.length&&<p>Aucun groupe enregistré.</p>}
+        {!votesOpen&&<p className="regie-muted" style={{fontSize:12}}>Les rappels sont disponibles pendant l’ouverture des votes.</p>}
+      </section>}
       {rankExpanded && <section className="regie-expand"><h3>CLASSEMENT DES JOUEURS</h3><div className="regie-standing-list">{standings.map((p,i)=><div key={p.uid}><strong>{i===0?"👑":String(i+1).padStart(2,"0")}</strong><span>{p.pseudo}</span><b>{p.points} pts</b></div>)}</div>{!standings.length&&<p>Aucun score pour le moment.</p>}</section>}
 
       <section className="regie-controls"><h2>COMMANDES DE LA RÉGIE</h2><div className="regie-control-grid">

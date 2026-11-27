@@ -4,6 +4,7 @@ const eventOf=root=>root?.events?.miss2027||{};
 const store=(root,event)=>({...root,events:{...root.events,miss2027:event}});
 const member=(event,uid)=>membershipView(event.registration,uid);
 const safeKey=k=>typeof k==="string"&&/^[a-zA-Z0-9_-]{1,128}$/.test(k)&&!["__proto__","constructor","prototype"].includes(k);
+const hasVoted=(event,uid,tour)=>Object.keys(event.votes?.[uid]?.["tour"+tour]||{}).length>0;
 const rows=(event,id)=>Object.values(event.chats?.[id]||{}).sort((a,b)=>a.date-b.date||a.id.localeCompare(b.id));
 const reportsOf=(event,id)=>event.chatReports?.[id]||{};
 const pendingReports=(event,id)=>Object.values(reportsOf(event,id)).filter(r=>r.status==="pending");
@@ -27,14 +28,15 @@ export function chatView(root,{uid,admin=false,groupId}){
  const event=eventOf(root),group=member(event,uid);
  const id=admin?groupId:group?.id;
  if(!safeKey(id)||!event.registration?.groups?.[id])return fail("not_registered");
- const reports=reportsOf(event,id);
- return {result:{messages:rows(event,id).filter(m=>admin||!m.targetUid||m.targetUid===uid).slice(-80).map(({targetUid,...m})=>({...m,reported:!!reports[m.id]?.reporters?.[uid]})),blocked:!admin&&event.chatModeration?.[uid]===true,...(admin?{reports:pendingReports(event,id).map(({reporters,...r})=>({...r,count:Object.keys(reporters||{}).length})).sort((a,b)=>a.createdAt-b.createdAt)}:{})}};
+ const reports=reportsOf(event,id),room=root?.rooms?.miss2027;
+ const reminder=!admin&&room?.votesOpen===true&&!room.finaleStarted&&!hasVoted(event,uid,Number(room.tour||1))?rows(event,id).filter(m=>m.kind==="vote_reminder"&&m.targetUid===uid&&m.gameId===String(room.gameId)&&m.tour===Number(room.tour||1)).at(-1):null;
+ return {result:{voteReminder:reminder?{id:reminder.id,text:reminder.text}:null,messages:rows(event,id).filter(m=>admin||!m.targetUid||m.targetUid===uid).slice(-80).map(({targetUid,...m})=>({...m,reported:!!reports[m.id]?.reporters?.[uid]})),blocked:!admin&&event.chatModeration?.[uid]===true,...(admin?{reports:pendingReports(event,id).map(({reporters,...r})=>({...r,count:Object.keys(reporters||{}).length})).sort((a,b)=>a.createdAt-b.createdAt)}:{})}};
 }
-export function chatAction(root,{uid,admin=false,groupId,text,id,now,action="send",targetUid,messageId}){
+export function chatAction(root,{uid,admin=false,groupId,text,id,now,action="send",targetUid,messageId,gameId,tour}){
  const event=eventOf(root),group=member(event,uid);
  const roomId=admin?groupId:group?.id;
  if(!safeKey(roomId)||!event.registration?.groups?.[roomId])return fail("not_registered");
- if(!["send","warn","block","unblock","report","report_room","resolve_report"].includes(action))return fail("invalid_action");
+ if(!["send","warn","block","unblock","report","report_room","resolve_report","vote_reminder"].includes(action))return fail("invalid_action");
  // A room alert is independent of any specific message or accused player.
  if(action==="report_room"){
   if(!safeKey(id)||!Number.isFinite(now))return fail("invalid_message");
@@ -65,6 +67,21 @@ export function chatAction(root,{uid,admin=false,groupId,text,id,now,action="sen
   return {state:store(root,{...event,chatReports:{...event.chatReports,[roomId]:{...reports,[messageId]:report}}}),result:{accepted:true}};
  }
  if(action!=="send"&&(!admin||!safeKey(targetUid)||member(event,targetUid)?.id!==roomId))return fail("admin_required");
+ if(action==="vote_reminder"){
+  const room=root?.rooms?.miss2027;
+  if(!room?.gameId||String(room.gameId)!==gameId)return fail("game_changed");
+  if(Number(room.tour||1)!==tour)return fail("round_changed");
+  if(room.votesOpen!==true||room.finaleStarted===true)return fail("votes_closed");
+  if(hasVoted(event,targetUid,tour))return fail("already_voted");
+  if(!safeKey(id)||!Number.isFinite(now))return fail("invalid_message");
+  const previous=rows(event,roomId).filter(m=>m.kind==="vote_reminder"&&m.targetUid===targetUid&&m.gameId===gameId&&m.tour===tour).at(-1);
+  if(previous&&now-previous.date<60000)return {state:root,result:{accepted:true,alreadySent:true,messageId:previous.id}};
+  const row={id,author:"ADMIN",uid,admin:true,date:now,text:"Merci de valider votre vote !",targetUid,kind:"vote_reminder",gameId,tour};
+  const existing=event.chats?.[roomId]||{};
+  if(Object.hasOwn(existing,id))return fail("conflict");
+  const retained=[...Object.values(existing),row].sort((a,b)=>a.date-b.date||a.id.localeCompare(b.id)).slice(-120);
+  return {state:store(root,{...event,chats:{...event.chats,[roomId]:Object.fromEntries(retained.map(m=>[m.id,m]))}}),result:{accepted:true,messageId:id}};
+ }
  if(action==="block"||action==="unblock"){
    return {state:store(root,{...event,chatModeration:{...event.chatModeration,[targetUid]:action==="block"}}),result:{accepted:true}};
  }

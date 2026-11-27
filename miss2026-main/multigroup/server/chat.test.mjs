@@ -88,3 +88,23 @@ test("room report receipt and fresh JSON round trip agree with global admin aler
  assert.deepEqual(adminAlertDirectory(resolved),[]);
  assert.equal(verifyRoomReport(resolved,receipt),true);
 });
+
+test("vote reminder is private, limited to the open current round and outstanding voters",()=>{
+ let r=fixture();r.rooms={miss2027:{gameId:"g",tour:1,votesOpen:true}};
+ const params={uid:"admin",admin:true,groupId:"a",action:"vote_reminder",targetUid:"u2",gameId:"g",tour:1,id:"remind",now:100};
+ assert.equal(chatAction(r,{...params,admin:false,uid:"u1"}).code,"admin_required");
+ assert.equal(chatAction(r,{...params,groupId:"b"}).code,"admin_required");
+ assert.equal(chatAction(r,{...params,tour:2}).code,"round_changed");
+ assert.equal(chatAction(r,{...params,gameId:"old"}).code,"game_changed");
+ const out=chatAction(r,params);assert.equal(out.result.accepted,true);r=out.state;
+ assert.equal(chatView(r,{uid:"u1"}).result.messages.length,0);
+ assert.equal(chatView(r,{uid:"u3"}).result.voteReminder,null);
+ assert.equal(chatView(r,{uid:"u2"}).result.voteReminder.id,"remind");
+ assert.equal(chatView(r,{uid:"u2"}).result.messages[0].text,"Merci de valider votre vote !");
+ assert.equal(chatAction(r,{...params,id:"again",now:101}).result.alreadySent,true);
+ r.events.miss2027.votes={u2:{tour1:[1]}};
+ assert.equal(chatView(r,{uid:"u2"}).result.voteReminder,null);
+ assert.equal(chatAction(r,{...params,id:"again",now:70000}).code,"already_voted");
+ delete r.events.miss2027.votes;r.rooms.miss2027.votesOpen=false;
+ assert.equal(chatAction(r,params).code,"votes_closed");assert.equal(chatView(r,{uid:"u2"}).result.voteReminder,null);
+});

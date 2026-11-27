@@ -1,40 +1,41 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {issueRecovery,recoveryIdentity,withRecovery,newRecoveryCode} from "./recovery.mjs";
-import {createGroup,joinGroup,membershipView} from "./registration.mjs";
+import {authenticateGroupMember} from "./recovery.mjs";
+import {createGroup,joinGroup,membershipView,registerPublic} from "./registration.mjs";
 import {resetContest} from "./reset.mjs";
 import {gameView} from "./game.mjs";
-const code="0123-4567-89ab-cdef-0123-4567-89ab-cdef",other="fedc-ba98-7654-3210-fedc-ba98-7654-3210";
 const fixture=()=>{
- let reg=createGroup(null,{uid:"u1",id:"g",name:"Famille",pseudo:"Rod",secret:"hash",now:1}).state;
- reg=joinGroup(reg,{uid:"u2",id:"g",pseudo:"Bob",verifiedSecret:"hash",now:2}).state;
- return {rooms:{miss2027:{gameId:"g1",tour:1,votesOpen:false}},events:{miss2027:{registration:reg,players:{u1:{groupId:"g"}},votes:{u1:{tour1:[1,2],favorite:1}}}}};
+ let reg=createGroup(null,{uid:"u1",id:"g",name:"Famille",pseudo:"Rod",secret:"group-hash",now:1}).state;
+ reg=joinGroup(reg,{uid:"u2",id:"g",pseudo:"Jen",verifiedSecret:"group-hash",now:2}).state;
+ return {rooms:{miss2027:{gameId:"g1",tour:1,votesOpen:false,connectionsOpen:true}},events:{miss2027:{registration:reg,players:{u2:{groupId:"g"}},votes:{u2:{tour1:[1,2],favorite:1}}}}};
 };
-const recover=(root,extra={})=>recoveryIdentity(root,{requesterUid:"new",pseudo:" RÓD ",code,adminUid:"admin",...extra});
-test("recovery preserves original UID, ballots and ownership; secrets are not exposed or stored in plaintext",()=>{
- const root=fixture(),r=withRecovery({state:root,result:{id:"g"}},"u1",code);
- assert.equal(r.result.recoveryCode,code);
- assert.equal(JSON.stringify(r.state).includes(code),false);
- assert.equal(membershipView(r.state.events.miss2027.registration,"u1").recoveryDigest,undefined);
- const result=recover(r.state);assert.equal(result.result.uid,"u1");
- assert.equal(gameView(r.state,result.result.uid).result.ownVote.favorite,1);
- assert.equal(membershipView(r.state.events.miss2027.registration,result.result.uid).isOwner,true);
- assert.deepEqual(r.state.events.miss2027.votes,root.events.miss2027.votes);
- assert.equal(recover(r.state,{code:other}).code,"recovery_invalid");
- assert.equal(recover(r.state,{pseudo:"Bob"}).code,"recovery_invalid");
- assert.equal(recover(r.state,{requesterUid:"u2"}).code,"already_member");
- assert.equal(recover(r.state,{adminUid:"u1"}).code,"recovery_invalid");
+const recover=(root,extra={})=>authenticateGroupMember({read:async()=>root,matches:async(p,s)=>p==="group-password"&&s==="group-hash",requesterUid:"new",pseudo:" JÉN ",password:"group-password",adminUid:"admin",...extra});
+test("existing private member keeps original identity and votes using the group password",async()=>{
+ const root=fixture(),saved=structuredClone(root);
+ root.rooms.miss2027.registrationLocked=true;
+ const result=await recover(root);
+ assert.deepEqual(result.result,{uid:"u2"});
+ assert.equal(gameView(root,result.result.uid).result.ownVote.favorite,1);
+ assert.deepEqual(root.events,saved.events);
+ assert.equal((await recover(root,{pseudo:"Rod"})).result.uid,"u1");
+ assert.equal(membershipView(root.events.miss2027.registration,"u1").isOwner,true);
+ assert.equal((await recover(root,{requesterUid:"u2"})).result.uid,"u2");
 });
-test("rotation invalidates old code; ordinary retries never rotate; reset registrations invalidates recovery",()=>{
- const first=issueRecovery(fixture(),{uid:"u1",code});
- const again=issueRecovery(first.state,{uid:"u1",code:other});
- assert.equal(again.result.recoveryCode,undefined);assert.deepEqual(again.state,first.state);
- const rotated=issueRecovery(first.state,{uid:"u1",code:other,rotate:true});
- assert.equal(recover(rotated.state).code,"recovery_invalid");
- assert.equal(recover(rotated.state,{code:other}).result.uid,"u1");
- const reset=resetContest(rotated.state,"game","g2").state;
- assert.equal(recover(reset,{code:other}).result.uid,"u1");
+test("wrong password, nonexistent pseudo, admin and public rooms cannot recover",async()=>{
+ const root=fixture();
+ assert.equal((await recover(root,{password:"bad"})).code,"recovery_invalid");
+ assert.equal((await recover(root,{pseudo:"Unknown"})).code,"recovery_invalid");
+ assert.equal((await recover(root,{requesterUid:"u1"})).code,"already_member");
+ assert.equal((await recover(root,{requesterUid:"admin"})).code,"recovery_invalid");
+ assert.equal((await recover(root,{adminUid:"u2"})).code,"recovery_invalid");
+ const pub=registerPublic(root,{uid:"pub",pseudo:"Public",now:4}).state;
+ assert.equal((await recover(pub,{pseudo:"Public"})).code,"recovery_invalid");
+});
+test("game reset preserves private recovery, registration reset or concurrent removal denies it",async()=>{
+ const root=fixture(),reset=resetContest(root,"game","g2").state;
+ assert.equal((await recover(reset)).result.uid,"u2");
  const cleared=resetContest(reset,"registrations","g3").state;
- assert.equal(recover(cleared,{code:other}).code,"recovery_invalid");
- assert.match(newRecoveryCode(),/^[a-f0-9]{4}(?:-[a-f0-9]{4}){7}$/);
+ assert.equal((await recover(cleared)).code,"recovery_invalid");
+ let reads=0;
+ assert.equal((await recover(root,{read:async()=>++reads===1?root:cleared})).code,"recovery_invalid");
 });

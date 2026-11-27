@@ -9,7 +9,7 @@ import {locked,ownerView,manageGroup,invitationView,acceptInvitation} from "./ma
 import {chatView,chatAction} from "./chat.mjs";
 import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
 import {conditionalWrite} from "./conditional.mjs";
-import {newRecoveryCode,issueRecovery,withRecovery,recoveryIdentity} from "./recovery.mjs";
+import {authenticateGroupMember} from "./recovery.mjs";
 import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal,setVoteOpening,setConnectionOpening,protectedControlChange} from "./game.mjs";
 
 const PROJECT="miss2027-test-v2";
@@ -238,8 +238,8 @@ const server=http.createServer(async(req,res)=>{
       if(uid==="fma5bvfcCRYoS1kBf0CUFdBVowJ3")return reply(res,403,{error:"admin_cannot_register"});
       const b=await body(req);
       if(!validInvite(b.token)||!validString(b.pseudo,1,24))return reply(res,400,{error:"invalid_fields"});
-      const digest=digestInvite(b.token),now=Date.now(),code=newRecoveryCode();
-      const result=await directRootChange(root=>withRecovery(acceptInvitation(root,{uid,digest,pseudo:b.pseudo.trim(),now}),uid,code));
+      const digest=digestInvite(b.token),now=Date.now();
+      const result=await directRootChange(root=>acceptInvitation(root,{uid,digest,pseudo:b.pseudo.trim(),now}));
       return reply(res,result.status,result.body);
     }
     if(url.pathname==="/groups/owner/manage"){
@@ -255,22 +255,18 @@ const server=http.createServer(async(req,res)=>{
       }
       return reply(res,405,{error:"method_not_allowed"});
     }
-    if(req.method==="POST"&&url.pathname==="/groups/recovery/code"){
-      if(uid==="fma5bvfcCRYoS1kBf0CUFdBVowJ3")return reply(res,403,{error:"admin_cannot_register"});
-      if(limited("recovery-code:"+uid,4))return reply(res,429,{error:"too_many_requests"});
-      const b=await body(req),code=newRecoveryCode();
-      const result=await directRootChange(root=>issueRecovery(root,{uid,code,rotate:b.rotate===true}));
-      return reply(res,result.status,result.body);
-    }
     if(req.method==="POST"&&url.pathname==="/groups/recovery/login"){
       if(limited("recovery-login:"+uid,5))return reply(res,429,{error:"too_many_requests"});
       const b=await body(req);
-      if(!validString(b.pseudo,1,24)||!validString(b.code,32,64))return reply(res,403,{error:"recovery_invalid"});
-      const view=recoveryIdentity(await directRootRead(),{requesterUid:uid,pseudo:b.pseudo,code:b.code,adminUid:"fma5bvfcCRYoS1kBf0CUFdBVowJ3"});
-      if(view.code)return reply(res,403,{error:view.code});
+      if(!validString(b.pseudo,1,24)||!validString(b.password,6,128))return reply(res,403,{error:"recovery_invalid"});
+      const key=normalizePseudo(b.pseudo);
+      if(limited("recovery-target:"+key,12))return reply(res,429,{error:"too_many_requests"});
+      const view=await authenticateGroupMember({read:directRootRead,matches,requesterUid:uid,pseudo:b.pseudo,password:b.password,adminUid:"fma5bvfcCRYoS1kBf0CUFdBVowJ3"});
+      if(view.code){console.log("TEST_ACCOUNT_LOGIN "+JSON.stringify({status:403,error:view.code}));return reply(res,403,{error:view.code});}
       const account=await auth.getUser(view.result.uid);
       if(account.disabled)return reply(res,403,{error:"recovery_invalid"});
       const token=await auth.createCustomToken(view.result.uid);
+      console.log("TEST_ACCOUNT_LOGIN "+JSON.stringify({status:200}));
       return reply(res,200,{token,uid:view.result.uid});
     }
     if(req.method==="POST"&&url.pathname==="/groups/name"){
@@ -297,8 +293,7 @@ const server=http.createServer(async(req,res)=>{
       if(!validString(b.pseudo,1,24))return reply(res,400,{error:"invalid_fields"});
       if(uid==="fma5bvfcCRYoS1kBf0CUFdBVowJ3")return reply(res,403,{error:"admin_cannot_register"});
       const now=Date.now();
-      const code=newRecoveryCode();
-      const result=await directRootChange(root=>withRecovery(locked(root)&&!membershipView(root?.events?.miss2027?.registration,uid)?{code:"membership_locked"}:registerPublic(root,{uid,pseudo:b.pseudo.trim(),now}),uid,code));
+      const result=await directRootChange(root=>locked(root)&&!membershipView(root?.events?.miss2027?.registration,uid)?{code:"membership_locked"}:registerPublic(root,{uid,pseudo:b.pseudo.trim(),now}));
       return reply(res,result.status,result.body);
     }
     if(req.method==="GET"&&url.pathname==="/groups/search"){
@@ -314,8 +309,7 @@ const server=http.createServer(async(req,res)=>{
       if(!validString(b.name,1,80)||!validString(b.pseudo,1,24)||!validString(b.password,6,128))return reply(res,400,{error:"invalid_fields"});
       const epoch=(await directRootRead())?.events?.miss2027?.registration?.epoch||null;
       const id=randomUUID(),secret=await hash(b.password),now=Date.now();
-      const code=newRecoveryCode();
-      const result=await directRootChange(root=>withRecovery(registrationChange(root,s=>(s?.epoch||null)!==epoch?{code:"registration_reset"}:createGroup(s,{uid,id,name:b.name.trim(),pseudo:b.pseudo.trim(),secret,now})),uid,code));
+      const result=await directRootChange(root=>registrationChange(root,s=>(s?.epoch||null)!==epoch?{code:"registration_reset"}:createGroup(s,{uid,id,name:b.name.trim(),pseudo:b.pseudo.trim(),secret,now})));
       if(result.status!==200){
         console.log("TEST_GROUP_CREATE "+JSON.stringify({status:result.status,error:result.body?.error||null}));
         return reply(res,result.status,result.body);
@@ -336,8 +330,7 @@ const server=http.createServer(async(req,res)=>{
       const group=(await directRootRead())?.events?.miss2027?.registration?.groups?.[b.id];
       if(!group||group.type==="public"||!await matches(b.password,group.secret))return reply(res,403,{error:"group_or_password_invalid"});
       const now=Date.now();
-      const code=newRecoveryCode();
-      const result=await directRootChange(root=>withRecovery(registrationChange(root,s=>joinGroup(s,{uid,id:b.id,pseudo:b.pseudo.trim(),verifiedSecret:group.secret,now})),uid,code));
+      const result=await directRootChange(root=>registrationChange(root,s=>joinGroup(s,{uid,id:b.id,pseudo:b.pseudo.trim(),verifiedSecret:group.secret,now})));
       return reply(res,result.status,result.body);
     }
     return reply(res,404,{error:"not_found"});

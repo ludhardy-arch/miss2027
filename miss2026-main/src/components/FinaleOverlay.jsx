@@ -98,7 +98,7 @@ export default function FinalShow({ players, adminSelections, isAdmin, frozenRan
       <div className="finalshow-broadcast-label" aria-hidden="true">✦ LE GRAND SHOW · MISS FRANCE 2027 ✦</div>
       <div className="finalshow-tv-marquee" aria-hidden="true"><span>LA GRANDE FINALE</span><span>★ MISS FRANCE 2027 ★</span></div><div className="finalshow-stage" aria-hidden="true"><div className="finalshow-stage-ring" /></div>
       <header className="finalshow-header">
-        <div style={{ fontSize: 27, lineHeight: 1, color: "#f0cf86" }} aria-hidden="true">♛</div>
+        <img className="finalshow-header-crown" src="/images/couronne-prestige.svg" alt="" aria-hidden="true" />
         <div style={{ ...smallCap, fontSize: 14, letterSpacing: ".14em" }}>MISS FRANCE <span style={gold}>2027</span></div>
         <div style={{ ...smallCap, fontSize: 9, color: "#d9bfa0", letterSpacing: ".2em" }}>{groupName||"Le jeu des pronostics"}</div>
         {isAdmin && <button className="finalshow-quit" onClick={quit}>Quitter</button>}
@@ -138,7 +138,7 @@ export default function FinalShow({ players, adminSelections, isAdmin, frozenRan
               <div style={smallCap}>Le classement des joueurs</div>
               <div className="finalshow-ribbon">{ordinal(revealed.rank)} PLACE</div>
               <p style={{ ...headline, fontSize: "clamp(21px,6vw,30px)", margin: "18px 0 20px" }}>À la {ordinal(revealed.rank)} place…</p>
-              <div className="finalshow-medallion" aria-hidden="true">♛</div>
+              <div className="finalshow-medallion" aria-hidden="true"><img src="/images/couronne-prestige.svg" alt="" /></div>
               {nameVisible ? (
                 <div className="finalshow-name-enter">
                   <h2 className="finalshow-name">{revealed.pseudo}</h2>
@@ -155,7 +155,7 @@ export default function FinalShow({ players, adminSelections, isAdmin, frozenRan
               <p style={{ color: "#dfcbaa", fontSize: 14, margin: "0 0 30px" }}>Ils sont encore deux… Qui remportera le titre ?</p>
               <div className="finalshow-duel">
                 {finalists.map(player => <div className="finalshow-finalist" key={player.uid || player.pseudo}>
-                  <span className="finalshow-finalist-crown" aria-hidden="true">♛</span>
+                  <img className="finalshow-finalist-crown" src="/images/couronne-prestige.svg" alt="" aria-hidden="true" />
                   <strong>{player.pseudo}</strong>
                   <span>FINALISTE</span>
                 </div>)}
@@ -173,7 +173,7 @@ export default function FinalShow({ players, adminSelections, isAdmin, frozenRan
               <p className="finalshow-name-enter" style={{ ...headline, fontSize: "clamp(23px,6.5vw,34px)", color: "#ffe0a0", margin: "0 0 28px", animationDelay: "1.8s" }}>ET RESTERA…</p>
               <div className="finalshow-duel">
                 {finalists.map(player => <div className="finalshow-finalist" key={player.uid || player.pseudo}>
-                  <span className="finalshow-finalist-crown" aria-hidden="true">♛</span>
+                  <img className="finalshow-finalist-crown" src="/images/couronne-prestige.svg" alt="" aria-hidden="true" />
                   <strong>{player.pseudo}</strong>
                   <span>FINALISTE</span>
                 </div>)}
@@ -186,7 +186,7 @@ export default function FinalShow({ players, adminSelections, isAdmin, frozenRan
             <div className="finalshow-center">
               <div style={smallCap}>Miss France 2027</div>
               <div className="finalshow-ribbon">{winners.length>1?"GRANDS GAGNANTS EX ÆQUO":"GRAND GAGNANT"}</div>
-              <div className="finalshow-medallion finalshow-medallion-winner" aria-hidden="true">♛</div>
+              <div className="finalshow-medallion finalshow-medallion-winner" aria-hidden="true"><img src="/images/couronne-prestige.svg" alt="" /></div>
               <h1 className="finalshow-winner">{winners.map(p=>p.pseudo).join(" · ")}</h1>
               <div className="finalshow-points">{winner.points} points</div>
               <p style={{ color: "#edd6ad", fontSize: 13, marginTop: 25 }}>{winners.length>1?"Félicitations aux champions !":"Félicitations à notre champion !"}</p>
@@ -254,7 +254,9 @@ export default function FinalShow({ players, adminSelections, isAdmin, frozenRan
         .finalshow-shimmer { height:2px; width:180px; margin:60px auto 0; background:linear-gradient(to right,transparent,#ffe2ac,transparent); box-shadow:0 0 28px #edbf77; animation:winnerPulse 2s ease-in-out infinite; }
         .finalshow-duel { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; width:100%; margin:0 auto; }
         .finalshow-finalist { display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:0; min-height:190px; padding:19px 8px; border:1px solid #c6a06b; border-radius:16px; background:radial-gradient(circle at 50% 10%,rgba(225,166,94,.19),transparent 65%),#231923; box-shadow:inset 0 0 20px rgba(225,166,94,.08),0 6px 25px rgba(0,0,0,.3); }
-        .finalshow-finalist-crown { font-size:40px; color:#e0b979; line-height:1; margin-bottom:15px; }
+        .finalshow-header-crown{display:block;width:64px;height:auto;margin:0 auto 5px;filter:drop-shadow(0 0 6px rgba(239,197,121,.4));}
+        .finalshow-medallion img{display:block;width:86%;height:auto;object-fit:contain;filter:drop-shadow(0 0 6px rgba(244,206,125,.38));}
+        .finalshow-finalist-crown { display:block;width:clamp(65px,21vw,94px);height:auto;object-fit:contain;margin-bottom:13px;filter:drop-shadow(0 0 6px rgba(244,206,125,.38)); }
         .finalshow-finalist strong { font:500 clamp(19px,5.5vw,29px) Georgia,serif; color:#fff1d5; overflow-wrap:anywhere; }
         .finalshow-finalist span:last-child { font:700 10px Arial,sans-serif; letter-spacing:.18em; color:#e8c68c; margin-top:17px; }
         .finalshow-podium { display:flex; align-items:flex-end; gap:7px; width:100%; min-height:230px; }

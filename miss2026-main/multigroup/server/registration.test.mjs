@@ -15,7 +15,11 @@ test("one group per UID, no duplicate membership",()=>{
  assert.equal(createGroup(s,{...creator,id:"g2"}).code,"already_member");
  const r=joinGroup(s,join);
  assert.equal(r.state.membership.u2,"g1");
- assert.equal(joinGroup(r.state,join).code,"already_member");
+ const retry=joinGroup(r.state,join);
+ assert.equal(retry.result.alreadyRegistered,true);
+ assert.equal(retry.result.group.pseudo,"Bob");
+ assert.deepEqual(retry.state,r.state);
+ assert.equal(joinGroup(r.state,{...join,uid:"other"}).code,"pseudo_taken");
  assert.equal(createGroup(r.state,{...creator,uid:"u2",id:"g2"}).code,"already_member");
 });
 test("invalid password is rejected; obsolete private closure no longer blocks registrations",()=>{

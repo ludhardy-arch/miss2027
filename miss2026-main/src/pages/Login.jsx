@@ -546,8 +546,8 @@ export default function Login({ setUser }) {
           {joinedGroup.isOwner&&<button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={()=>startCreatorFlow("creator-login")}>Gérer mon groupe</button>}
         </>}
         {screen === "manage" && <>
-          <button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={()=>startCreatorFlow("create-group")}>Créer un groupe</button>
-          <button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={()=>startCreatorFlow("creator-login")}>Gérer mon groupe</button>
+          <button type="button" className="group-entry-gold" style={{...entryButton,background:"linear-gradient(135deg,#d9a42d,#ffe078,#e8b63e)",color:"#342303",border:"2px solid #ffdf77",boxShadow:"0 0 12px rgba(255,204,70,.42)"}} disabled={pending} onClick={()=>startCreatorFlow("create-group")}>Créer un groupe</button>
+          <button type="button" className="group-entry-blue group-entry-neon" style={entryButton} disabled={pending} onClick={()=>startCreatorFlow("creator-login")}>Gérer mon groupe</button>
         </>}
         {screen === "create-group" && <form onSubmit={createRealGroup} style={{display:"grid",gap:12,textAlign:"left"}}>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:19,textAlign:"center"}}>Créer ton groupe</h2>

@@ -490,6 +490,7 @@ export default function Login({ setUser }) {
             background:linear-gradient(135deg,#7b233e,#a8334c)!important;
             color:#fff!important;border:1px solid #ff859c!important;
             box-shadow:0 0 9px rgba(255,85,117,.25)!important;
+            flex:0 0 auto!important;width:auto!important;min-width:0!important;min-height:32px!important;padding:7px 12px!important;font-size:12px!important;line-height:1.2!important;border-radius:8px!important;
           }
           .tv-login-shell .group-entry-panel button.group-entry-back {
             background:transparent!important;color:#c6d3ee!important;
@@ -589,7 +590,7 @@ export default function Login({ setUser }) {
             <section style={{display:"grid",gap:10,padding:12,border:"1px solid #64a9ea",borderRadius:13,background:"rgba(84,118,189,.13)",textAlign:"left"}}>
               <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Participants ({ownerGroup.memberCount}/30)</h3><button type="button" className="group-entry-blue" disabled={pending} onClick={refreshOwner}>Actualiser la liste</button>
               {ownerGroup.members.map(member=><div key={member.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:10,borderRadius:9,background:"#1b315d"}}>
-                <span>{member.pseudo}</span>{member.isOwner?<span style={{fontSize:12,color:"#ffe5ad"}}>Créateur</span>:<button type="button" className="group-entry-remove" disabled={pending||ownerGroup.locked} onClick={()=>{if(window.confirm("Retirer "+member.pseudo+" du groupe ?"))void ownerAction("remove",undefined,member.id);}}>Retirer</button>}
+                <span style={{flex:1,minWidth:0,overflowWrap:"anywhere",textAlign:"left",paddingRight:10}}>{member.pseudo}</span>{member.isOwner?<span style={{fontSize:12,color:"#ffe5ad"}}>Créateur</span>:<button type="button" className="group-entry-remove" disabled={pending||ownerGroup.locked} onClick={()=>{if(window.confirm("Retirer "+member.pseudo+" du groupe ?"))void ownerAction("remove",undefined,member.id);}}>Retirer</button>}
               </div>)}
             </section>
           </>}

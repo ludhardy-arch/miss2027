@@ -66,10 +66,11 @@ export async function createInvitationImage({name,password}){
  return new File([blob],"Invitation-Miss-France-2027.png",{type:"image/png"});
 }
 
-// Keep the private group token in the URL, never in the public preview image or metadata.
+// Only the existing bearer token goes in the URL; the API generates group-specific metadata.
 export function richInvitationLink(original){
  const link=new URL(original);
  const match=/^#\/login\?invite=([a-f0-9]{64})$/.exec(link.hash);
  if(!match||!["https:","http:"].includes(link.protocol))throw Error("Lien d’invitation invalide");
+ if(link.origin==="https://miss2027-test.onrender.com")return "https://miss2027-test-api.onrender.com/invitation/v3/"+match[1];
  return new URL("/invitation.html?invite="+match[1],link.origin).href;
 }

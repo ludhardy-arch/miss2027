@@ -11,6 +11,7 @@ import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
 import {conditionalWrite} from "./conditional.mjs";
 import {authenticateGroupMember} from "./recovery.mjs";
 import {invitationKey,sealInvitation,openInvitation} from "./invitationCard.mjs";
+import {previewToken,previewDetails,previewPage} from "./richInvitation.mjs";
 import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal,setVoteOpening,setConnectionOpening,protectedControlChange} from "./game.mjs";
 
 const PROJECT="miss2027-test-v2";
@@ -141,10 +142,25 @@ async function verifyTestFirebase(){
 }
 const ready=()=>Object.values(readiness).every(value=>value==="ok");
 void verifyTestFirebase();
+// Isolated, bounded read-only preview requests; no Firebase auth bypass on existing API routes.
+let previewWindow=0,previewCount=0,previewJobs=0;
 const server=http.createServer(async(req,res)=>{
   try {
     const url=new URL(req.url,"http://localhost");
     if(url.pathname==="/health"&&req.method==="GET")return reply(res,ready()?200:503,{ok:ready(),testOnly:true,registrationEnabled:registrationEnabled&&ready(),firebase:readiness});
+    const publicToken=previewToken(url.pathname);
+    if(publicToken&&["GET","HEAD"].includes(req.method)){
+      let details=null;
+      if(Date.now()>=previewWindow){previewWindow=Date.now()+60000;previewCount=0;}
+      // A generic preview still leads to the original invitation if the API is busy.
+      if(req.method==="GET"&&registrationEnabled&&ready()&&previewCount<120&&previewJobs<4){
+        previewCount++;previewJobs++;
+        try{details=previewDetails(await directRootRead(),cardKey,publicToken);}catch{}finally{previewJobs--;}
+      }
+      const page=previewPage(publicToken,details);
+      res.writeHead(200,{"Content-Type":"text/html; charset=utf-8","Cache-Control":"private, no-store, max-age=0","X-Robots-Tag":"noindex, nofollow, noarchive","Referrer-Policy":"no-referrer","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'none'; img-src "+ORIGIN+"; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"});
+      return res.end(req.method==="HEAD"?undefined:page);
+    }
     if(req.headers.origin!==ORIGIN)return reply(res,403,{error:"origin_not_allowed"});
     res.setHeader("Access-Control-Allow-Origin",ORIGIN);
     res.setHeader("Vary","Origin");

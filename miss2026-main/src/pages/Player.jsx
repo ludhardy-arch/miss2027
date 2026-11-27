@@ -291,7 +291,7 @@ export default function Player({ user, setUser }) {
         </div>
       )}
 
-      <header className="tv-show-header"><span className="tv-kicker">✦ MISS FRANCE 2027 · LE GRAND SHOW ✦</span><span className="tv-live-pill">● PRONOSTICS EN DIRECT</span><h1>À VOUS DE JOUER</h1><p>Bienvenue <strong>{user.pseudo}</strong></p>{user.groupName&&<p>{user.groupName} · {groupTrend?.total||0} inscrits</p>}<div className="tv-tour-tag">{subtitle}</div></header>
+      <header className="tv-show-header"><span className="tv-kicker">✦ MISS FRANCE 2027 · LE GRAND SHOW ✦</span><h1>À VOUS DE JOUER</h1><p>Bienvenue <strong>{user.pseudo}</strong></p>{user.groupName&&<p>{user.groupName} · {groupTrend?.total||0} inscrits</p>}<div className="tv-tour-tag">{subtitle}</div></header>
 
       {/* ⭐ Bannière votes fermés */}
       {!votesOpen && (

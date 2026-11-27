@@ -450,6 +450,10 @@ export default function Login({ setUser }) {
             color:#fff!important;border:1px solid #64a9ea!important;
             box-shadow:0 0 12px rgba(39,131,255,.25)!important;font-size:16px;
           }
+          .tv-login-shell .group-entry-panel button.group-entry-neon {
+            border:2px solid #80caff!important;
+            box-shadow:0 0 7px rgba(82,173,255,.85),0 0 19px rgba(39,131,255,.6),0 0 30px rgba(39,131,255,.23)!important;font-size:16px;
+          }
           .tv-login-shell .group-entry-panel button.group-entry-green {
             background:linear-gradient(135deg,#008743,#00c96b,#00a854)!important;
             color:#fff!important;border:2px solid #46ff9b!important;
@@ -493,7 +497,7 @@ export default function Login({ setUser }) {
           ) : recoveryStatus==="failed" ? (
             <button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={recoverGroup}>Vérifier mon inscription</button>
           ) : (
-            <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||recoveryStatus==="loading"} onClick={() => openEntry("join")}>Rejoindre mon groupe d’amis ou de famille</button>
+            <button type="button" className="group-entry-blue group-entry-neon" style={entryButton} disabled={pending||recoveryStatus==="loading"} onClick={() => openEntry("join")}>Rejoindre mon groupe d’amis ou de famille</button>
           )}
           <button type="button" className="group-entry-gold" style={{...entryButton,background:"linear-gradient(135deg,#d9a42d,#ffe078,#e8b63e)",color:"#342303",border:"2px solid #ffdf77",boxShadow:"0 0 12px rgba(255,204,70,.42)"}} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>
         </>}

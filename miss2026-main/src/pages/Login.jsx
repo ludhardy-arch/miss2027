@@ -474,6 +474,9 @@ export default function Login({ setUser }) {
       </section>
         </div>
       </div>
+      {screen==="join"&&<div style={{width:"min(100%,600px)",margin:"0 auto 16px"}}>
+        <button type="button" disabled={pending} onClick={()=>{setError("");setEntryMode("recover-account");}} style={{...entryButton,display:"block",minHeight:74,fontSize:18,margin:0,border:"2px solid #80caff",boxShadow:"0 0 7px rgba(82,173,255,.85),0 0 19px rgba(39,131,255,.6),0 0 30px rgba(39,131,255,.23)"}}>Se connecter à son compte</button>
+      </div>}
       <div className="tv-entry tv-entry-v3 group-entry-panel" style={{display:"grid",gap:12}}>
         <style>{`
           .tv-login-shell .group-entry-panel button { margin-top:0; }
@@ -538,7 +541,6 @@ export default function Login({ setUser }) {
           {screen === "invite" && notice(inviteStatus==="ok"?"Invitation vérifiée. Aucun mot de passe à saisir.":inviteStatus||"Vérification de l’invitation…")}
         </>}
         {screen === "join" && <>
-          <button type="button" className="group-entry-blue group-entry-neon" style={entryButton} disabled={pending} onClick={()=>{setError("");setEntryMode("recover-account");}}>Se connecter à son compte</button>
           <form onSubmit={searchRealGroups} style={{display:"grid",gap:12}}>
             <input aria-label="Nom du groupe" placeholder="Nom du groupe" maxLength={80} value={groupQuery} disabled={pending} onChange={e => {setGroupQuery(e.target.value);setGroupResults(null);setError("");}} style={inputStyle}/>
             <button type="submit" className="group-entry-blue" style={entryButton} disabled={pending||!groupQuery.trim()}>{pending?"Recherche en cours…":"Rechercher"}</button>

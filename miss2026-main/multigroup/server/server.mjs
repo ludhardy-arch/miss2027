@@ -167,7 +167,7 @@ const server=http.createServer(async(req,res)=>{
       if(req.method==="POST"){
         if(limited("chat:"+uid,12))return reply(res,429,{error:"too_many_requests"});
         const b=await body(req),id=randomUUID(),now=Date.now();
-        const result=await directRootChange(root=>chatAction(root,{uid,admin,groupId:b.groupId,text:b.text,id,now,action:admin?b.action:b.action==="report"?"report":"send",targetUid:admin?b.targetUid:undefined,messageId:b.messageId}));
+        const result=await directRootChange(root=>chatAction(root,{uid,admin,groupId:b.groupId,text:b.text,id,now,action:admin?b.action:["report","report_room"].includes(b.action)?b.action:"send",targetUid:admin?b.targetUid:undefined,messageId:b.messageId}));
         console.log("TEST_CHAT_WRITE "+JSON.stringify({status:result.status,error:result.body?.error,admin,accepted:result.body?.accepted===true}));
         return reply(res,result.status,result.body);
       }

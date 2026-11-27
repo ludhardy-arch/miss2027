@@ -25,7 +25,21 @@ export function chatAction(root,{uid,admin=false,groupId,text,id,now,action="sen
  const event=eventOf(root),group=member(event,uid);
  const roomId=admin?groupId:group?.id;
  if(!safeKey(roomId)||!event.registration?.groups?.[roomId])return fail("not_registered");
- if(!["send","warn","block","unblock","report","resolve_report"].includes(action))return fail("invalid_action");
+ if(!["send","warn","block","unblock","report","report_room","resolve_report"].includes(action))return fail("invalid_action");
+ // A room alert is independent of any specific message or accused player.
+ if(action==="report_room"){
+  if(!safeKey(id)||!Number.isFinite(now))return fail("invalid_message");
+  const reports=reportsOf(event,roomId);
+  const prior=Object.values(reports).find(r=>r.roomReport===true&&r.status==="pending");
+  if(prior?.reporters?.[uid])return {state:root,result:{accepted:true,alreadyReported:true}};
+  const key=prior?.messageId||id;
+  if(!prior&&Object.hasOwn(reports,key))return fail("conflict");
+  // Preserve public conversation context even when old messages roll out of the chat.
+  // Do not include private warnings in the room-wide snapshot.
+  const context=rows(event,roomId).filter(m=>!m.targetUid).slice(-20).map(({author,text,date})=>({author,text,date}));
+  const report={...(prior||{messageId:key,roomReport:true,createdAt:now,status:"pending",context}),reporters:{...prior?.reporters,[uid]:true}};
+  return {state:store(root,{...event,chatReports:{...event.chatReports,[roomId]:{...reports,[key]:report}}}),result:{accepted:true}};
+ }
  if(action==="report"||action==="resolve_report"){
   if(!safeKey(messageId))return fail("invalid_message");
   const reports=reportsOf(event,roomId),prior=reports[messageId];

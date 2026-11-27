@@ -51,3 +51,25 @@ test("a player can report a visible admin message, but not another player's priv
  r=chatAction(r,{uid:"u1",action:"report",messageId:"w",now:2}).state;
  assert.equal(adminChatSummary(r).a.alerts,1);
 });
+
+test("single room alert works even in an empty room, never identifies an accused player, and is private",()=>{
+ const request={uid:"u1",action:"report_room",id:"r1",now:2};
+ let r=chatAction(fixture(),request).state;
+ assert.equal(adminChatSummary(r).a.alerts,1);assert.equal(adminChatSummary(r).b.alerts,0);
+ assert.equal(chatAction(r,{...request,id:"r2"}).result.alreadyReported,true);
+ r=chatAction(r,{...request,uid:"u2",id:"r3"}).state;
+ const admin={uid:"admin",admin:true,groupId:"a"};
+ const alert=chatView(r,admin).result.reports[0];assert.equal(alert.roomReport,true);assert.equal(alert.count,2);assert.equal(alert.targetUid,undefined);
+ assert.equal(chatView(r,{uid:"u2"}).result.reports,undefined);
+ assert.equal(chatAction(r,{uid:"other",action:"report_room",id:"r4",now:3}).code,"not_registered");
+ r=chatAction(r,{...admin,action:"resolve_report",messageId:alert.messageId,now:3}).state;
+ assert.equal(adminChatSummary(r).a.alerts,0);
+ r=chatAction(r,{...request,id:"r5",now:4}).state;assert.equal(adminChatSummary(r).a.alerts,1);
+});
+test("room alert snapshot excludes private warnings and uses the actual member room",()=>{
+ let r=chatAction(fixture(),{uid:"u2",text:"Public",id:"m",now:1}).state;
+ r=chatAction(r,{uid:"admin",admin:true,groupId:"a",action:"warn",targetUid:"u1",id:"w",now:2}).state;
+ r=chatAction(r,{uid:"u1",groupId:"b",action:"report_room",id:"r",now:3}).state;
+ const alert=chatView(r,{uid:"admin",admin:true,groupId:"a"}).result.reports[0];
+ assert.deepEqual(alert.context,[{author:"Y",text:"Public",date:1}]);assert.equal(adminChatSummary(r).b.alerts,0);
+});

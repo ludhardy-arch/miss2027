@@ -41,12 +41,18 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
     else setUnread(countUnread(next,marker.current,user.uid));
     setMessages(next);setChatBlocked(data.blocked===true);setReports(data.reports||[]);setChatError("");
   }
-  async function reportMessage(message){
-    if(reportBusy||message.reported||!groupRequest)return;
+  async function reportRoom(){
+    if(reportBusy||!groupRequest)return;
     if(!window.confirm("Alerter la régie d’un comportement inadapté dans le chat ?"))return;
-    setReportBusy(message.id);setReportNotice("");
-    try{const result=await groupRequest({action:"report",messageId:message.id});if(result.accepted!==true)throw Error("Signalement non confirmé.");readVersion.current++;setMessages(old=>old.map(m=>m.id===message.id?{...m,reported:true}:m));setReportNotice("Alerte transmise à la régie.");try{applyChat(await groupRequest());}catch{}onReportChangeRef.current?.();}
-    catch(e){setReportNotice("Alerte non confirmée : "+e.message);}finally{setReportBusy(null);}
+    setReportBusy("room");setReportNotice("");
+    try{
+      const result=await groupRequest({action:"report_room"});
+      if(result.accepted!==true)throw Error("Signalement non confirmé.");
+      readVersion.current++;
+      setReportNotice(result.alreadyReported?"Cette salle a déjà été signalée.":"Alerte transmise à la régie.");
+      try{applyChat(await groupRequest());}catch{}
+      onReportChangeRef.current?.();
+    }catch(e){setReportNotice("Alerte non confirmée : "+e.message);}finally{setReportBusy(null);}
   }
   async function resolveReport(report){
     if(reportBusy)return;
@@ -255,7 +261,10 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
               fontWeight: "bold",
             }}
           >
-            💬 {groupName || "Chat Miss2027"}{inDemo ? " · Démo" : ""}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+              <span style={{flex:1,minWidth:0,overflowWrap:"anywhere"}}>💬 {groupName || "Chat Miss2027"}{inDemo ? " · Démo" : ""}</span>
+              {groupRequest&&!inDemo&&<button type="button" onClick={()=>void reportRoom()} disabled={!!reportBusy} title="Alerter la régie d’un comportement inadapté dans le chat" style={{width:"auto",minWidth:0,minHeight:30,flex:"0 0 auto",margin:0,padding:"5px 8px",fontSize:11,whiteSpace:"nowrap",borderRadius:6,background:"#9a273c",border:"1px solid #ff8793",color:"#fff",boxShadow:"none"}}>{reportBusy==="room"?"…":"⚠ Alerter"}</button>}
+            </div>
           </div>
 
           {/* Messages */}
@@ -299,10 +308,8 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
                       : "none",
                   }}
                 >
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-                    <b>{isAdmin ? "✦ ADMIN ✦" : m.author}</b>
-                    {groupRequest&&!inDemo&&m.id&&m.uid!==user.uid&&<button type="button" title="Alerter la régie d’un comportement inadapté dans le chat" aria-label={"Signaler le message de "+m.author} disabled={!!reportBusy||m.reported===true} onClick={()=>void reportMessage(m)} style={{minHeight:26,minWidth:26,width:26,height:26,margin:0,padding:0,flex:"0 0 26px",fontSize:14,lineHeight:1,background:m.reported?"#374151":"#9a273c",border:"1px solid #ff8793",borderRadius:6,boxShadow:"none",color:"white"}}>{m.reported?"✓":"⚠"}</button>}
-                  </div>
+                  <b>{isAdmin ? "✦ ADMIN ✦" : m.author}</b>
+                  <br />
                   {m.text}
                 </div>
               );
@@ -388,7 +395,8 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
   return inline?<>{reports.length>0&&<section style={{marginTop:12,border:"1px solid #ff8793",borderRadius:10,padding:10,background:"#42192a"}}>
     <strong style={{color:"#ffc0ca"}}>⚠ {reports.length} alerte{reports.length>1?"s":""} à traiter</strong>
     {reports.map(r=><div key={r.messageId} style={{marginTop:8,padding:8,borderRadius:8,background:"#152849",overflowWrap:"anywhere"}}>
-      <b>{r.author} · {r.count} signalement{r.count>1?"s":""}</b><p style={{margin:"5px 0",whiteSpace:"pre-wrap"}}>{r.text}</p><button type="button" disabled={!!reportBusy} onClick={()=>void resolveReport(r)} style={{background:"#176849",fontSize:12,minHeight:32,padding:"5px 9px",boxShadow:"none"}}>Marquer comme traitée</button>
+      <b>{r.roomReport?"Conversation signalée":r.author} · {r.count} signalement{r.count>1?"s":""}</b>
+      {r.roomReport?<details style={{margin:"6px 0"}}><summary>Contexte au moment de l’alerte</summary>{(Array.isArray(r.context)?r.context:Object.values(r.context||{})).map((m,i)=><p key={i} style={{margin:"4px 0",whiteSpace:"pre-wrap",fontSize:12}}><b>{m.author} :</b> {m.text}</p>)}{!r.context&&<p>Aucun message public enregistré.</p>}</details>:<p style={{margin:"5px 0",whiteSpace:"pre-wrap"}}>{r.text}</p>}<button type="button" disabled={!!reportBusy} onClick={()=>void resolveReport(r)} style={{background:"#176849",fontSize:12,minHeight:32,padding:"5px 9px",boxShadow:"none"}}>Marquer comme traitée</button>
     </div>)}
   </section>}{content}</>:createPortal(content,document.body);
 }

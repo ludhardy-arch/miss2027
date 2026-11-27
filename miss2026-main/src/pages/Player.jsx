@@ -343,7 +343,7 @@ export default function Player({ user, setUser }) {
             </h3>
             {[
               {number:"1", symbol:"♛", title:"Sélectionne 12 Miss.", description:""},
-              {number:"2", symbol:"♡", title:"Choisis 1 coup de cœur parmi tes 12.", description:"Touche le petit cœur en haut à droite de sa photo."},
+              {number:"2", symbol:"♡", title:"Choisis 1 coup de cœur parmi tes 12.", description:""},
               {number:"3", symbol:"✓", title:"Valide ton vote.", description:""}
             ].map(item => (
               <div key={item.number} style={{

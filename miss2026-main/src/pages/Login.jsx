@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { auth, simulatedPlayerApp } from "../firebase";
 import {TEST_ORIGIN,testPlayerUrl} from "../testPlayerSession.mjs";
 import ChatBubble from "../components/ChatBubble";
-import { GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInWithCustomToken, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
  
 // 12 décembre 2026, 20 h 40 à Paris (heure d'hiver : UTC+1).
 const REGISTRATION_OPEN_AT = new Date("2026-12-12T20:40:00+01:00").getTime();
@@ -21,7 +21,7 @@ function getRemainingTime() {
 
 
 const GROUP_API="https://miss2027-test-api.onrender.com";
-const groupErrors={creation_not_verified:"La création du groupe n’a pas pu être confirmée. Réessaie de retrouver ton groupe.",group_name_taken:"Nom du groupe déjà pris. Choisis-en un autre.",group_full:"Ce groupe est complet (30 participants maximum).",pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",owner_required:"Seul le créateur reconnu sur son navigateur peut gérer ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
+const groupErrors={recovery_invalid:"Pseudo ou code de récupération incorrect.",creation_not_verified:"La création du groupe n’a pas pu être confirmée. Réessaie de retrouver ton groupe.",group_name_taken:"Nom du groupe déjà pris. Choisis-en un autre.",group_full:"Ce groupe est complet (30 participants maximum).",pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",owner_required:"Seul le créateur reconnu sur son navigateur peut gérer ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
 const lobbyChat=body=>groupRequest("/chat",body);
 async function groupRequest(path,body) {
   if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Ce service est réservé au site test.");
@@ -45,6 +45,11 @@ export default function Login({ setUser }) {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [groupPassword, setGroupPassword] = useState("");
   const [joinedGroup, setJoinedGroup] = useState(null);
+  const [recoveryCode,setRecoveryCode]=useState("");
+  const [recoveryInput,setRecoveryInput]=useState("");
+  const [recoveryPseudo,setRecoveryPseudo]=useState("");
+  const [recoveryNotice,setRecoveryNotice]=useState("");
+  const [recoveryConfigured,setRecoveryConfigured]=useState(false);
   const [lobbyMembers,setLobbyMembers]=useState([]);
   const [lobbyError,setLobbyError]=useState("");
   const restoredIdentity=useRef(null);
@@ -182,6 +187,36 @@ export default function Login({ setUser }) {
     }).catch(()=>{if(active)setRecoveryStatus("failed");});
     return()=>{active=false;};
   },[screen,firebaseIdentity,gameId]);
+  function captureRecovery(result){
+    if(result.recoveryConfigured)setRecoveryConfigured(true);
+    if(result.recoveryCode){setRecoveryCode(result.recoveryCode);setRecoveryNotice("");}
+  }
+  async function generateRecovery(){
+    if(pending)return;
+    if(recoveryConfigured&&!window.confirm("Générer un nouveau code ? L’ancien ne fonctionnera plus."))return;
+    setPending(true);setError("");setRecoveryNotice("");
+    try{
+      const result=await groupRequest("/groups/recovery/code",{rotate:recoveryConfigured});
+      captureRecovery(result);
+      if(!result.recoveryCode)setRecoveryNotice("Un code existe déjà. Tu peux en générer un nouveau.");
+    }catch(e){setError(e.message);}finally{setPending(false);}
+  }
+  async function restoreAccount(event){
+    event.preventDefault();
+    if(pending||!firebaseIdentity||!recoveryPseudo.trim()||recoveryInput.replace(/[\s-]/g,"").length!==32)return;
+    setPending(true);setError("");
+    try{
+      const result=await groupRequest("/groups/recovery/login",{pseudo:recoveryPseudo.trim(),code:recoveryInput.trim()});
+      if(!result.token||!result.uid)throw Error("Récupération non confirmée.");
+      await setPersistence(auth,browserLocalPersistence);
+      try{sessionStorage.removeItem("miss_manual_exit");}catch{}
+      const credential=await signInWithCustomToken(auth,result.token);
+      if(credential.user.uid!==result.uid)throw Error("Identité non confirmée.");
+      setRecoveryInput("");setRecoveryCode("");setRecoveryConfigured(false);
+      window.location.hash="/login";
+      window.location.reload();
+    }catch(e){setError(e.message);}finally{setPending(false);}
+  }
   async function recoverGroup(){
     if(pending)return;
     setPending(true);setError("");
@@ -205,7 +240,7 @@ export default function Login({ setUser }) {
     event.preventDefault();
     if(pending||!inviteGroup||!pseudoReady)return;
     setPending(true);setError("");
-    try{const result=await groupRequest("/groups/invite/join",{token:invitation,pseudo:pseudo.trim()});setJoinedGroup(result.group);setEntryMode("joined-group");setSearchParams({}, {replace:true});}
+    try{const result=await groupRequest("/groups/invite/join",{token:invitation,pseudo:pseudo.trim()});captureRecovery(result);setJoinedGroup(result.group);setEntryMode("joined-group");setSearchParams({}, {replace:true});}
     catch(e){setError(e.message);}finally{setPending(false);}
   }
   async function ownerAction(action,value,targetUid){
@@ -247,7 +282,7 @@ export default function Login({ setUser }) {
   function backToHome() {
     setError(""); setEntryMode("home");
     setGroupQuery(""); setGroupResults(null); setSelectedGroup(null); setGroupPassword("");
-    setCreatorPassword("");setInviteLink("");setInviteStatus("");
+    setCreatorPassword("");setInviteLink("");setInviteStatus("");setRecoveryInput("");setRecoveryCode("");setRecoveryNotice("");
     if (invitation) setSearchParams({}, {replace:true});
   }
   async function searchRealGroups(event) {
@@ -273,7 +308,8 @@ export default function Login({ setUser }) {
     setPending(true);setError("");
     try{
       const result=await groupRequest("/groups/join",{id:selectedGroup.id,pseudo:pseudo.trim(),password:groupPassword});
-      setJoinedGroup({id:result.id,name:result.name,pseudo:pseudo.trim(),isOwner:false});
+      captureRecovery(result);
+      setJoinedGroup(result.group||{id:result.id,name:result.name,pseudo:pseudo.trim(),isOwner:false});
       setEntryMode("joined-group");
     }catch(err){setError(err.message||"Inscription impossible.");}
     finally{setGroupPassword("");setPending(false);}
@@ -289,6 +325,7 @@ export default function Login({ setUser }) {
     try{
       const result=await groupRequest("/groups/create",{name:creatorName.trim(),pseudo:creatorPseudo.trim(),password:creatorPassword});
       if(!result.group?.isOwner||result.group.id!==result.id)throw Error("Création non confirmée par le serveur. Essaie de retrouver ton groupe.");
+      captureRecovery(result);
       restoredIdentity.current=firebaseIdentity;
       setOwnerGroup(result.group);
       setEntryMode("creator-confirm");
@@ -324,6 +361,7 @@ export default function Login({ setUser }) {
     try {
       const result=await groupRequest("/groups/public",{pseudo:pseudo.trim()});
       if(!result.group?.id||!result.group?.name)throw Error("Inscription non confirmée. Réessaie.");
+      captureRecovery(result);
       setJoinedGroup(result.group);
       setEntryMode("joined-group");
     }catch(err){setError(err.message||"Inscription impossible.");}
@@ -502,13 +540,7 @@ export default function Login({ setUser }) {
         `}</style>
         {screen === "home" && <>
           {accessControl(true, () => openEntry("public"))}
-          {recoverableGroup&&firebaseIdentity===auth.currentUser?.uid ? (
-            <button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={recoverGroup}>Retrouver mon groupe · {recoverableGroup.name}</button>
-          ) : recoveryStatus==="failed" ? (
-            <button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={recoverGroup}>Vérifier mon inscription</button>
-          ) : (
-            <button type="button" className="group-entry-blue group-entry-neon" style={entryButton} disabled={pending||recoveryStatus==="loading"} onClick={() => openEntry("join")}>Rejoindre mon groupe d’amis ou de famille</button>
-          )}
+          <button type="button" className="group-entry-blue group-entry-neon" style={entryButton} disabled={pending} onClick={() => openEntry("join")}>Rejoindre mon groupe d’amis ou de famille</button>
           <button type="button" className="group-entry-gold" style={{...entryButton,background:"linear-gradient(135deg,#d9a42d,#ffe078,#e8b63e)",color:"#342303",border:"2px solid #ffdf77",boxShadow:"0 0 12px rgba(255,204,70,.42)"}} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>
         </>}
         {(screen === "public" || screen === "invite") && <>
@@ -521,6 +553,7 @@ export default function Login({ setUser }) {
           {screen === "invite" && notice(inviteStatus==="ok"?"Invitation vérifiée. Aucun mot de passe à saisir.":inviteStatus||"Vérification de l’invitation…")}
         </>}
         {screen === "join" && <>
+          <button type="button" className="group-entry-blue group-entry-neon" style={entryButton} disabled={pending} onClick={()=>{setError("");setEntryMode("recover-account");}}>Retrouver mon compte</button>
           <form onSubmit={searchRealGroups} style={{display:"grid",gap:12}}>
             <input aria-label="Nom du groupe" placeholder="Nom du groupe" maxLength={80} value={groupQuery} disabled={pending} onChange={e => {setGroupQuery(e.target.value);setGroupResults(null);setError("");}} style={inputStyle}/>
             <button type="submit" className="group-entry-blue" style={entryButton} disabled={pending||!groupQuery.trim()}>{pending?"Recherche en cours…":"Rechercher"}</button>
@@ -535,6 +568,15 @@ export default function Login({ setUser }) {
             </>}
           </div>}
         </>}
+        {screen === "recover-account" && <form onSubmit={restoreAccount} style={{display:"grid",gap:12}}>
+          <h2 style={{margin:0,color:"#ffe5ad",fontSize:20}}>Retrouver mon compte</h2>
+          {notice("Saisis ton pseudo et ton code personnel pour retrouver ton groupe et tes votes validés.")}
+          <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||!firebaseIdentity} onClick={recoverGroup}>Retrouver ma session sur cet appareil</button>
+          <input aria-label="Pseudo de récupération" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={recoveryPseudo} onChange={e=>setRecoveryPseudo(e.target.value)} disabled={pending} style={inputStyle}/>
+          <input aria-label="Code personnel de récupération" type="password" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={64} placeholder="Mon code personnel" value={recoveryInput} onChange={e=>setRecoveryInput(e.target.value)} disabled={pending} style={inputStyle}/>
+          <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!firebaseIdentity||!recoveryPseudo.trim()||recoveryInput.replace(/[\s-]/g,"").length!==32}>{pending?"Récupération…":"Retrouver mon compte"}</button>
+          <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setRecoveryInput("");openEntry("join");}}>Retour</button>
+        </form>}
         {screen === "join-group" && selectedGroup && <form onSubmit={submitRealGroup} style={{display:"grid",gap:12}}>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Rejoindre {selectedGroup.name}</h2>
           {notice("Inscription réelle dans Firebase test. Utilise un mot de passe réservé au groupe de test.")}
@@ -598,6 +640,12 @@ export default function Login({ setUser }) {
             </section>
           </>}
         </>}
+        {lobbyGroup&&firebaseIdentity&&<section style={{padding:12,border:"1px solid #d6aa65",borderRadius:12,textAlign:"left",display:"grid",gap:9}}>
+          <strong style={{color:"#ffe5ad"}}>Mon code personnel de récupération</strong>
+          {notice("Garde ce code secret : il permet de retrouver ton compte si tu changes de téléphone ou perds ta session. Ne le partage pas dans le groupe.")}
+          {recoveryCode?<><input aria-label="Code de récupération à conserver" readOnly value={recoveryCode} onFocus={e=>e.target.select()} style={{...inputStyle,fontFamily:"monospace",fontSize:13}}/><button type="button" className="group-entry-blue" style={entryButton} onClick={async()=>{try{await navigator.clipboard.writeText(recoveryCode);setRecoveryNotice("Code copié ! Garde-le en lieu sûr.");}catch{setRecoveryNotice("Sélectionne le code et copie-le manuellement.");}}}>Copier mon code</button></>:<button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={generateRecovery}>{recoveryConfigured?"Générer un nouveau code":"Obtenir mon code"}</button>}
+          {recoveryNotice&&notice(recoveryNotice)}
+        </section>}
         {lobbyGroup&&firebaseIdentity&&<ChatBubble key={lobbyGroup.id} user={{uid:firebaseIdentity,pseudo:lobbyGroup.pseudo}} groupRequest={lobbyChat} groupName={lobbyGroup.name}/>}
         {lobbyGroup&&lobbyError&&<p role="alert" style={{color:"#ffd0cf"}}>{lobbyError}</p>}
         {screen !== "home" && <button type="button" className="group-entry-back" disabled={pending} onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}

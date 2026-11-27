@@ -1,0 +1,40 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {issueRecovery,recoveryIdentity,withRecovery,newRecoveryCode} from "./recovery.mjs";
+import {createGroup,joinGroup,membershipView} from "./registration.mjs";
+import {resetContest} from "./reset.mjs";
+import {gameView} from "./game.mjs";
+const code="0123-4567-89ab-cdef-0123-4567-89ab-cdef",other="fedc-ba98-7654-3210-fedc-ba98-7654-3210";
+const fixture=()=>{
+ let reg=createGroup(null,{uid:"u1",id:"g",name:"Famille",pseudo:"Rod",secret:"hash",now:1}).state;
+ reg=joinGroup(reg,{uid:"u2",id:"g",pseudo:"Bob",verifiedSecret:"hash",now:2}).state;
+ return {rooms:{miss2027:{gameId:"g1",tour:1,votesOpen:false}},events:{miss2027:{registration:reg,players:{u1:{groupId:"g"}},votes:{u1:{tour1:[1,2],favorite:1}}}}};
+};
+const recover=(root,extra={})=>recoveryIdentity(root,{requesterUid:"new",pseudo:" RÓD ",code,adminUid:"admin",...extra});
+test("recovery preserves original UID, ballots and ownership; secrets are not exposed or stored in plaintext",()=>{
+ const root=fixture(),r=withRecovery({state:root,result:{id:"g"}},"u1",code);
+ assert.equal(r.result.recoveryCode,code);
+ assert.equal(JSON.stringify(r.state).includes(code),false);
+ assert.equal(membershipView(r.state.events.miss2027.registration,"u1").recoveryDigest,undefined);
+ const result=recover(r.state);assert.equal(result.result.uid,"u1");
+ assert.equal(gameView(r.state,result.result.uid).result.ownVote.favorite,1);
+ assert.equal(membershipView(r.state.events.miss2027.registration,result.result.uid).isOwner,true);
+ assert.deepEqual(r.state.events.miss2027.votes,root.events.miss2027.votes);
+ assert.equal(recover(r.state,{code:other}).code,"recovery_invalid");
+ assert.equal(recover(r.state,{pseudo:"Bob"}).code,"recovery_invalid");
+ assert.equal(recover(r.state,{requesterUid:"u2"}).code,"already_member");
+ assert.equal(recover(r.state,{adminUid:"u1"}).code,"recovery_invalid");
+});
+test("rotation invalidates old code; ordinary retries never rotate; reset registrations invalidates recovery",()=>{
+ const first=issueRecovery(fixture(),{uid:"u1",code});
+ const again=issueRecovery(first.state,{uid:"u1",code:other});
+ assert.equal(again.result.recoveryCode,undefined);assert.deepEqual(again.state,first.state);
+ const rotated=issueRecovery(first.state,{uid:"u1",code:other,rotate:true});
+ assert.equal(recover(rotated.state).code,"recovery_invalid");
+ assert.equal(recover(rotated.state,{code:other}).result.uid,"u1");
+ const reset=resetContest(rotated.state,"game","g2").state;
+ assert.equal(recover(reset,{code:other}).result.uid,"u1");
+ const cleared=resetContest(reset,"registrations","g3").state;
+ assert.equal(recover(cleared,{code:other}).code,"recovery_invalid");
+ assert.match(newRecoveryCode(),/^[a-f0-9]{4}(?:-[a-f0-9]{4}){7}$/);
+});

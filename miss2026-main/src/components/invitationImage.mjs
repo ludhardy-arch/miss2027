@@ -65,3 +65,11 @@ export async function createInvitationImage({name,password}){
  const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error("Image non créée")),"image/png"));
  return new File([blob],"Invitation-Miss-France-2027.png",{type:"image/png"});
 }
+
+// Keep the private group token in the URL, never in the public preview image or metadata.
+export function richInvitationLink(original){
+ const link=new URL(original);
+ const match=/^#\/login\?invite=([a-f0-9]{64})$/.exec(link.hash);
+ if(!match||!["https:","http:"].includes(link.protocol))throw Error("Lien d’invitation invalide");
+ return new URL("/invitation.html?invite="+match[1],link.origin).href;
+}

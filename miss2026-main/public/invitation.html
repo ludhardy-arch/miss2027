@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Invitation à la soirée Miss France 2027</title>
+<meta name="description" content="Samedi 12 décembre à 21 h. Rejoins ton groupe d’amis !">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Miss France 2027">
+<meta property="og:title" content="Invitation à la soirée Miss France 2027">
+<meta property="og:description" content="Samedi 12 décembre à 21 h — Rejoins tes amis !">
+<meta property="og:image" content="https://miss2027-test.onrender.com/images/invitation-link-preview-v1.png">
+<meta property="og:image:secure_url" content="https://miss2027-test.onrender.com/images/invitation-link-preview-v1.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="480">
+<meta property="og:image:height" content="252">
+<meta property="og:image:alt" content="Invitation Miss France 2027, couronne dorée et fond bleu nuit">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://miss2027-test.onrender.com/images/invitation-link-preview-v1.png">
+<style>
+body{font:17px system-ui,sans-serif;background:#0a1533;color:#fff;text-align:center;margin:0;padding:24px}
+main{max-width:600px;margin:5vh auto}
+img{display:block;width:100%;height:auto;border-radius:14px}
+a{display:block;padding:16px;margin-top:20px;border-radius:12px;background:#006f42;color:#fff;text-decoration:none;font-weight:700}
+</style>
+</head>
+<body>
+<main><img src="/images/invitation-link-preview-v1.png" alt="Invitation à la soirée Miss France 2027">
+<p id="message">Ouverture de ton invitation…</p>
+<a id="open" href="/#/login">Ouvrir le site</a>
+<noscript>Active JavaScript pour accéder à ton invitation personnalisée.</noscript>
+</main>
+<script>
+(function(){
+ const token=new URLSearchParams(location.search).get("invite");
+ if(!token||!/^[a-f0-9]{64}$/.test(token)){
+  document.getElementById("message").textContent="Lien d’invitation invalide ou incomplet.";
+  return;
+ }
+ const target="/#/login?invite="+token;
+ const button=document.getElementById("open");
+ button.href=target;
+ button.textContent="JE REJOINS MES AMIS";
+ // The crawler reads the static metadata; an actual browser opens the existing group flow.
+ location.replace(target);
+})();
+</script>
+</body></html>

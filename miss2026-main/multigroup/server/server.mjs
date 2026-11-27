@@ -6,7 +6,7 @@ import {getAuth} from "firebase-admin/auth";
 import {getDatabase} from "firebase-admin/database";
 import {createGroup,joinGroup,searchGroups,registerPublic,membershipView,pseudoAvailable,normalizePseudo,groupNameAvailable,isExcluded} from "./registration.mjs";
 import {locked,ownerView,manageGroup,invitationView,acceptInvitation,removePlayer} from "./management.mjs";
-import {chatView,chatAction} from "./chat.mjs";
+import {chatView,chatAction,adminAlertDirectory,verifyRoomReport} from "./chat.mjs";
 import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
 import {conditionalWrite} from "./conditional.mjs";
 import {authenticateGroupMember} from "./recovery.mjs";
@@ -156,6 +156,12 @@ const server=http.createServer(async(req,res)=>{
     const uid=user.uid;
     if(!/^[a-zA-Z0-9_-]{1,128}$/.test(uid)||["__proto__","constructor","prototype"].includes(uid))return reply(res,403,{error:"unsupported_identity"});
     if(limited("user:"+uid,30))return reply(res,429,{error:"too_many_requests"});
+    if(req.method==="GET"&&url.pathname==="/admin/chat/alerts"){
+      if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});
+      const rooms=adminAlertDirectory(await directRootRead());
+      if(rooms.length)console.log("TEST_ADMIN_ALERT_READ "+JSON.stringify({rooms:rooms.length,total:rooms.reduce((n,r)=>n+r.count,0)}));
+      return reply(res,200,{rooms});
+    }
     if(url.pathname==="/chat"||url.pathname==="/admin/chat"){
       const admin=url.pathname==="/admin/chat";
       if(admin&&(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com"))return reply(res,403,{error:"admin_required"});
@@ -167,8 +173,17 @@ const server=http.createServer(async(req,res)=>{
       if(req.method==="POST"){
         if(limited("chat:"+uid,12))return reply(res,429,{error:"too_many_requests"});
         const b=await body(req),id=randomUUID(),now=Date.now();
-        const result=await directRootChange(root=>chatAction(root,{uid,admin,groupId:b.groupId,text:b.text,id,now,action:admin?b.action:["report","report_room"].includes(b.action)?b.action:"send",targetUid:admin?b.targetUid:undefined,messageId:b.messageId}));
-        console.log("TEST_CHAT_WRITE "+JSON.stringify({status:result.status,error:result.body?.error,admin,accepted:result.body?.accepted===true}));
+        const action=admin?(b.action||"send"):["report","report_room"].includes(b.action)?b.action:"send";
+        const result=await directRootChange(root=>chatAction(root,{uid,admin,groupId:b.groupId,text:b.text,id,now,action,targetUid:admin?b.targetUid:undefined,messageId:b.messageId}));
+        if(action==="report_room"&&result.status===200){
+          const receipt={uid,roomId:result.body.roomId,reportId:result.body.reportId};
+          const fresh=await directRootRead(),verified=verifyRoomReport(fresh,receipt);
+          const pending=adminAlertDirectory(fresh).find(r=>r.id===receipt.roomId)?.count||0;
+          console.log("TEST_ROOM_REPORT "+JSON.stringify({verified,pending,alreadyReported:result.body.alreadyReported===true}));
+          if(!verified)return reply(res,409,{error:"report_not_verified"});
+          return reply(res,200,{...result.body,verified:true});
+        }
+        console.log("TEST_CHAT_WRITE "+JSON.stringify({action,status:result.status,error:result.body?.error,admin,accepted:result.body?.accepted===true}));
         return reply(res,result.status,result.body);
       }
       return reply(res,405,{error:"method_not_allowed"});

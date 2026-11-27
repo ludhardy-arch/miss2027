@@ -7,6 +7,15 @@ const safeKey=k=>typeof k==="string"&&/^[a-zA-Z0-9_-]{1,128}$/.test(k)&&!["__pro
 const rows=(event,id)=>Object.values(event.chats?.[id]||{}).sort((a,b)=>a.date-b.date||a.id.localeCompare(b.id));
 const reportsOf=(event,id)=>event.chatReports?.[id]||{};
 const pendingReports=(event,id)=>Object.values(reportsOf(event,id)).filter(r=>r.status==="pending");
+export function adminAlertDirectory(root){
+ const event=eventOf(root);
+ return Object.entries(event.registration?.groups||{}).map(([id,g])=>({id,name:g.name,count:pendingReports(event,id).length})).filter(g=>g.count>0).sort((a,b)=>a.name.localeCompare(b.name,"fr"));
+}
+export function verifyRoomReport(root,{uid,roomId,reportId}){
+ if(!safeKey(roomId)||!safeKey(reportId))return false;
+ const report=reportsOf(eventOf(root),roomId)[reportId];
+ return report?.roomReport===true&&report.reporters?.[uid]===true;
+}
 export function adminChatSummary(root){
  const event=eventOf(root);
  return Object.fromEntries(Object.keys(event.registration?.groups||{}).map(id=>[id,{
@@ -31,14 +40,14 @@ export function chatAction(root,{uid,admin=false,groupId,text,id,now,action="sen
   if(!safeKey(id)||!Number.isFinite(now))return fail("invalid_message");
   const reports=reportsOf(event,roomId);
   const prior=Object.values(reports).find(r=>r.roomReport===true&&r.status==="pending");
-  if(prior?.reporters?.[uid])return {state:root,result:{accepted:true,alreadyReported:true}};
+  if(prior?.reporters?.[uid])return {state:root,result:{accepted:true,alreadyReported:true,roomId,reportId:prior.messageId}};
   const key=prior?.messageId||id;
   if(!prior&&Object.hasOwn(reports,key))return fail("conflict");
   // Preserve public conversation context even when old messages roll out of the chat.
   // Do not include private warnings in the room-wide snapshot.
   const context=rows(event,roomId).filter(m=>!m.targetUid).slice(-20).map(({author,text,date})=>({author,text,date}));
   const report={...(prior||{messageId:key,roomReport:true,createdAt:now,status:"pending",context}),reporters:{...prior?.reporters,[uid]:true}};
-  return {state:store(root,{...event,chatReports:{...event.chatReports,[roomId]:{...reports,[key]:report}}}),result:{accepted:true}};
+  return {state:store(root,{...event,chatReports:{...event.chatReports,[roomId]:{...reports,[key]:report}}}),result:{accepted:true,roomId,reportId:key}};
  }
  if(action==="report"||action==="resolve_report"){
   if(!safeKey(messageId))return fail("invalid_message");

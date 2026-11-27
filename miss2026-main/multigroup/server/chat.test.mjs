@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {chatAction,chatView,adminChatSummary} from "./chat.mjs";
+import {chatAction,chatView,adminChatSummary,adminAlertDirectory,verifyRoomReport} from "./chat.mjs";
 const fixture=()=>({events:{miss2027:{registration:{groups:{a:{members:{u1:{pseudo:"ADMIN"},u2:{pseudo:"Y"}}},b:{members:{u3:{pseudo:"Z"}}}},membership:{u1:"a",u2:"a",u3:"b"}},players:{u1:{groupId:"a"},u2:{groupId:"a"},u3:{groupId:"b"}}}}});
 test("room isolation and server-authoritative author",()=>{
  const r=chatAction(fixture(),{uid:"u1",groupId:"b",text:"Hello",id:"m1",now:1}).state;
@@ -72,4 +72,19 @@ test("room alert snapshot excludes private warnings and uses the actual member r
  r=chatAction(r,{uid:"u1",groupId:"b",action:"report_room",id:"r",now:3}).state;
  const alert=chatView(r,{uid:"admin",admin:true,groupId:"a"}).result.reports[0];
  assert.deepEqual(alert.context,[{author:"Y",text:"Public",date:1}]);assert.equal(adminChatSummary(r).b.alerts,0);
+});
+
+test("room report receipt and fresh JSON round trip agree with global admin alert directory",()=>{
+ const out=chatAction(fixture(),{uid:"u1",action:"report_room",id:"r1",now:4});
+ const persisted=JSON.parse(JSON.stringify(out.state));
+ const receipt={uid:"u1",roomId:out.result.roomId,reportId:out.result.reportId};
+ assert.equal(verifyRoomReport(persisted,receipt),true);
+ assert.equal(verifyRoomReport(persisted,{...receipt,uid:"u2"}),false);
+ assert.equal(verifyRoomReport(fixture(),receipt),false);
+ assert.deepEqual(adminAlertDirectory(persisted).map(({id,count})=>({id,count})),[{id:"a",count:1}]);
+ const duplicate=chatAction(persisted,{uid:"u1",action:"report_room",id:"r2",now:5});
+ assert.equal(duplicate.result.reportId,"r1");
+ const resolved=chatAction(persisted,{uid:"admin",admin:true,groupId:"a",action:"resolve_report",messageId:"r1",now:6}).state;
+ assert.deepEqual(adminAlertDirectory(resolved),[]);
+ assert.equal(verifyRoomReport(resolved,receipt),true);
 });

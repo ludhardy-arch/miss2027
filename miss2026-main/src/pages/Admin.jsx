@@ -66,11 +66,28 @@ export default function Admin({ user, setUser }) {
   const chatRooms=groups.map(g=>[g.id,g.name]);
   const [readMarkers,setReadMarkers]=useState({});
   const chatSummary=nationalView?.chatSummary||{};
-  const alertRooms=groups.filter(g=>(chatSummary[g.id]?.alerts||0)>0);
+  const [alertDirectory,setAlertDirectory]=useState(null);
+  const [alertError,setAlertError]=useState("");
+  const alertRooms=alertDirectory||groups.filter(g=>(chatSummary[g.id]?.alerts||0)>0).map(g=>({...g,count:chatSummary[g.id].alerts}));
+  const alertCount=id=>alertRooms.find(g=>g.id===id)?.count||0;
+  const alertSequence=React.useRef(0);
+  async function loadAlerts(){
+    const seq=++alertSequence.current;
+    try{const data=await adminRequest("/admin/chat/alerts");if(!Array.isArray(data.rooms))throw Error("Réponse des alertes invalide.");if(seq===alertSequence.current){setAlertDirectory(data.rooms);setAlertError("");}}
+    catch(e){if(seq===alertSequence.current)setAlertError(e.message);}
+  }
+  useEffect(()=>{
+    let active=true,busy=false;
+    const poll=async()=>{if(!active||busy||document.visibilityState==="hidden")return;busy=true;try{await loadAlerts();}finally{busy=false;}};
+    void poll();const timer=setInterval(poll,10000);
+    window.addEventListener("online",poll);document.addEventListener("visibilitychange",poll);
+    return()=>{active=false;alertSequence.current++;clearInterval(timer);window.removeEventListener("online",poll);document.removeEventListener("visibilitychange",poll);};
+  },[user.uid]);
+  function openAlertRoom(id){setChatGroup(id);requestAnimationFrame(()=>document.getElementById("regie-room-chat")?.scrollIntoView({behavior:"smooth",block:"start"}));}
   const unreadFor=id=>{const rows=chatSummary[id]?.messages||[],mark=readMarkers[id]||getReadMarker(user.uid,id);return mark?countUnread(rows,mark,user.uid):0;};
   useEffect(()=>{for(const [id,data] of Object.entries(chatSummary)){if(!getReadMarker(user.uid,id))saveReadMarker(user.uid,id,newest(data.messages,emptyMarker));}},[nationalView,user.uid]);
   const chatRead=React.useCallback(mark=>{setReadMarkers(old=>({...old,[chatGroup]:mark}));},[chatGroup]);
-  const refreshReports=React.useCallback(()=>{adminRequest("/admin/game").then(setNationalView).catch(()=>{});},[user.uid]);
+  const refreshReports=React.useCallback(()=>{void loadAlerts();},[user.uid]);
   const chatRequest=React.useCallback(body=>body===undefined?adminRequest("/admin/chat?groupId="+encodeURIComponent(chatGroup)):adminRequest("/admin/chat",{...body,groupId:chatGroup}),[chatGroup,user.uid]);
   async function moderate(player,action){
     if(!window.confirm((action==="warn"?"Avertir ":action==="block"?"Bloquer ":"Débloquer ")+player.pseudo+" ?"))return;
@@ -342,6 +359,8 @@ export default function Admin({ user, setUser }) {
       </header>
 
       <div style={{textAlign:"right",margin:"10px 0"}}><button type="button" onClick={()=>{const url=testPlayerUrl(window.location.href,crypto.randomUUID());if(url)window.open(url,"_blank","noopener,noreferrer");}} style={{fontSize:13,padding:"10px 14px"}}>＋ Simuler un nouveau joueur</button></div>
+      {alertRooms.length>0&&<div className="regie-chat-alerts" role="alert">{alertRooms.map(g=><button type="button" key={g.id} className="regie-chat-alert-button" onClick={()=>openAlertRoom(g.id)}>⚠ ALERTE CHAT · {g.name} ({g.count})</button>)}</div>}
+      {alertError&&<p role="alert" style={{color:"#ffb3b3"}}>Suivi des alertes indisponible : {alertError} <button type="button" onClick={()=>void loadAlerts()}>Réessayer</button></p>}
       {nationalError&&<p role="alert" style={{color:"#ffb3b3"}}>Statistiques non actualisées : {nationalError}</p>}
       {!nationalView&&!nationalError&&<p role="status">Chargement des inscriptions…</p>}
       {nationalView&&<p className="regie-muted">{nationalView.groupCount} salles et groupes · suivi national</p>}
@@ -396,9 +415,10 @@ export default function Admin({ user, setUser }) {
       </div></section>
 
       <section className="regie-panel" style={{margin:"18px 0"}}>
-        <h3>Chat des salles</h3>
-        <label style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginTop:10}}>Choisir la salle <select aria-label="Choisir la salle" value={chatGroup} onChange={e=>setChatGroup(e.target.value)}><option value="">Sélectionner…</option>{chatRooms.map(([id,name])=><option key={id} value={id}>{chatSummary[id]?.alerts>0?"🔴 ":""}{name}{unreadFor(id)>0?" · "+unreadFor(id)+" nouveau(x)":""}{chatSummary[id]?.alerts>0?" · "+chatSummary[id].alerts+" alerte(s)":""}</option>)}</select></label>
-        {alertRooms.length>0&&<div className="regie-chat-alerts">{alertRooms.map(g=><button type="button" key={g.id} className="regie-chat-alert-button" onClick={()=>setChatGroup(g.id)}>⚠ {g.name} · {chatSummary[g.id].alerts} alerte{chatSummary[g.id].alerts>1?"s":""}</button>)}</div>}
+        <h3 id="regie-room-chat">Chat des salles</h3>
+        {alertDirectory!==null&&!alertError&&alertRooms.length===0&&<p className="regie-muted" role="status">Aucune alerte en attente.</p>}
+        <label style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginTop:10}}>Choisir la salle <select aria-label="Choisir la salle" value={chatGroup} onChange={e=>setChatGroup(e.target.value)}><option value="">Sélectionner…</option>{chatRooms.map(([id,name])=><option key={id} value={id}>{alertCount(id)>0?"🔴 ":""}{name}{unreadFor(id)>0?" · "+unreadFor(id)+" nouveau(x)":""}{alertCount(id)>0?" · "+alertCount(id)+" alerte(s)":""}</option>)}</select></label>
+        {alertRooms.length>0&&<div className="regie-chat-alerts">{alertRooms.map(g=><button type="button" key={g.id} className="regie-chat-alert-button" onClick={()=>setChatGroup(g.id)}>⚠ {g.name} · {g.count} alerte{g.count>1?"s":""}</button>)}</div>}
         {chatGroup&&chatRooms.some(([id])=>id===chatGroup)&&<ChatBubble key={chatGroup} inline user={user} groupRequest={chatRequest} roomId={chatGroup} onRead={chatRead} onReportChange={refreshReports} groupName={chatRooms.find(([id])=>id===chatGroup)?.[1]}/>}
       </section>
 

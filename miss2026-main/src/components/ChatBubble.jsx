@@ -47,7 +47,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
     setReportBusy("room");setReportNotice("");
     try{
       const result=await groupRequest({action:"report_room"});
-      if(result.accepted!==true)throw Error("Signalement non confirmé.");
+      if(result.accepted!==true||result.verified!==true)throw Error("Enregistrement de l’alerte non confirmé. Réessaie.");
       readVersion.current++;
       setReportNotice(result.alreadyReported?"Cette salle a déjà été signalée.":"Alerte transmise à la régie.");
       try{applyChat(await groupRequest());}catch{}

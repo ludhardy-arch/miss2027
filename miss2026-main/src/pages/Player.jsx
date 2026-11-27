@@ -52,6 +52,7 @@ export default function Player({ user, setUser }) {
   const [favorite, setFavorite] = useState(null);
   const [ranking, setRanking] = useState({});
   const [showVoteBanner, setShowVoteBanner] = useState(true);
+  const [showVoteRules,setShowVoteRules]=useState(false);
   const [votePending, setVotePending] = useState(false);
   const [voteFeedback, setVoteFeedback] = useState("");
   const [loadedDraftKey, setLoadedDraftKey] = useState(null);
@@ -59,6 +60,7 @@ export default function Player({ user, setUser }) {
   // Bannière votes ouverts réapparait à chaque tour
   useEffect(() => {
     setShowVoteBanner(true);
+    setShowVoteRules(false);
   }, [tour]);
 
 
@@ -330,17 +332,21 @@ export default function Player({ user, setUser }) {
         }}
       >
         {tour === 1 && (
-          <section aria-label="Comment voter au premier tour" style={{
+          <div style={{marginBottom:16}}>
+            <button type="button" aria-expanded={showVoteRules} aria-controls="player-vote-rules" onClick={()=>setShowVoteRules(open=>!open)}
+              style={{display:"flex",alignItems:"center",justifyContent:"center",position:"relative",boxSizing:"border-box",width:"100%",minHeight:52,padding:"12px 32px",margin:0,borderRadius:12,border:"2px solid #e9a2df",background:"linear-gradient(135deg,#66245f,#ad498f,#672565)",color:"#fff",fontSize:15,fontWeight:800,boxShadow:"0 0 13px rgba(225,107,210,.45)"}}>
+              Tour 1 · Comment voter ?
+              <span aria-hidden="true" style={{position:"absolute",right:13,fontSize:20,lineHeight:1,transform:showVoteRules?"rotate(180deg)":"rotate(0deg)",transition:"transform .18s ease"}}>⌄</span>
+            </button>
+          {showVoteRules&&<section id="player-vote-rules" aria-label="Comment voter au premier tour" style={{
             border: "1px solid #d57eb9",
             borderRadius: 16,
             padding: "15px 12px",
-            marginBottom: 16,
+            marginTop: 10,
+            marginBottom: 0,
             background: "linear-gradient(145deg, rgba(69,25,75,.85), rgba(30,15,49,.93))",
             boxShadow: "0 3px 18px rgba(171,56,131,.2)"
           }}>
-            <h3 style={{margin:"0 0 14px",fontFamily:"Georgia,serif",fontSize:"clamp(18px,5vw,23px)",lineHeight:1.25,color:"#ffe3aa",textAlign:"center"}}>
-              ✦ TOUR 1 · COMMENT VOTER ? ✦
-            </h3>
             {[
               {number:"1", symbol:"♛", title:"Sélectionne 12 Miss.", description:""},
               {number:"2", symbol:"♡", title:"Choisis 1 coup de cœur parmi tes 12.", description:""},
@@ -367,7 +373,8 @@ export default function Player({ user, setUser }) {
             {favorite && selection.includes(favorite) && <div aria-live="polite" style={{marginTop:10,fontSize:13,color:"#ffd3e5",textAlign:"center",fontWeight:700}}>
               ❤️ Ton coup de cœur : {CANDIDATES.find(c => c.id === favorite)?.label || "Miss choisie"}
             </div>}
-          </section>
+          </section>}
+          </div>
         )}
 
 

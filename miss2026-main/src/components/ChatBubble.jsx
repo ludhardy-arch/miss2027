@@ -9,8 +9,9 @@ const isAdminMessage = (message) => {
   return author === "admin" || author === "hardy ludo" || author === "ludo hardy";
 };
 
-export default function ChatBubble({ user, demoMessages = null, onDemoSend = null, groupRequest = null, groupName = null }) {
-  const [open, setOpen] = useState(false);
+export default function ChatBubble({ user, demoMessages = null, onDemoSend = null, groupRequest = null, groupName = null, inline = false }) {
+  const [bubbleOpen, setOpen] = useState(false);
+  const open=inline||bubbleOpen;
   const [messages, setMessages] = useState([]);
   const inDemo = Array.isArray(demoMessages);
   const visibleMessages = inDemo ? demoMessages : messages;
@@ -24,6 +25,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
   const [chatBlocked, setChatBlocked] = useState(false);
 
   const messagesEndRef = useRef(null);
+  const messagesScrollRef = useRef(null);
 
   // Stocke l’ancien dernier message pour détecter les vrais nouveaux
   const lastMessageRef = useRef(null);
@@ -100,9 +102,10 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
   // Scroll auto
   useEffect(() => {
     if (open && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      if(inline&&messagesScrollRef.current)messagesScrollRef.current.scrollTop=messagesScrollRef.current.scrollHeight;
+      else messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, open]);
+  }, [messages, open, inline]);
 
   // Envoi message
   const sendMessage = async () => {
@@ -146,10 +149,10 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
     }
   };
 
-  return createPortal(
+  const content=(
     <>
       {/* Bulle flottante */}
-      <div
+      {!inline&&<div
         style={{
           position: "fixed",
           bottom: 20,
@@ -189,21 +192,23 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
             {unread}
           </span>
         )}
-      </div>
+      </div>}
 
       {/* Fenêtre popup */}
       {open && (
         <div
           style={{
-            position: "fixed",
-            bottom: 90,
-            right: 20,
-            width: "min(340px, calc(100vw - 32px))",
-            height: "min(400px, 55dvh)",
+            position: inline?"relative":"fixed",
+            bottom: inline?undefined:90,
+            right: inline?undefined:20,
+            width: inline?"100%":"min(340px, calc(100vw - 32px))",
+            height: inline?320:"min(400px, 55dvh)",
+            marginTop:inline?12:0,
+            border:inline?"1px solid #395783":undefined,
             background: "rgba(10,10,20,0.95)",
             borderRadius: 12,
             boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
-            zIndex: 2147483647,
+            zIndex: inline?undefined:2147483647,
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
@@ -224,7 +229,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
           </div>
 
           {/* Messages */}
-          <div
+          <div ref={messagesScrollRef}
             style={{
               flex: 1,
               minHeight: 0,
@@ -235,6 +240,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
               gap: 8,
             }}
           >
+            {inline&&!visibleMessages.length&&!chatError&&<p style={{margin:"auto",color:"#abc1de",fontSize:13}}>Aucun message pour le moment.</p>}
             {visibleMessages.map((m, i) => {
               const isAdmin = groupRequest ? m.admin === true : isAdminMessage(m);
               const isMe = !isAdmin && (groupRequest ? m.uid === user.uid : m.author === user.pseudo);
@@ -344,6 +350,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
         }
       `}
       </style>
-    </>, document.body
+    </>
   );
+  return inline?content:createPortal(content,document.body);
 }

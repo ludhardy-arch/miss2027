@@ -75,7 +75,8 @@ export function adminGameView(root){
    for(const key of ["tour1","tour2","tour3","favorite"])if(own[key]!==undefined)record[key]=own[key];
    players[uid]=record;
  }
- return {players,tour:Number(room.tour||1),gameId:String(room.gameId||""),votesOpen:room.votesOpen===true,groupCount:Object.keys(event.registration?.groups||{}).length};
+ const groups=Object.entries(event.registration?.groups||{}).map(([id,g])=>({id,name:g.name,type:g.type==="public"?"public":"private",memberCount:Object.keys(g.members||{}).length,ownerPseudo:g.members?.[g.ownerUid]?.pseudo||null})).sort((a,b)=>a.name.localeCompare(b.name,"fr"));
+ return {players,groups,tour:Number(room.tour||1),gameId:String(room.gameId||""),votesOpen:room.votesOpen===true,groupCount:groups.length};
 }
 export function advanceRound(root,{gameId,tour,selection}){
  const room=root?.rooms?.miss2027;

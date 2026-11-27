@@ -61,7 +61,8 @@ export default function Admin({ user, setUser }) {
   const [nationalError,setNationalError]=useState("");
   const players=nationalView?.players||{};
   const [chatGroup,setChatGroup]=useState("");
-  const chatRooms=[...new Map(Object.values(players).map(p=>[p.groupId,p.groupName])).entries()];
+  const groups=Array.isArray(nationalView?.groups)?nationalView.groups:[...new Map(Object.values(players).map(p=>[p.groupId,p.groupName])).entries()].map(([id,name])=>({id,name,memberCount:Object.values(players).filter(p=>p.groupId===id).length}));
+  const chatRooms=groups.map(g=>[g.id,g.name]);
   const chatRequest=React.useCallback(body=>body===undefined?adminRequest("/admin/chat?groupId="+encodeURIComponent(chatGroup)):adminRequest("/admin/chat",{...body,groupId:chatGroup}),[chatGroup,user.uid]);
   async function moderate(player,action){
     if(!window.confirm((action==="warn"?"Avertir ":action==="block"?"Bloquer ":"Débloquer ")+player.pseudo+" ?"))return;
@@ -105,6 +106,8 @@ export default function Admin({ user, setUser }) {
   const [votesExpanded, setVotesExpanded] = useState(false);
   const [rankExpanded, setRankExpanded] = useState(false);
   const [playersExpanded, setPlayersExpanded] = useState(false);
+  const [favoritesExpanded,setFavoritesExpanded]=useState(false);
+  const [groupsExpanded,setGroupsExpanded]=useState(false);
   const resetWord=resetKind==="game"?"JEU":"INSCRIPTIONS";
   async function confirmReset(){
     if(resetBusy||!resetKind||resetConfirmation!==resetWord)return;
@@ -326,7 +329,14 @@ export default function Admin({ user, setUser }) {
         <button type="button" className="regie-kpi" aria-expanded={playersExpanded} onClick={()=>setPlayersExpanded(x=>!x)}><span className="regie-kpi-icon">♙</span><strong>{nationalView?totalPlayers:"…"}</strong><span>JOUEURS {playersExpanded?"⌃":"⌄"}</span></button>
         <button type="button" className="regie-kpi" aria-expanded={votesExpanded} onClick={()=>setVotesExpanded(x=>!x)}><span className="regie-kpi-icon green">✓</span><strong>{nationalView?`${votedCount}/${totalPlayers}`:"…"}</strong><span>VOTES VALIDÉS {votesExpanded?"⌃":"⌄"}</span></button>
         <button type="button" className="regie-kpi" aria-expanded={rankExpanded} onClick={()=>setRankExpanded(x=>!x)}><span className="regie-kpi-icon gold">🏆</span><strong>TOP</strong><span>CLASSEMENT {rankExpanded?"⌃":"⌄"}</span></button>
+        <button type="button" className="regie-kpi" aria-expanded={favoritesExpanded} onClick={()=>setFavoritesExpanded(x=>!x)}><span className="regie-kpi-icon gold">★</span><strong>TOP 5</strong><span>MISS FAVORITES {favoritesExpanded?"⌃":"⌄"}</span></button>
+        <button type="button" className="regie-kpi" aria-expanded={groupsExpanded} onClick={()=>setGroupsExpanded(x=>!x)}><span className="regie-kpi-icon">♟</span><strong>{nationalView?groups.length:"…"}</strong><span>GROUPES CRÉÉS {groupsExpanded?"⌃":"⌄"}</span></button>
       </section>
+      {favoritesExpanded&&<section className="regie-expand"><div className="regie-panel-heading"><h3>⭐ MISS FAVORITES</h3><span>TOUR {tour}</span></div>
+        {popularity.map(m=><div className="regie-popularity" key={m.id}><div><span>{m.label}</span><strong>{m.count} pts</strong></div><div className="regie-meter"><span style={{width:(100*m.count/maxPopularity)+"%"}} /></div></div>)}
+        <small className="regie-muted">Cumul des sélections · tours 1, 2 et finale</small>
+      </section>}
+      {groupsExpanded&&<section className="regie-expand"><h3>GROUPES ET SALLES CRÉÉS</h3><div className="regie-standing-list">{groups.map(g=><div key={g.id} style={{flexWrap:"wrap",alignItems:"center"}}><span style={{minWidth:0,overflowWrap:"anywhere"}}><strong>{g.name}</strong><small style={{display:"block",color:"#abc1de"}}>{g.type==="public"?"Salle publique":g.type==="private"?"Groupe privé"+(g.ownerPseudo?" · Créateur : "+g.ownerPseudo:""):""}</small></span><b>{g.memberCount}/30</b></div>)}</div>{!groups.length&&<p className="regie-muted">Aucun groupe créé.</p>}</section>}
       {playersExpanded && <section className="regie-expand" aria-label="Modération des joueurs">
         <h3>JOUEURS INSCRITS · MODÉRATION DU CHAT</h3>
         <p className="regie-muted" style={{fontSize:12}}>Les joueurs enregistrés sont listés ici (leur présence en ligne n’est pas vérifiée).</p>
@@ -353,13 +363,11 @@ export default function Admin({ user, setUser }) {
         <button type="button" className="regie-show" disabled={publishing||votesOpen||finaleStarted||!finalRankingValidated} onClick={()=>void launchShow()}><span>♛</span><b>SHOW FINAL</b><strong>{finaleStarted?"SHOW LANCÉ":publishing?"PUBLICATION…":"LANCER LE SHOW"}</strong></button>
       </div></section>
 
-      <div className="regie-info-grid">
-        <section className="regie-panel"><h3>Chat des salles</h3><label>Choisir la salle <select value={chatGroup} onChange={e=>setChatGroup(e.target.value)}><option value="">Sélectionner…</option>{chatRooms.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>{chatGroup&&chatRooms.some(([id])=>id===chatGroup)&&<ChatBubble key={chatGroup} user={user} groupRequest={chatRequest} groupName={chatRooms.find(([id])=>id===chatGroup)?.[1]}/>}</section>
-        <section className="regie-panel"><div className="regie-panel-heading"><h3>⭐ MISS FAVORITES</h3><span>TOUR {tour}</span></div>
-          {popularity.map(m=><div className="regie-popularity" key={m.id}><div><span>{m.label}</span><strong>{m.count} pts</strong></div><div className="regie-meter"><span style={{width:(100*m.count/maxPopularity)+"%"}} /></div><small>Cumul des sélections · tours 1, 2 et finale</small></div>)}
-          {!popularity.length&&<p>Aucune candidate à afficher.</p>}
-        </section>
-      </div>
+      <section className="regie-panel" style={{margin:"18px 0"}}>
+        <h3>Chat des salles</h3>
+        <label style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginTop:10}}>Choisir la salle <select aria-label="Choisir la salle" value={chatGroup} onChange={e=>setChatGroup(e.target.value)}><option value="">Sélectionner…</option>{chatRooms.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
+        {chatGroup&&chatRooms.some(([id])=>id===chatGroup)&&<ChatBubble key={chatGroup} inline user={user} groupRequest={chatRequest} groupName={chatRooms.find(([id])=>id===chatGroup)?.[1]}/>}
+      </section>
 
       <details className="regie-danger" open={showDangerZone} onToggle={event=>setShowDangerZone(event.currentTarget.open)}>
         <summary>⚠️ Zone sensible — Réinitialisation</summary>

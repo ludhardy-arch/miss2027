@@ -112,3 +112,12 @@ test("three registered players survive connections and votes opened or closed in
  assert.equal(protectedControlChange(r,root=>({state:{...root,events:{}},result:{}})).code,"control_data_changed");
  assert.equal(protectedControlChange(r,root=>({state:{...root,rooms:{miss2027:{gameId:"bad"}}},result:{}})).code,"control_data_changed");
 });
+
+test("admin group directory contains public and private rooms without credentials",()=>{
+ const root={events:{miss2027:{registration:{groups:{g:{name:"Poupoule",type:"private",secret:"secret",inviteDigest:"hidden",ownerUid:"u1",members:{u1:{pseudo:"Jen",recoveryDigest:"hidden"}}},p:{name:"Salle publique 1",type:"public",members:{}}},membership:{u1:"g"}}}}};
+ const view=adminGameView(root);
+ assert.equal(view.groupCount,2);
+ assert.deepEqual(view.groups,[{id:"g",name:"Poupoule",type:"private",memberCount:1,ownerPseudo:"Jen"},{id:"p",name:"Salle publique 1",type:"public",memberCount:0,ownerPseudo:null}]);
+ assert.equal(JSON.stringify(view.groups).includes("hidden"),false);
+ assert.equal(JSON.stringify(view.groups).includes("secret"),false);
+});

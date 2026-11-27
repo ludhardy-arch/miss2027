@@ -2,13 +2,6 @@ import React,{useEffect,useRef,useState} from "react";
 import {createPortal} from "react-dom";
 import "./InvitationPreview.css";
 import {createInvitationImage,invitationMessage,invitationText} from "./invitationImage.mjs";
-const channels=[
- {id:"sms",label:"SMS",color:"#259d50",symbol:"✉"},
- {id:"whatsapp",label:"WhatsApp",color:"#128c55",symbol:"☎"},
- {id:"facebook",label:"Facebook",color:"#1877f2",symbol:"f"},
- {id:"messenger",label:"Messenger",color:"#326dff",symbol:"ϟ"},
- {id:"mail",label:"E-mail",color:"#526d99",symbol:"@"}
-];
 export default function InvitationPreview({group,load,onClose}){
  const [card,setCard]=useState(null),[passwordRequired,setPasswordRequired]=useState(false),[password,setPassword]=useState("");
  const [busy,setBusy]=useState(true),[status,setStatus]=useState(""),[error,setError]=useState("");
@@ -54,10 +47,9 @@ export default function InvitationPreview({group,load,onClose}){
   if(navigator.share){navigator.share({title:"Invitation à la soirée Miss France 2027",text}).catch(e=>{if(e.name!=="AbortError")setStatus("Partage indisponible. Copie l’invitation ci-dessous.");});}
   else void copy();
  }
- function share(channel){
+ function share(){
   if(!card||blocked||busy)return;
   setStatus("");
-  if(channel==="facebook"&&!window.confirm("Cette invitation contient les accès du groupe. Partage-la uniquement avec tes amis, jamais en public. Continuer ?"))return;
   if(canShareImage()){
    // Pre-rendered file: invoke directly in the user's tap, without awaiting a network request.
    // The OS chooses the app; the website cannot force Messages or a specific contact.
@@ -67,7 +59,7 @@ export default function InvitationPreview({group,load,onClose}){
    });
    return;
   }
-  shareText(channel);
+  if(navigator.share){shareText("native");}else{void copy();}
  }
  return createPortal(<div className="miss-invite-overlay"><section className="miss-invite-panel miss-invite-menu" role="dialog" aria-modal="true" aria-label="Inviter mes amis" tabIndex={-1} ref={panel} onKeyDown={e=>{if(e.key==="Escape")onClose();}}>
   <header className="miss-invite-top"><h2>Inviter mes amis</h2><button type="button" onClick={onClose} aria-label="Fermer">✕</button></header>
@@ -75,9 +67,10 @@ export default function InvitationPreview({group,load,onClose}){
   {group.locked&&<p className="miss-invite-error">Les inscriptions sont fermées.</p>}
   {busy&&!blocked&&<p role="status" className="miss-invite-hint">Préparation de l’invitation…</p>}
   {passwordRequired&&!blocked&&<form onSubmit={e=>{e.preventDefault();if(password.length>=6)void getCard(password);}}><p className="miss-invite-hint">Pour ce groupe créé avant la nouvelle invitation, confirme une seule fois son mot de passe.</p><input className="miss-invite-secret" type="password" aria-label="Mot de passe du groupe" autoComplete="off" autoCapitalize="none" minLength={6} maxLength={128} required value={password} onChange={e=>setPassword(e.target.value)} disabled={busy}/><button className="miss-invite-action" type="submit" disabled={busy||password.length<6}>Confirmer le mot de passe</button></form>}
-  {card&&!blocked&&!busy&&<p className="miss-invite-hint">{canShareImage()?"Invitation avec image : sélectionne l’application souhaitée dans le menu de partage de ton téléphone.":"Partage texte disponible. Le téléphone ne permet pas ici de joindre automatiquement une image."}</p>}
+  {card&&!blocked&&!busy&&<p className="miss-invite-hint">{canShareImage()?"Choisis tes amis ou ton application dans le menu de partage.":"Partage du texte et du lien disponible."}</p>}
   {imageNotice&&<p className="miss-invite-hint">{imageNotice}</p>}
-  <div className="miss-invite-channels">{channels.map(ch=><button key={ch.id} className="miss-invite-channel" type="button" style={{background:ch.color}} disabled={!card||blocked||busy} onClick={()=>share(ch.id)}><span className="miss-invite-symbol" aria-hidden="true">{ch.symbol}</span><span>Inviter par {ch.label}</span><span aria-hidden="true">›</span></button>)}</div>
+  <div className="miss-invite-channels"><button className="miss-invite-channel" type="button" style={{background:"linear-gradient(110deg,#b94b24 0%,#c52c68 48%,#8136bd 100%)",border:"2px solid #ff9acf",boxShadow:"0 0 9px rgba(255,115,181,.8),0 0 22px rgba(229,54,147,.38)",color:"#fff"}} disabled={!card||blocked||busy} onClick={share}><svg aria-hidden="true" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg><span>Partager mon invitation</span><span aria-hidden="true">›</span></button></div>
+  {card&&!blocked&&!busy&&<p className="miss-invite-hint">Invitation privée : partage-la uniquement avec tes amis.</p>}
   {error&&<><p role="alert" className="miss-invite-error">{error}</p>{!passwordRequired&&!blocked&&<button type="button" className="miss-invite-secondary" disabled={busy} onClick={()=>void getCard()}>Réessayer</button>}</>}
   {card&&!blocked&&!busy&&<><button type="button" className="miss-invite-secondary" onClick={()=>copy(true)}>Copier le lien</button><details><summary>Autres options de partage</summary>{imageFile&&<button type="button" className="miss-invite-secondary" onClick={saveImage}>Enregistrer l’image</button>}<button type="button" className="miss-invite-secondary" onClick={()=>shareText("sms")}>Envoyer par SMS sans image</button><button type="button" className="miss-invite-secondary" onClick={()=>copy()}>Copier le message complet</button><textarea readOnly value={full()} rows={7} aria-label="Invitation privée" onFocus={e=>e.target.select()}/></details></>}
   {status&&<p role="status" className="miss-invite-status">{status}</p>}

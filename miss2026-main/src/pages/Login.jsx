@@ -541,6 +541,7 @@ export default function Login({ setUser }) {
           {screen === "invite" && notice(inviteStatus==="ok"?"Invitation vérifiée. Aucun mot de passe à saisir.":inviteStatus||"Vérification de l’invitation…")}
         </>}
         {screen === "join" && <>
+          <h2 style={{margin:0,color:"#ffe5ad",fontSize:20,textAlign:"center"}}>Créer mon groupe</h2>
           <form onSubmit={searchRealGroups} style={{display:"grid",gap:12}}>
             <input aria-label="Nom du groupe" placeholder="Nom du groupe" maxLength={80} value={groupQuery} disabled={pending} onChange={e => {setGroupQuery(e.target.value);setGroupResults(null);setError("");}} style={inputStyle}/>
             <button type="submit" className="group-entry-blue" style={entryButton} disabled={pending||!groupQuery.trim()}>{pending?"Recherche en cours…":"Rechercher"}</button>

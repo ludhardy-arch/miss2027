@@ -1,4 +1,5 @@
 import { initializeApp } from "firebase/app";
+import {testPlayerAppName} from "./testPlayerSession.mjs";
 import { getDatabase } from "firebase/database";
 import { initializeAuth, browserLocalPersistence, browserSessionPersistence, browserPopupRedirectResolver } from "firebase/auth";
 
@@ -31,10 +32,12 @@ if (
   throw new Error("Firebase TEST : la configuration de production est interdite.");
 }
 
-const app = initializeApp(firebaseConfig);
+// Named Firebase apps have independent auth persistence keys in the same browser.
+export const simulatedPlayerApp=testPlayerAppName(window.location.href);
+const app = simulatedPlayerApp?initializeApp(firebaseConfig,simulatedPlayerApp):initializeApp(firebaseConfig);
 export const database = getDatabase(app);
-// Independent Firebase session in each browser tab. It survives a refresh,
-// but is not shared as a permanent login between tabs.
+// The default app keeps the normal persistent identity; each simulator URL
+// has its own named app and persistent identity, including after refresh.
 export const auth = initializeAuth(app, {
   persistence: [browserLocalPersistence, browserSessionPersistence],
   popupRedirectResolver: browserPopupRedirectResolver,

@@ -1,7 +1,8 @@
 import React, { useContext, useState, useEffect, useRef } from "react";
 import { AppContext } from "../context/AppContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { auth } from "../firebase";
+import { auth, simulatedPlayerApp } from "../firebase";
+import {TEST_ORIGIN,testPlayerUrl} from "../testPlayerSession.mjs";
 import ChatBubble from "../components/ChatBubble";
 import { GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
  
@@ -380,7 +381,12 @@ export default function Login({ setUser }) {
     </button>;
   }
 
+  function openTestPlayer(){
+    const url=testPlayerUrl(window.location.href,crypto.randomUUID());
+    if(url)window.open(url,"_blank","noopener,noreferrer");
+  }
   async function loginAdmin() {
+    if(simulatedPlayerApp)return;
     setPending(true); setError(""); setAdminUid("");
     try {
       // Admin sessions are deliberately not persisted across browser restarts.
@@ -596,9 +602,15 @@ export default function Login({ setUser }) {
       </div>
       {demoLoaded && demoEnabled && <div className="demo-entry-link" style={{ textAlign: "center", padding: "25px 10px 0" }}><button type="button" onClick={() => navigate("/demo")} style={{ background: "linear-gradient(110deg,#143b87,#2862bb)", border: "2px solid #dfbe7b", borderRadius: 15, boxShadow: "0 0 18px rgba(39,131,255,.45),0 0 14px rgba(246,198,102,.3)", color: "white", padding: "15px 24px", fontSize: 16, fontWeight: 800 }}>✦ ESSAYER LA DÉMO · SANS INSCRIPTION ✦</button></div>}
       <footer style={{ textAlign: "center", margin: "38px auto 0", padding: "12px 0 20px" }}>
-        <button type="button" onClick={loginAdmin} disabled={pending} style={{ background: "transparent", border: "none", boxShadow: "none", color: "#9ba8c8", padding: "6px 12px", fontSize: 12, fontWeight: 500, letterSpacing: ".025em", textDecoration: "underline", textUnderlineOffset: 3, cursor: pending ? "default" : "pointer", opacity: pending ? .45 : .8 }}>
+        {window.location.origin===TEST_ORIGIN&&<div style={{display:"grid",justifyItems:"center",gap:9,marginBottom:14}}>
+          {simulatedPlayerApp&&<p role="status" style={{color:"#ffd49c",fontSize:13,margin:0}}>Session de joueur simulé · indépendante</p>}
+          <button type="button" onClick={openTestPlayer} disabled={pending} style={{background:"rgba(255,255,255,.06)",border:"1px dashed #9ba8c8",borderRadius:10,color:"#dce6ff",fontSize:13,padding:"9px 14px"}}>＋ Simuler un nouveau joueur</button>
+          <p style={{color:"#9ba8c8",fontSize:12,margin:0}}>Ouvre un autre onglet sans modifier ton joueur actuel.</p>
+          {simulatedPlayerApp&&<a href={TEST_ORIGIN+"/#/login"} style={{color:"#c6d3ee",fontSize:12}}>Revenir à ma session normale</a>}
+        </div>}
+        {!simulatedPlayerApp&&<button type="button" onClick={loginAdmin} disabled={pending} style={{ background: "transparent", border: "none", boxShadow: "none", color: "#9ba8c8", padding: "6px 12px", fontSize: 12, fontWeight: 500, letterSpacing: ".025em", textDecoration: "underline", textUnderlineOffset: 3, cursor: pending ? "default" : "pointer", opacity: pending ? .45 : .8 }}>
           Administrateur
-        </button>
+        </button>}
       </footer>
     </div>
   );

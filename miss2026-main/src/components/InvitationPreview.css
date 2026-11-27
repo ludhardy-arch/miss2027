@@ -1,0 +1,29 @@
+.miss-invite-overlay{position:fixed;inset:0;z-index:12000;background:rgba(3,8,24,.9);overflow:auto;overscroll-behavior:contain;padding:max(14px,env(safe-area-inset-top)) 12px max(24px,env(safe-area-inset-bottom));display:flex;align-items:flex-start;justify-content:center;box-sizing:border-box;color:#fff;font-family:Arial,sans-serif}
+.miss-invite-panel{width:min(100%,460px);margin:auto;min-width:0;outline:none}
+.miss-invite-panel *{box-sizing:border-box}
+.miss-invite-top{display:flex;justify-content:space-between;align-items:center;margin:0 0 12px;font-size:18px}
+.miss-invite-top button{width:40px;height:40px;border-radius:50%;border:1px solid #6689ba;background:#132a51;color:#fff;font-size:20px;cursor:pointer}
+.miss-invite-card{padding:24px 16px 20px;border:3px solid #548ee0;border-radius:19px;background:radial-gradient(ellipse at 50% 12%,rgba(41,85,190,.32),transparent 36%),#0a1533;box-shadow:0 0 18px rgba(70,142,255,.25);text-align:center;overflow:hidden}
+.miss-invite-crown{height:108px;display:grid;place-items:center;background:radial-gradient(ellipse,rgba(40,87,199,.46),transparent 70%)}
+.miss-invite-crown img{display:block;width:145px;height:auto;filter:drop-shadow(0 0 10px rgba(255,216,145,.3))}
+.miss-invite-kicker{font-size:14px;font-weight:600;color:#e0c58c;margin-top:7px}
+.miss-invite-card h2{color:#ffe1a0;font-size:clamp(24px,6.5vw,30px);margin:8px 0 20px;font-weight:800;line-height:1.2}
+.miss-invite-date{font-size:16px;font-weight:600}
+.miss-invite-opening{font-size:14px;color:#a8c9ff;margin-top:6px}
+.miss-invite-goldline{position:relative;height:1px;background:linear-gradient(90deg,transparent,#ebc983,transparent);margin:26px 0}
+.miss-invite-goldline i{position:absolute;left:50%;top:50%;width:8px;height:8px;transform:translate(-50%,-50%) rotate(45deg);background:#ebc983}
+.miss-invite-group{background:#152c58;border:1px solid #577fb9;border-radius:12px;padding:15px 12px}
+.miss-invite-label{font-size:12px;color:#b6d0ff;letter-spacing:.07em}
+.miss-invite-card h3{margin:8px 0 13px;color:#ffdfa0;font-size:26px;overflow-wrap:anywhere}
+.miss-invite-password{border-top:1px solid #344f7c;padding-top:12px;font-size:14px;overflow-wrap:anywhere}
+.miss-invite-password input,.miss-invite-panel textarea{width:100%;border:1px solid #6689ba;background:#0c1c3c;color:#fff;border-radius:9px;padding:12px;font-size:16px;margin-top:9px}
+.miss-invite-green,.miss-invite-action{display:block;width:100%;border:2px solid #15ef98;border-radius:13px;min-height:52px;padding:15px 8px;background:linear-gradient(110deg,#003b26,#006f42,#009e63);box-shadow:0 0 9px #00e58a,0 0 20px rgba(0,235,137,.35);color:#fff;font-weight:800;font-size:16px;text-align:center}
+.miss-invite-green{margin-top:22px;cursor:default}
+.miss-invite-caption{color:#c4d9f5;font-size:13px;margin:14px 0 0}
+.miss-invite-hint{font-size:14px;color:#c4d9f5;text-align:center;line-height:1.4;margin:18px 0 12px}
+.miss-invite-action{cursor:pointer}
+.miss-invite-action:disabled{opacity:.45;cursor:default}
+.miss-invite-secondary{width:100%;padding:12px;margin-top:12px;background:#16356c;color:#fff;border:1px solid #80caff;border-radius:12px;min-height:46px;font-size:15px;font-weight:700;cursor:pointer}
+.miss-invite-panel details{margin-top:16px;color:#b6d0ff;font-size:14px}
+.miss-invite-error{color:#ffc0bf;font-size:14px;overflow-wrap:anywhere}
+.miss-invite-status{color:#a4ffd0;font-size:14px}

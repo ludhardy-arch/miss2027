@@ -12,14 +12,19 @@ export function ownerView(root,uid){
  const group=reg.groups[view.id];
  return {result:{group:{...view,entered:event.players?.[uid]?.groupId===view.id,registrationsOpen:!locked(root)&&Object.keys(group.members||{}).length<30,locked:locked(root),invitationActive:!!group.inviteDigest,members:Object.entries(group.members).map(([id,m])=>({id,pseudo:m.pseudo,isOwner:id===uid}))}}};
 }
-export function manageGroup(root,{uid,action,value,targetUid,digest}){
+export function manageGroup(root,{uid,action,value,targetUid,digest,verifiedSecret,reuse=false}){
  const initial=ownerView(root,uid);
  if(initial.code)return initial;
  const event=eventOf(root),reg=event.registration,id=initial.result.group.id,g=reg.groups[id];
  if(locked(root)&&action!=="revoke")return fail("membership_locked");
  let group={...g},membership=reg.membership,players=event.players;
- if(action==="invite"){
+ if(action==="invite"||action==="prepare_invite"){
    if(!/^[a-f0-9]{64}$/.test(digest||""))return fail("invalid_fields");
+   if(action==="prepare_invite"){
+     if(typeof verifiedSecret!=="string"||g.secret!==verifiedSecret)return fail("invalid_password");
+     if(!initial.result.group.registrationsOpen)return fail("group_full");
+     if(reuse)return g.inviteDigest===digest?{state:root,result:initial.result}:fail("invitation_changed");
+   }
    group.inviteDigest=digest;
  }else if(action==="revoke"){delete group.inviteDigest;}
  else if(action==="remove"){

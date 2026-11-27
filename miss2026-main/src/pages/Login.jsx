@@ -5,6 +5,7 @@ import { auth, simulatedPlayerApp } from "../firebase";
 import {TEST_ORIGIN,testPlayerUrl,adminSessionUrl} from "../testPlayerSession.mjs";
 import ChatBubble from "../components/ChatBubble";
 import RulesToggle from "../components/RulesToggle";
+import InvitationPreview from "../components/InvitationPreview";
 import { signInWithCustomToken, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
  
 // 12 décembre 2026, 20 h 40 à Paris (heure d'hiver : UTC+1).
@@ -22,7 +23,7 @@ function getRemainingTime() {
 
 
 const GROUP_API="https://miss2027-test-api.onrender.com";
-const groupErrors={player_removed:"La régie a retiré ton inscription du concours.",recovery_invalid:"Pseudo ou mot de passe du groupe incorrect.",creation_not_verified:"La création du groupe n’a pas pu être confirmée. Réessaie de retrouver ton groupe.",group_name_taken:"Nom du groupe déjà pris. Choisis-en un autre.",group_full:"Ce groupe est complet (30 participants maximum).",pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les connexions sont fermées par la régie. Patiente dans ton groupe.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",owner_required:"Seul le créateur reconnu sur son navigateur peut gérer ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
+const groupErrors={player_removed:"La régie a retiré ton inscription du concours.",recovery_invalid:"Pseudo ou mot de passe du groupe incorrect.",creation_not_verified:"La création du groupe n’a pas pu être confirmée. Réessaie de retrouver ton groupe.",group_name_taken:"Nom du groupe déjà pris. Choisis-en un autre.",group_full:"Ce groupe est complet (30 participants maximum).",pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les connexions sont fermées par la régie. Patiente dans ton groupe.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",owner_required:"Seul le créateur reconnu sur son navigateur peut gérer ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",invitation_changed:"Ce lien a été remplacé ou désactivé. Prépare un nouveau lien.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
 const lobbyChat=body=>groupRequest("/chat",body);
 async function groupRequest(path,body) {
   if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Ce service est réservé au site test.");
@@ -62,6 +63,8 @@ export default function Login({ setUser }) {
   const invitation = searchParams.get("invite");
   const [inviteGroup,setInviteGroup]=useState(null);
   const [inviteLink,setInviteLink]=useState("");
+  const [showInvitation,setShowInvitation]=useState(false);
+  useEffect(()=>{setShowInvitation(false);setInviteLink("");},[firebaseIdentity,ownerGroup?.id]);
   const [inviteStatus,setInviteStatus]=useState("");
   const screen = invitation ? "invite" : entryMode;
   const [error, setError] = useState("");
@@ -244,20 +247,17 @@ export default function Login({ setUser }) {
         setInviteLink(window.location.origin+"/#/login?invite="+encodeURIComponent(result.token));
         setInviteStatus("Lien d’invitation prêt ! Appuie sur Partager le lien pour l’envoyer.");
       }
-      if(action==="revoke")setInviteLink("");
+      if(action==="revoke"){setInviteLink("");setShowInvitation(false);}
     }catch(e){setError(e.message);}finally{setPending(false);}
   }
-  async function copyInvitation(){
-    if(!inviteLink)return;
-    try{await navigator.clipboard.writeText(inviteLink);setInviteStatus("Lien copié !");}
-    catch{setInviteStatus("Sélectionne le lien et copie-le manuellement.");}
-  }
-  async function shareInvitation(){
-    if(!inviteLink)return;
-    try{
-      if(navigator.share)await navigator.share({title:"Miss2027",text:"Rejoins mon groupe pour jouer à Miss2027 !",url:inviteLink});
-      else await copyInvitation();
-    }catch(e){if(e.name!=="AbortError")await copyInvitation();}
+  async function prepareInvitation(password,reuseLink){
+    const reuseToken=reuseLink?new URLSearchParams(new URL(reuseLink).hash.split("?")[1]||"").get("invite"):null;
+    const result=await groupRequest("/groups/owner/manage",{action:"prepare_invite",password,...(reuseToken?{reuseToken}:{})});
+    if(!result.token||result.group?.id!==ownerGroup?.id)throw Error("L’invitation n’a pas été confirmée.");
+    setOwnerGroup(result.group);
+    const link=window.location.origin+"/#/login?invite="+encodeURIComponent(result.token);
+    setInviteLink(link);
+    return link;
   }
   async function refreshOwner(){
     if(pending)return;
@@ -589,8 +589,8 @@ export default function Login({ setUser }) {
             <div style={{fontSize:20,fontWeight:800,color:"#fff",overflowWrap:"anywhere"}}>{ownerGroup.name}</div>
             <p style={{margin:"8px 0 0",color:"#c6d3ee"}}>{ownerGroup.memberCount} participant{ownerGroup.memberCount>1?"s":""} · {ownerGroup.pseudo} (créateur)</p>
           </div>
-          <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||ownerGroup.locked} onClick={()=>{if(!ownerGroup.invitationActive||window.confirm("Créer un nouveau lien ? L’ancien ne fonctionnera plus."))void ownerAction("invite");}}>{pending?"Opération en cours…":"Inviter mes amis"}</button>
-          {inviteLink&&<><input aria-label="Lien d’invitation" style={inputStyle} readOnly value={inviteLink} onFocus={e=>e.target.select()}/><button type="button" className="group-entry-blue" style={entryButton} onClick={copyInvitation}>Copier le lien</button><button type="button" className="group-entry-blue" style={entryButton} onClick={shareInvitation}>Partager le lien</button></>}
+          <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||ownerGroup.locked||!ownerGroup.registrationsOpen} onClick={()=>setShowInvitation(true)}>Inviter mes amis</button>
+          {showInvitation&&ownerGroup.isOwner&&!ownerGroup.locked&&ownerGroup.registrationsOpen&&<InvitationPreview key={ownerGroup.id} group={ownerGroup} existingLink={inviteLink} prepare={prepareInvitation} onClose={()=>setShowInvitation(false)} onStale={()=>setInviteLink("")}/>}
           {ownerGroup.invitationActive&&<button type="button" className="group-entry-danger" disabled={pending} onClick={()=>{if(window.confirm("Désactiver le lien d’invitation ?"))void ownerAction("revoke");}}>Désactiver le lien</button>}
           {inviteStatus&&notice(inviteStatus)}
           {pending&&<p role="status" style={{color:"#ffe5ad",margin:0}}>Communication avec le serveur…</p>}

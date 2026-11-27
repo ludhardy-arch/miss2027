@@ -65,3 +65,14 @@ test("removing a creator transfers ownership, revokes invitation and preserves o
  assert.equal(ownerView(out.state,"u2").result.group.memberCount,2);
  r.rooms.miss2027.finaleStarted=true;assert.equal(removePlayer(r,params).code,"game_finished");
 });
+
+test("prepared invitation verifies password and reuses current link without rotating",()=>{
+ const r=root(),params={uid:"u1",action:"prepare_invite",digest:d,verifiedSecret:"hash"};
+ assert.equal(manageGroup(r,{...params,verifiedSecret:"wrong"}).code,"invalid_password");
+ assert.equal(manageGroup(r,{...params,uid:"stranger"}).code,"owner_required");
+ const created=manageGroup(r,params);assert.equal(invitationView(created.state,d).result.group.name,"G");
+ assert.equal(manageGroup(created.state,{...params,reuse:true}).state,created.state);
+ assert.equal(manageGroup(created.state,{...params,digest:d2,reuse:true}).code,"invitation_changed");
+ assert.equal(JSON.stringify(created.result).includes("hash"),false);
+ assert.deepEqual(created.state.events.miss2027.registration.groups.g.members,r.events.miss2027.registration.groups.g.members);
+});

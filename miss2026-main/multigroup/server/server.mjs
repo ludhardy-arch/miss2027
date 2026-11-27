@@ -288,9 +288,20 @@ const server=http.createServer(async(req,res)=>{
         return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
       }
       if(req.method==="POST"){
-        const b=await body(req),token=b.action==="invite"?randomBytes(32).toString("hex"):null;
-        const result=await directRootChange(root=>manageGroup(root,{uid,action:b.action,value:b.value,targetUid:b.targetUid,digest:token?digestInvite(token):undefined}));
-        console.log("TEST_OWNER_ACTION "+JSON.stringify({action:["invite","remove","revoke"].includes(b.action)?b.action:"invalid",status:result.status,error:result.body?.error||null}));
+        const b=await body(req);
+        let verifiedSecret,reuse=false;
+        if(b.action==="prepare_invite"){
+          if(limited("prepare-invite:"+uid,8))return reply(res,429,{error:"too_many_requests"});
+          const root=await directRootRead(),view=ownerView(root,uid);
+          if(view.code)return reply(res,403,{error:view.code});
+          const group=root.events.miss2027.registration.groups[view.result.group.id];
+          if(!validString(b.password,6,128)||!await matches(b.password,group.secret))return reply(res,403,{error:"invalid_password"});
+          verifiedSecret=group.secret;
+          if(b.reuseToken!==undefined){if(!validInvite(b.reuseToken))return reply(res,400,{error:"invalid_fields"});reuse=true;}
+        }
+        const token=reuse?b.reuseToken:["invite","prepare_invite"].includes(b.action)?randomBytes(32).toString("hex"):null;
+        const result=await directRootChange(root=>manageGroup(root,{uid,action:b.action,value:b.value,targetUid:b.targetUid,digest:token?digestInvite(token):undefined,verifiedSecret,reuse}));
+        console.log("TEST_OWNER_ACTION "+JSON.stringify({action:["invite","prepare_invite","remove","revoke"].includes(b.action)?b.action:"invalid",status:result.status,error:result.body?.error||null}));
         return reply(res,result.status,result.status===200&&token?{...result.body,token}:result.body);
       }
       return reply(res,405,{error:"method_not_allowed"});

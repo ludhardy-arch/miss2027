@@ -105,7 +105,7 @@ export default function Admin({ user, setUser }) {
   const [advancingTour, setAdvancingTour] = useState(false);
   const [votesExpanded, setVotesExpanded] = useState(false);
   const [rankExpanded, setRankExpanded] = useState(false);
-  const [playersExpanded, setPlayersExpanded] = useState(false);
+  const [expandedGroup,setExpandedGroup]=useState(null);
   const [favoritesExpanded,setFavoritesExpanded]=useState(false);
   const [groupsExpanded,setGroupsExpanded]=useState(false);
   const resetWord=resetKind==="game"?"JEU":"INSCRIPTIONS";
@@ -326,32 +326,43 @@ export default function Admin({ user, setUser }) {
       {!nationalView&&!nationalError&&<p role="status">Chargement des inscriptions…</p>}
       {nationalView&&<p className="regie-muted">{nationalView.groupCount} salles et groupes · suivi national</p>}
       <section className="regie-kpis" aria-label="Statistiques du concours">
-        <button type="button" className="regie-kpi" aria-expanded={playersExpanded} onClick={()=>setPlayersExpanded(x=>!x)}><span className="regie-kpi-icon">♙</span><strong>{nationalView?totalPlayers:"…"}</strong><span>JOUEURS {playersExpanded?"⌃":"⌄"}</span></button>
+        <button type="button" className="regie-kpi" aria-expanded={groupsExpanded} onClick={()=>setGroupsExpanded(x=>!x)}><span className="regie-kpi-icon">♟</span><strong>{nationalView?groups.length:"…"}</strong><span>GROUPES CRÉÉS {groupsExpanded?"⌃":"⌄"}</span></button>
         <button type="button" className="regie-kpi" aria-expanded={votesExpanded} onClick={()=>setVotesExpanded(x=>!x)}><span className="regie-kpi-icon green">✓</span><strong>{nationalView?`${votedCount}/${totalPlayers}`:"…"}</strong><span>VOTES VALIDÉS {votesExpanded?"⌃":"⌄"}</span></button>
         <button type="button" className="regie-kpi" aria-expanded={rankExpanded} onClick={()=>setRankExpanded(x=>!x)}><span className="regie-kpi-icon gold">🏆</span><strong>TOP</strong><span>CLASSEMENT {rankExpanded?"⌃":"⌄"}</span></button>
         <button type="button" className="regie-kpi" aria-expanded={favoritesExpanded} onClick={()=>setFavoritesExpanded(x=>!x)}><span className="regie-kpi-icon gold">★</span><strong>TOP 5</strong><span>MISS FAVORITES {favoritesExpanded?"⌃":"⌄"}</span></button>
-        <button type="button" className="regie-kpi" aria-expanded={groupsExpanded} onClick={()=>setGroupsExpanded(x=>!x)}><span className="regie-kpi-icon">♟</span><strong>{nationalView?groups.length:"…"}</strong><span>GROUPES CRÉÉS {groupsExpanded?"⌃":"⌄"}</span></button>
       </section>
       {favoritesExpanded&&<section className="regie-expand"><div className="regie-panel-heading"><h3>⭐ MISS FAVORITES</h3><span>TOUR {tour}</span></div>
         {popularity.map(m=><div className="regie-popularity" key={m.id}><div><span>{m.label}</span><strong>{m.count} pts</strong></div><div className="regie-meter"><span style={{width:(100*m.count/maxPopularity)+"%"}} /></div></div>)}
         <small className="regie-muted">Cumul des sélections · tours 1, 2 et finale</small>
       </section>}
-      {groupsExpanded&&<section className="regie-expand"><h3>GROUPES ET SALLES CRÉÉS</h3><div className="regie-standing-list">{groups.map(g=><div key={g.id} style={{flexWrap:"wrap",alignItems:"center"}}><span style={{minWidth:0,overflowWrap:"anywhere"}}><strong>{g.name}</strong><small style={{display:"block",color:"#abc1de"}}>{g.type==="public"?"Salle publique":g.type==="private"?"Groupe privé"+(g.ownerPseudo?" · Créateur : "+g.ownerPseudo:""):""}</small></span><b>{g.memberCount}/30</b></div>)}</div>{!groups.length&&<p className="regie-muted">Aucun groupe créé.</p>}</section>}
-      {playersExpanded && <section className="regie-expand" aria-label="Modération des joueurs">
-        <h3>JOUEURS INSCRITS · MODÉRATION DU CHAT</h3>
-        <p className="regie-muted" style={{fontSize:12}}>Les joueurs enregistrés sont listés ici (leur présence en ligne n’est pas vérifiée).</p>
-        <div style={{display:"grid",gap:10}}>
-          {playerEntries.map(([pseudo,player])=>(
-            <div key={pseudo} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap",padding:"12px",background:"rgba(18,35,75,.8)",border:"1px solid rgba(128,175,245,.35)",borderRadius:12}}>
-              <strong style={{overflowWrap:"anywhere"}}>{player.pseudo} · {player.groupName} {player?.chatBlocked===true && <span style={{color:"#ffb4b4",fontSize:12}}>· Chat bloqué</span>}</strong>
-              <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-                <button type="button" onClick={()=>void moderate(player,"warn")} style={{background:"#7d4310",padding:"9px 11px",fontSize:12}}>⚠️ Avertir</button>
-                <button type="button" onClick={()=>void moderate(player,player.chatBlocked?"unblock":"block")} style={{background:player?.chatBlocked===true?"#176849":"#8a2038",padding:"9px 11px",fontSize:12}}>{player?.chatBlocked===true?"🔓 Débloquer":"🔇 Bloquer chat"}</button>
-              </div>
-            </div>
-          ))}
-          {totalPlayers===0 && <p className="regie-muted">Aucun joueur inscrit.</p>}
+      {groupsExpanded&&<section className="regie-expand" aria-label="Groupes et salles créés">
+        <h3>GROUPES ET SALLES CRÉÉS</h3>
+        <div className="regie-group-list">
+          {groups.map(g=>{
+            const members=playerEntries.filter(([,player])=>player.groupId===g.id).sort(([,a],[,b])=>a.pseudo.localeCompare(b.pseudo,"fr"));
+            const opened=expandedGroup===g.id;
+            return <div className="regie-group-card" key={g.id}>
+              <button type="button" className="regie-group-toggle" aria-expanded={opened} onClick={()=>setExpandedGroup(old=>old===g.id?null:g.id)}>
+                <span><strong>{g.name}</strong><small>{g.type==="public"?"Salle publique":g.type==="private"?"Groupe privé"+(g.ownerPseudo?" · Créateur : "+g.ownerPseudo:""):""}</small></span>
+                <b>{g.memberCount}/30</b><span aria-hidden="true">{opened?"⌃":"⌄"}</span>
+              </button>
+              {opened&&<div className="regie-group-members">
+                <p className="regie-muted" style={{fontSize:12,margin:"0 0 4px"}}>Joueurs inscrits · Modération du chat</p>
+                {members.map(([uid,player])=>(
+                  <div key={uid} className="regie-group-member">
+                    <strong style={{overflowWrap:"anywhere"}}>{player.pseudo}{g.ownerPseudo===player.pseudo&&<span style={{color:"#f1ce91",fontSize:12}}> · Créateur</span>}{player.chatBlocked===true&&<span style={{color:"#ffb4b4",fontSize:12}}> · Chat bloqué</span>}</strong>
+                    <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+                      <button type="button" onClick={()=>void moderate(player,"warn")} style={{background:"#7d4310",padding:"9px 11px",fontSize:12}}>⚠️ Avertir</button>
+                      <button type="button" onClick={()=>void moderate(player,player.chatBlocked?"unblock":"block")} style={{background:player.chatBlocked===true?"#176849":"#8a2038",padding:"9px 11px",fontSize:12}}>{player.chatBlocked===true?"🔓 Débloquer":"🔇 Bloquer chat"}</button>
+                    </div>
+                  </div>
+                ))}
+                {!members.length&&<p className="regie-muted">Aucun joueur inscrit dans ce groupe.</p>}
+              </div>}
+            </div>;
+          })}
         </div>
+        {!groups.length&&<p className="regie-muted">Aucun groupe créé.</p>}
       </section>}
       {votesExpanded && <section className="regie-expand"><h3>SUIVI DES VOTES · TOUR {tour}</h3><div className="regie-player-grid">{playerEntries.map(([pseudo,player])=><div key={pseudo} className={"regie-player-status "+(playerHasVoted(player)?"yes":"no")}><span>{player.pseudo} · {player.groupName}</span><b>{playerHasVoted(player)?"✓ VOTÉ":"✕ PAS VOTÉ"}</b></div>)}</div>{totalPlayers===0&&<p>Aucun joueur enregistré.</p>}</section>}
       {rankExpanded && <section className="regie-expand"><h3>CLASSEMENT DES JOUEURS</h3><div className="regie-standing-list">{standings.map((p,i)=><div key={p.uid}><strong>{i===0?"👑":String(i+1).padStart(2,"0")}</strong><span>{p.pseudo}</span><b>{p.points} pts</b></div>)}</div>{!standings.length&&<p>Aucun score pour le moment.</p>}</section>}

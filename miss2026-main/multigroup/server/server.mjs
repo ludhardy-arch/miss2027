@@ -175,6 +175,15 @@ const server=http.createServer(async(req,res)=>{
         const b=await body(req),id=randomUUID(),now=Date.now();
         const action=admin?(b.action||"send"):["report","report_room"].includes(b.action)?b.action:"send";
         const result=await directRootChange(root=>chatAction(root,{uid,admin,groupId:b.groupId,text:b.text,id,now,action,targetUid:admin?b.targetUid:undefined,messageId:b.messageId,gameId:b.gameId,tour:b.tour}));
+        if(action==="clear_room_alerts"&&result.status===200){
+          const fresh=await directRootRead();
+          const reports=fresh?.events?.miss2027?.chatReports?.[result.body.roomId]||{};
+          const verified=result.body.clearedIds.every(key=>reports[key]?.status==="resolved");
+          const rooms=adminAlertDirectory(fresh);
+          console.log("TEST_CLEAR_ROOM_ALERTS "+JSON.stringify({verified,cleared:result.body.clearedIds.length,remaining:rooms.find(r=>r.id===result.body.roomId)?.count||0}));
+          if(!verified)return reply(res,409,{error:"clear_alert_not_verified"});
+          return reply(res,200,{...result.body,verified:true,rooms});
+        }
         if(action==="vote_reminder"&&result.status===200){
           const fresh=await directRootRead();
           const message=fresh?.events?.miss2027?.chats?.[b.groupId]?.[result.body.messageId];

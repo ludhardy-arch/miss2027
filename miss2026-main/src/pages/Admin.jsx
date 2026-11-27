@@ -87,7 +87,7 @@ export default function Admin({ user, setUser }) {
   const unreadFor=id=>{const rows=chatSummary[id]?.messages||[],mark=readMarkers[id]||getReadMarker(user.uid,id);return mark?countUnread(rows,mark,user.uid):0;};
   useEffect(()=>{for(const [id,data] of Object.entries(chatSummary)){if(!getReadMarker(user.uid,id))saveReadMarker(user.uid,id,newest(data.messages,emptyMarker));}},[nationalView,user.uid]);
   const chatRead=React.useCallback(mark=>{setReadMarkers(old=>({...old,[chatGroup]:mark}));},[chatGroup]);
-  const refreshReports=React.useCallback(()=>{void loadAlerts();},[user.uid]);
+  const refreshReports=React.useCallback(rooms=>{if(Array.isArray(rooms)){alertSequence.current++;setAlertDirectory(rooms);setAlertError("");}void loadAlerts();},[user.uid]);
   const chatRequest=React.useCallback(body=>body===undefined?adminRequest("/admin/chat?groupId="+encodeURIComponent(chatGroup)):adminRequest("/admin/chat",{...body,groupId:chatGroup}),[chatGroup,user.uid]);
   async function moderate(player,action){
     if(!window.confirm((action==="warn"?"Avertir ":action==="block"?"Bloquer ":"Débloquer ")+player.pseudo+" ?"))return;
@@ -120,7 +120,7 @@ export default function Admin({ user, setUser }) {
     const token=await current.getIdToken();
     const res=await fetch("https://miss2027-test-api.onrender.com"+path,{method:body===undefined?"GET":"POST",headers:{Authorization:"Bearer "+token,...(body===undefined?{}:{"Content-Type":"application/json"})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(45000),cache:"no-store"});
     const data=await res.json();
-    if(!res.ok)throw Error(({close_votes_first:"Ferme les votes avant de valider.",game_changed:"La partie a changé.",round_changed:"Le tour a changé.",invalid_vote:"Sélection officielle non valide.",invalid_member:"Ce joueur ne fait plus partie de ce groupe.",game_finished:"Les résultats sont déjà publiés.",votes_closed:"Les votes sont fermés.",already_voted:"Ce joueur a déjà validé son vote.",reminder_not_verified:"Le rappel n’a pas pu être confirmé."})[data.error]||"Serveur de la régie indisponible.");
+    if(!res.ok)throw Error(({close_votes_first:"Ferme les votes avant de valider.",game_changed:"La partie a changé.",round_changed:"Le tour a changé.",invalid_vote:"Sélection officielle non valide.",invalid_member:"Ce joueur ne fait plus partie de ce groupe.",game_finished:"Les résultats sont déjà publiés.",votes_closed:"Les votes sont fermés.",already_voted:"Ce joueur a déjà validé son vote.",reminder_not_verified:"Le rappel n’a pas pu être confirmé.",clear_alert_not_verified:"L’effacement de l’alerte n’a pas pu être confirmé."})[data.error]||"Serveur de la régie indisponible.");
     return data;
   }
   async function toggleControl(kind,open){

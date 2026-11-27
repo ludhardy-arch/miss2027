@@ -36,7 +36,16 @@ export function chatAction(root,{uid,admin=false,groupId,text,id,now,action="sen
  const event=eventOf(root),group=member(event,uid);
  const roomId=admin?groupId:group?.id;
  if(!safeKey(roomId)||!event.registration?.groups?.[roomId])return fail("not_registered");
- if(!["send","warn","block","unblock","report","report_room","resolve_report","vote_reminder"].includes(action))return fail("invalid_action");
+ if(!["send","warn","block","unblock","report","report_room","resolve_report","clear_room_alerts","vote_reminder"].includes(action))return fail("invalid_action");
+ // Clear only the selected room's pending alerts, never its messages or sanctions.
+ if(action==="clear_room_alerts"){
+  if(!admin)return fail("admin_required");
+  if(!Number.isFinite(now))return fail("invalid_message");
+  const reports=reportsOf(event,roomId),clearedIds=Object.entries(reports).filter(([,r])=>r.status==="pending").map(([key])=>key);
+  if(!clearedIds.length)return {state:root,result:{accepted:true,roomId,clearedIds:[]}};
+  const next=Object.fromEntries(Object.entries(reports).map(([key,r])=>[key,r.status==="pending"?{...r,status:"resolved",resolvedAt:now}:r]));
+  return {state:store(root,{...event,chatReports:{...event.chatReports,[roomId]:next}}),result:{accepted:true,roomId,clearedIds}};
+ }
  // A room alert is independent of any specific message or accused player.
  if(action==="report_room"){
   if(!safeKey(id)||!Number.isFinite(now))return fail("invalid_message");

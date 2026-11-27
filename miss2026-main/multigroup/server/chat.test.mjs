@@ -108,3 +108,22 @@ test("vote reminder is private, limited to the open current round and outstandin
  delete r.events.miss2027.votes;r.rooms.miss2027.votesOpen=false;
  assert.equal(chatAction(r,params).code,"votes_closed");assert.equal(chatView(r,{uid:"u2"}).result.voteReminder,null);
 });
+
+test("clear alerts affects only one room, preserves chat and moderation, permits a fresh alert",()=>{
+ let r=fixture();
+ r=chatAction(r,{uid:"u1",text:"Public",id:"m",now:1}).state;
+ r=chatAction(r,{uid:"u2",action:"report",messageId:"m",now:2}).state;
+ r=chatAction(r,{uid:"u1",action:"report_room",id:"r1",now:3}).state;
+ r=chatAction(r,{uid:"u3",action:"report_room",id:"r2",now:4}).state;
+ r.events.miss2027.chatModeration={u1:true};
+ const before=structuredClone(r.events.miss2027);
+ const clear={uid:"admin",admin:true,groupId:"a",action:"clear_room_alerts",now:5};
+ assert.equal(chatAction(r,{...clear,admin:false,uid:"u1"}).code,"admin_required");
+ const out=chatAction(r,clear);assert.equal(out.result.accepted,true);assert.equal(out.result.clearedIds.length,2);
+ r=out.state;assert.equal(adminChatSummary(r).a.alerts,0);assert.equal(adminChatSummary(r).b.alerts,1);
+ assert.deepEqual(r.events.miss2027.chats,before.chats);assert.deepEqual(r.events.miss2027.chatModeration,before.chatModeration);
+ assert.deepEqual(r.events.miss2027.chatReports.b,before.chatReports.b);
+ assert.equal(chatAction(r,clear).result.clearedIds.length,0);
+ r=chatAction(r,{uid:"u1",action:"report_room",id:"r3",now:6}).state;
+ assert.equal(adminChatSummary(r).a.alerts,1);assert.equal(adminChatSummary(r).b.alerts,1);
+});

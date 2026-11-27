@@ -56,11 +56,19 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
       onReportChangeRef.current?.();
     }catch(e){setReportNotice("Alerte non confirmée : "+e.message);}finally{setReportBusy(null);}
   }
-  async function resolveReport(report){
-    if(reportBusy)return;
-    setReportBusy(report.messageId);setReportNotice("");
-    try{const result=await groupRequest({action:"resolve_report",messageId:report.messageId});if(result.accepted!==true)throw Error("Traitement non confirmé.");readVersion.current++;setReports(old=>old.filter(r=>r.messageId!==report.messageId));try{applyChat(await groupRequest());}catch{}onReportChangeRef.current?.();}
-    catch(e){setReportNotice("Traitement non confirmé : "+e.message);}finally{setReportBusy(null);}
+  async function clearRoomAlerts(){
+    if(!inline||reportBusy||!reports.length)return;
+    if(!window.confirm("Effacer l’alerte de "+groupName+" ? Les messages du chat et les sanctions seront conservés."))return;
+    setReportBusy("clear");setReportNotice("");
+    try{
+      const result=await groupRequest({action:"clear_room_alerts"});
+      if(result.accepted!==true||result.verified!==true||result.roomId!==roomId)throw Error("Effacement non confirmé.");
+      readVersion.current++;
+      setReports(old=>old.filter(r=>!result.clearedIds.includes(r.messageId)));
+      onReportChangeRef.current?.(result.rooms);
+      setReportNotice("Alerte effacée.");
+      try{applyChat(await groupRequest());}catch{}
+    }catch(e){setReportNotice("Effacement non confirmé : "+e.message);}finally{setReportBusy(null);}
   }
 
   const messagesEndRef = useRef(null);
@@ -399,10 +407,13 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
     </>
   );
   return inline?<>{reports.length>0&&<section style={{marginTop:12,border:"1px solid #ff8793",borderRadius:10,padding:10,background:"#42192a"}}>
-    <strong style={{color:"#ffc0ca"}}>⚠ {reports.length} alerte{reports.length>1?"s":""} à traiter</strong>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+      <strong style={{color:"#ffc0ca"}}>⚠ {reports.length} alerte{reports.length>1?"s":""} à traiter · {groupName}</strong>
+      <button type="button" disabled={!!reportBusy} onClick={()=>void clearRoomAlerts()} style={{width:"auto",minWidth:0,background:"#176849",fontSize:12,minHeight:32,padding:"5px 9px",boxShadow:"none"}}>{reportBusy==="clear"?"Effacement…":"Effacer l’alerte"}</button>
+    </div>
     {reports.map(r=><div key={r.messageId} style={{marginTop:8,padding:8,borderRadius:8,background:"#152849",overflowWrap:"anywhere"}}>
       <b>{r.roomReport?"Conversation signalée":r.author} · {r.count} signalement{r.count>1?"s":""}</b>
-      {r.roomReport?<details style={{margin:"6px 0"}}><summary>Contexte au moment de l’alerte</summary>{(Array.isArray(r.context)?r.context:Object.values(r.context||{})).map((m,i)=><p key={i} style={{margin:"4px 0",whiteSpace:"pre-wrap",fontSize:12}}><b>{m.author} :</b> {m.text}</p>)}{!r.context&&<p>Aucun message public enregistré.</p>}</details>:<p style={{margin:"5px 0",whiteSpace:"pre-wrap"}}>{r.text}</p>}<button type="button" disabled={!!reportBusy} onClick={()=>void resolveReport(r)} style={{background:"#176849",fontSize:12,minHeight:32,padding:"5px 9px",boxShadow:"none"}}>Marquer comme traitée</button>
+      {r.roomReport?<details style={{margin:"6px 0"}}><summary>Contexte au moment de l’alerte</summary>{(Array.isArray(r.context)?r.context:Object.values(r.context||{})).map((m,i)=><p key={i} style={{margin:"4px 0",whiteSpace:"pre-wrap",fontSize:12}}><b>{m.author} :</b> {m.text}</p>)}{!r.context&&<p>Aucun message public enregistré.</p>}</details>:<p style={{margin:"5px 0",whiteSpace:"pre-wrap"}}>{r.text}</p>}
     </div>)}
   </section>}{content}</>:createPortal(content,document.body);
 }

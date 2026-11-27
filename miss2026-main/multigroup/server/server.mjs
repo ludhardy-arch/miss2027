@@ -10,6 +10,7 @@ import {chatView,chatAction,adminAlertDirectory,verifyRoomReport} from "./chat.m
 import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
 import {conditionalWrite} from "./conditional.mjs";
 import {authenticateGroupMember} from "./recovery.mjs";
+import {invitationKey,sealInvitation,openInvitation} from "./invitationCard.mjs";
 import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal,setVoteOpening,setConnectionOpening,protectedControlChange} from "./game.mjs";
 
 const PROJECT="miss2027-test-v2";
@@ -32,6 +33,8 @@ let app;
 try { app=initializeApp({credential:cert(credentials),projectId:PROJECT,databaseURL:DATABASE}); }
 catch { throw Error("Test Firebase credential could not be initialized"); }
 const auth=getAuth(app);
+// Separate domain-derived encryption key; no recoverable password in the DB in clear text.
+const cardKey=invitationKey(credentials.private_key);
 const registry=getDatabase(app).ref("events/miss2027/registration");
 const derive=promisify(scrypt);
 const digestInvite=token=>createHash("sha256").update(token).digest("hex");
@@ -271,8 +274,11 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==="POST"&&url.pathname==="/groups/invite/preview"){
       const b=await body(req);
       if(!validInvite(b.token))return reply(res,400,{error:"unavailable"});
-      const view=invitationView(await directRootRead(),digestInvite(b.token));
-      return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
+      const root=await directRootRead(),digest=digestInvite(b.token),view=invitationView(root,digest);
+      if(view.code)return reply(res,403,{error:view.code});
+      const group=root.events.miss2027.registration.groups[view.result.group.id];
+      const card=group.inviteCard?.digest===digest?openInvitation(cardKey,group.inviteCard,{groupId:view.result.group.id,ownerUid:group.ownerUid}):null;
+      return reply(res,200,{group:view.result.group,...(card?{password:card.password}:{})});
     }
     if(req.method==="POST"&&url.pathname==="/groups/invite/join"){
       if(uid==="fma5bvfcCRYoS1kBf0CUFdBVowJ3")return reply(res,403,{error:"admin_cannot_register"});
@@ -281,6 +287,35 @@ const server=http.createServer(async(req,res)=>{
       const digest=digestInvite(b.token),now=Date.now();
       const result=await directRootChange(root=>acceptInvitation(root,{uid,digest,pseudo:b.pseudo.trim(),now}));
       return reply(res,result.status,result.body);
+    }
+    if(url.pathname==="/groups/owner/invitation"){
+      if(!["GET","POST"].includes(req.method))return reply(res,405,{error:"method_not_allowed"});
+      let root=await directRootRead(),view=ownerView(root,uid);
+      if(view.code)return reply(res,403,{error:view.code});
+      if(view.result.group.locked)return reply(res,403,{error:"membership_locked"});
+      if(!view.result.group.registrationsOpen)return reply(res,409,{error:"group_full"});
+      const groupId=view.result.group.id;
+      let group=root.events.miss2027.registration.groups[groupId];
+      if(!group.inviteCard){
+        if(req.method==="GET")return reply(res,200,{group:view.result.group,passwordRequired:true});
+        if(limited("prepare-invite:"+uid,8))return reply(res,429,{error:"too_many_requests"});
+        const b=await body(req);
+        if(!validString(b.password,6,128)||!await matches(b.password,group.secret))return reply(res,403,{error:"invalid_password"});
+        const card=sealInvitation(cardKey,{groupId,ownerUid:uid,password:b.password});
+        const result=await directRootChange(state=>{
+          const current=ownerView(state,uid);
+          if(current.code||current.result.group.id!==groupId)return {code:"owner_required"};
+          return manageGroup(state,{uid,action:"publish_invitation",verifiedSecret:group.secret,card});
+        });
+        if(result.status!==200)return reply(res,result.status,result.body);
+        root=await directRootRead();view=ownerView(root,uid);
+        if(view.code||view.result.group.id!==groupId)return reply(res,403,{error:"owner_required"});
+        if(view.result.group.locked||!view.result.group.registrationsOpen)return reply(res,409,{error:"unavailable"});
+        group=root.events.miss2027.registration.groups[groupId];
+      }
+      const card=openInvitation(cardKey,group.inviteCard,{groupId,ownerUid:uid});
+      if(!card)return reply(res,409,{error:"invitation_unavailable"});
+      return reply(res,200,{group:view.result.group,...card});
     }
     if(url.pathname==="/groups/owner/manage"){
       if(req.method==="GET"){
@@ -360,7 +395,8 @@ const server=http.createServer(async(req,res)=>{
       if(!validString(b.name,1,80)||!validString(b.pseudo,1,24)||!validString(b.password,6,128))return reply(res,400,{error:"invalid_fields"});
       const epoch=(await directRootRead())?.events?.miss2027?.registration?.epoch||null;
       const id=randomUUID(),secret=await hash(b.password),now=Date.now();
-      const result=await directRootChange(root=>registrationChange(root,s=>(s?.epoch||null)!==epoch?{code:"registration_reset"}:createGroup(s,{uid,id,name:b.name.trim(),pseudo:b.pseudo.trim(),secret,now})));
+      const inviteCard=sealInvitation(cardKey,{groupId:id,ownerUid:uid,password:b.password});
+      const result=await directRootChange(root=>registrationChange(root,s=>(s?.epoch||null)!==epoch?{code:"registration_reset"}:createGroup(s,{uid,id,name:b.name.trim(),pseudo:b.pseudo.trim(),secret,now,inviteCard})));
       if(result.status!==200){
         console.log("TEST_GROUP_CREATE "+JSON.stringify({status:result.status,error:result.body?.error||null}));
         return reply(res,result.status,result.body);

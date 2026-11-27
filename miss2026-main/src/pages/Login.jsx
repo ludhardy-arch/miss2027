@@ -6,6 +6,7 @@ import {TEST_ORIGIN,testPlayerUrl,adminSessionUrl} from "../testPlayerSession.mj
 import ChatBubble from "../components/ChatBubble";
 import RulesToggle from "../components/RulesToggle";
 import InvitationPreview from "../components/InvitationPreview";
+import InvitationCard from "../components/InvitationCard";
 import { signInWithCustomToken, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
  
 // 12 décembre 2026, 20 h 40 à Paris (heure d'hiver : UTC+1).
@@ -23,7 +24,7 @@ function getRemainingTime() {
 
 
 const GROUP_API="https://miss2027-test-api.onrender.com";
-const groupErrors={player_removed:"La régie a retiré ton inscription du concours.",recovery_invalid:"Pseudo ou mot de passe du groupe incorrect.",creation_not_verified:"La création du groupe n’a pas pu être confirmée. Réessaie de retrouver ton groupe.",group_name_taken:"Nom du groupe déjà pris. Choisis-en un autre.",group_full:"Ce groupe est complet (30 participants maximum).",pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les connexions sont fermées par la régie. Patiente dans ton groupe.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",owner_required:"Seul le créateur reconnu sur son navigateur peut gérer ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",invitation_changed:"Ce lien a été remplacé ou désactivé. Prépare un nouveau lien.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
+const groupErrors={player_removed:"La régie a retiré ton inscription du concours.",recovery_invalid:"Pseudo ou mot de passe du groupe incorrect.",creation_not_verified:"La création du groupe n’a pas pu être confirmée. Réessaie de retrouver ton groupe.",group_name_taken:"Nom du groupe déjà pris. Choisis-en un autre.",group_full:"Ce groupe est complet (30 participants maximum).",pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les connexions sont fermées par la régie. Patiente dans ton groupe.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",owner_required:"Seul le créateur reconnu sur son navigateur peut gérer ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",invitation_changed:"Ce lien a été remplacé ou désactivé. Prépare un nouveau lien.",invitation_unavailable:"Invitation temporairement indisponible. Contacte la régie.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
 const lobbyChat=body=>groupRequest("/chat",body);
 async function groupRequest(path,body) {
   if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Ce service est réservé au site test.");
@@ -62,6 +63,8 @@ export default function Login({ setUser }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const invitation = searchParams.get("invite");
   const [inviteGroup,setInviteGroup]=useState(null);
+  const [invitationPassword,setInvitationPassword]=useState("");
+  const [inviteForm,setInviteForm]=useState(false);
   const [inviteLink,setInviteLink]=useState("");
   const [showInvitation,setShowInvitation]=useState(false);
   useEffect(()=>{setShowInvitation(false);setInviteLink("");},[firebaseIdentity,ownerGroup?.id]);
@@ -224,9 +227,9 @@ export default function Login({ setUser }) {
 
   useEffect(()=>{
     let active=true;
-    setInviteGroup(null);setInviteStatus("");
+    setInviteGroup(null);setInviteStatus("");setInvitationPassword("");setInviteForm(false);
     if(!invitation||!firebaseIdentity)return;
-    groupRequest("/groups/invite/preview",{token:invitation}).then(r=>{if(active){setInviteGroup(r.group);setInviteStatus("ok");}}).catch(e=>{if(active)setInviteStatus(e.message);});
+    groupRequest("/groups/invite/preview",{token:invitation}).then(r=>{if(active){setInviteGroup(r.group);setInvitationPassword(typeof r.password==="string"?r.password:"");setInviteStatus("ok");}}).catch(e=>{if(active)setInviteStatus(e.message);});
     return()=>{active=false;};
   },[invitation,firebaseIdentity,gameId]);
   async function acceptInvite(event){
@@ -250,14 +253,13 @@ export default function Login({ setUser }) {
       if(action==="revoke"){setInviteLink("");setShowInvitation(false);}
     }catch(e){setError(e.message);}finally{setPending(false);}
   }
-  async function prepareInvitation(password,reuseLink){
-    const reuseToken=reuseLink?new URLSearchParams(new URL(reuseLink).hash.split("?")[1]||"").get("invite"):null;
-    const result=await groupRequest("/groups/owner/manage",{action:"prepare_invite",password,...(reuseToken?{reuseToken}:{})});
-    if(!result.token||result.group?.id!==ownerGroup?.id)throw Error("L’invitation n’a pas été confirmée.");
+  async function loadInvitation(password){
+    const result=await groupRequest("/groups/owner/invitation",password===undefined?undefined:{password});
+    if(result.group?.id!==ownerGroup?.id||!result.group?.isOwner)throw Error("Le groupe a changé.");
     setOwnerGroup(result.group);
-    const link=window.location.origin+"/#/login?invite="+encodeURIComponent(result.token);
-    setInviteLink(link);
-    return link;
+    if(result.passwordRequired)return {passwordRequired:true};
+    if(!/^[a-f0-9]{64}$/.test(result.token||"")||typeof result.password!=="string")throw Error("Invitation non confirmée.");
+    return {password:result.password,link:window.location.origin+"/#/login?invite="+encodeURIComponent(result.token)};
   }
   async function refreshOwner(){
     if(pending)return;
@@ -510,11 +512,13 @@ export default function Login({ setUser }) {
           <button type="button" className="group-entry-gold" style={{...entryButton,background:"linear-gradient(135deg,#d9a42d,#ffe078,#e8b63e)",color:"#342303",border:"2px solid #ffdf77",boxShadow:"0 0 12px rgba(255,204,70,.42)"}} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>
         </>}
         {(screen === "public" || screen === "invite") && <>
-          {screen === "invite" && <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Bienvenue {inviteGroup?"dans le groupe "+inviteGroup.name:"dans le groupe"}</h2>}
-          <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} disabled={pending} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
-          {pseudoFeedback()}
-          {screen === "public" && notice("Tu seras automatiquement inscrit dans une salle publique de 30 joueurs maximum. Si tu appartiens déjà à un groupe, tu retrouveras ton groupe actuel.")}
-          {screen==="public"?accessControl(true,registerPublicPlayer,!pseudoReady):<button type="button" className="group-entry-blue" style={entryButton} disabled={pending||!inviteGroup||!pseudoReady} onClick={acceptInvite}>Rejoindre le groupe</button>}
+          {screen==="invite"&&inviteGroup&&<InvitationCard name={inviteGroup.name} password={invitationPassword} onJoin={()=>setInviteForm(true)}/>}
+          {(screen==="public"||inviteForm)&&<>
+            <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} disabled={pending} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
+            {pseudoFeedback()}
+            {screen === "public" && notice("Tu seras automatiquement inscrit dans une salle publique de 30 joueurs maximum. Si tu appartiens déjà à un groupe, tu retrouveras ton groupe actuel.")}
+            {screen==="public"?accessControl(true,registerPublicPlayer,!pseudoReady):<button type="button" className="group-entry-green" style={greenButton} disabled={pending||!inviteGroup||!pseudoReady} onClick={acceptInvite}>Rejoindre le groupe</button>}
+          </>}
           {pending && notice("Inscription en cours…")}
           {screen === "invite" && notice(inviteStatus==="ok"?"Invitation vérifiée. Aucun mot de passe à saisir.":inviteStatus||"Vérification de l’invitation…")}
         </>}
@@ -589,8 +593,8 @@ export default function Login({ setUser }) {
             <div style={{fontSize:20,fontWeight:800,color:"#fff",overflowWrap:"anywhere"}}>{ownerGroup.name}</div>
             <p style={{margin:"8px 0 0",color:"#c6d3ee"}}>{ownerGroup.memberCount} participant{ownerGroup.memberCount>1?"s":""} · {ownerGroup.pseudo} (créateur)</p>
           </div>
-          <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||ownerGroup.locked||!ownerGroup.registrationsOpen} onClick={()=>setShowInvitation(true)}>Inviter mes amis</button>
-          {showInvitation&&ownerGroup.isOwner&&!ownerGroup.locked&&ownerGroup.registrationsOpen&&<InvitationPreview key={ownerGroup.id} group={ownerGroup} existingLink={inviteLink} prepare={prepareInvitation} onClose={()=>setShowInvitation(false)} onStale={()=>setInviteLink("")}/>}
+          <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||ownerGroup.locked} onClick={()=>setShowInvitation(true)}>Inviter mes amis</button>
+          {showInvitation&&ownerGroup.isOwner&&<InvitationPreview key={ownerGroup.id} group={ownerGroup} load={loadInvitation} onClose={()=>setShowInvitation(false)}/>}
           {ownerGroup.invitationActive&&<button type="button" className="group-entry-danger" disabled={pending} onClick={()=>{if(window.confirm("Désactiver le lien d’invitation ?"))void ownerAction("revoke");}}>Désactiver le lien</button>}
           {inviteStatus&&notice(inviteStatus)}
           {pending&&<p role="status" style={{color:"#ffe5ad",margin:0}}>Communication avec le serveur…</p>}

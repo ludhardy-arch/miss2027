@@ -10,15 +10,21 @@ export function ownerView(root,uid){
  const event=eventOf(root),reg=event.registration,view=membershipView(reg,uid);
  if(!view?.isOwner)return fail("owner_required");
  const group=reg.groups[view.id];
- return {result:{group:{...view,entered:event.players?.[uid]?.groupId===view.id,registrationsOpen:!locked(root)&&Object.keys(group.members||{}).length<30,locked:locked(root),invitationActive:!!group.inviteDigest,members:Object.entries(group.members).map(([id,m])=>({id,pseudo:m.pseudo,isOwner:id===uid}))}}};
+ return {result:{group:{...view,entered:event.players?.[uid]?.groupId===view.id,registrationsOpen:!locked(root)&&Object.keys(group.members||{}).length<30,locked:locked(root),invitationActive:!!(group.inviteDigest||group.inviteCard?.digest),members:Object.entries(group.members).map(([id,m])=>({id,pseudo:m.pseudo,isOwner:id===uid}))}}};
 }
-export function manageGroup(root,{uid,action,value,targetUid,digest,verifiedSecret,reuse=false}){
+export function manageGroup(root,{uid,action,value,targetUid,digest,verifiedSecret,reuse=false,card}){
  const initial=ownerView(root,uid);
  if(initial.code)return initial;
  const event=eventOf(root),reg=event.registration,id=initial.result.group.id,g=reg.groups[id];
  if(locked(root)&&action!=="revoke")return fail("membership_locked");
  let group={...g},membership=reg.membership,players=event.players;
- if(action==="invite"||action==="prepare_invite"){
+ if(action==="publish_invitation"){
+   if(!initial.result.group.registrationsOpen)return fail("group_full");
+   if(typeof verifiedSecret!=="string"||g.secret!==verifiedSecret)return fail("invalid_password");
+   if(g.inviteCard)return {state:root,result:initial.result};
+   if(!card||!/^[a-f0-9]{64}$/.test(card.digest||""))return fail("invalid_fields");
+   group.inviteCard=card;
+ }else if(action==="invite"||action==="prepare_invite"){
    if(!/^[a-f0-9]{64}$/.test(digest||""))return fail("invalid_fields");
    if(action==="prepare_invite"){
      if(typeof verifiedSecret!=="string"||g.secret!==verifiedSecret)return fail("invalid_password");
@@ -26,7 +32,7 @@ export function manageGroup(root,{uid,action,value,targetUid,digest,verifiedSecr
      if(reuse)return g.inviteDigest===digest?{state:root,result:initial.result}:fail("invitation_changed");
    }
    group.inviteDigest=digest;
- }else if(action==="revoke"){delete group.inviteDigest;}
+ }else if(action==="revoke"){delete group.inviteDigest;delete group.inviteCard;}
  else if(action==="remove"){
    if(typeof targetUid!=="string"||targetUid===uid||!Object.hasOwn(g.members,targetUid)||reg.membership?.[targetUid]!==id)return fail("invalid_member");
    const members={...g.members};delete members[targetUid];group.members=members;
@@ -38,7 +44,7 @@ export function manageGroup(root,{uid,action,value,targetUid,digest,verifiedSecr
 }
 export function invitationView(root,digest){
  if(!/^[a-f0-9]{64}$/.test(digest||"")||locked(root))return fail("unavailable");
- const entry=Object.entries(eventOf(root).registration?.groups||{}).find(([,g])=>g.type==="private"&&g.inviteDigest===digest);
+ const entry=Object.entries(eventOf(root).registration?.groups||{}).find(([,g])=>g.type==="private"&&(g.inviteDigest===digest||g.inviteCard?.digest===digest));
  if(!entry)return fail("unavailable");
  return {result:{group:{id:entry[0],name:entry[1].name}}};
 }
@@ -74,7 +80,7 @@ export function removePlayer(root,{targetUid,groupId,gameId,confirmed,now}){
  if(original.ownerUid===targetUid){
    const next=Object.entries(members).sort(([a,x],[b,y])=>(Number(x.joinedAt)||0)-(Number(y.joinedAt)||0)||a.localeCompare(b))[0];
    if(next)group.ownerUid=next[0];else delete group.ownerUid;
-   delete group.inviteDigest;
+   delete group.inviteDigest;delete group.inviteCard;
  }
  const registration={...reg,groups:{...reg.groups,[groupId]:group},membership:omitKey(reg.membership,targetUid),excluded:{...reg.excluded,[targetUid]:{pseudo:normalizePseudo(view.pseudo),at:now}}};
  const next=replace(root,{...event,registration,players:omitKey(event.players,targetUid),votes:omitKey(event.votes,targetUid),chatModeration:omitKey(event.chatModeration,targetUid)});

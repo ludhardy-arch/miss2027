@@ -45,7 +45,7 @@ export function groupNameAvailable(state,name){
   if(/^salle publique [0-9]+$/.test(key))return false;
   return !Object.values(state?.groups||{}).some(group=>normalizePseudo(group?.name)===key);
 }
-export function createGroup(state,{uid,id,name,pseudo,secret,now}) {
+export function createGroup(state,{uid,id,name,pseudo,secret,now,inviteCard}) {
   const s=state||{};
   if(isExcluded(s,uid))return fail("player_removed");
   if(s.membership?.[uid])return fail("already_member");
@@ -53,7 +53,7 @@ export function createGroup(state,{uid,id,name,pseudo,secret,now}) {
   if(!normalizePseudo(name)||typeof name!=="string"||name.length>80)return fail("invalid_fields");
   if(!groupNameAvailable(s,name))return fail("group_name_taken");
   const invalid=checkPseudo(s,pseudo,uid);if(invalid)return invalid;
-  const group={type:"private",name,ownerUid:uid,capacity:PRIVATE_CAPACITY,registrationsOpen:true,secret,createdAt:now,members:{[uid]:{pseudo,joinedAt:now}}};
+  const group={type:"private",name,ownerUid:uid,capacity:PRIVATE_CAPACITY,registrationsOpen:true,secret,...(inviteCard?{inviteCard}:{}),createdAt:now,members:{[uid]:{pseudo,joinedAt:now}}};
   return {state:{...s,groups:{...s.groups,[id]:group},membership:{...s.membership,[uid]:id}},result:{id,name}};
 }
 export function joinGroup(state,{uid,id,pseudo,verifiedSecret,now}) {

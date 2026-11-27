@@ -67,6 +67,8 @@ export default function Login({ setUser }) {
   const [inviteForm,setInviteForm]=useState(false);
   const [inviteLink,setInviteLink]=useState("");
   const [showInvitation,setShowInvitation]=useState(false);
+  const [showParticipants,setShowParticipants]=useState(false);
+  useEffect(()=>{setShowParticipants(false);},[firebaseIdentity,ownerGroup?.id,entryMode]);
   useEffect(()=>{setShowInvitation(false);setInviteLink("");},[firebaseIdentity,ownerGroup?.id]);
   const [inviteStatus,setInviteStatus]=useState("");
   const screen = invitation ? "invite" : entryMode;
@@ -593,17 +595,20 @@ export default function Login({ setUser }) {
             <div style={{fontSize:20,fontWeight:800,color:"#fff",overflowWrap:"anywhere"}}>{ownerGroup.name}</div>
             <p style={{margin:"8px 0 0",color:"#c6d3ee"}}>{ownerGroup.memberCount} participant{ownerGroup.memberCount>1?"s":""} · {ownerGroup.pseudo} (créateur)</p>
           </div>
-          <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||ownerGroup.locked} onClick={()=>setShowInvitation(true)}>Inviter mes amis</button>
+          <button type="button" className="group-entry-invite" style={{...entryButton,background:"linear-gradient(110deg,#b94b24 0%,#c52c68 48%,#8136bd 100%)",border:"2px solid #ff9acf",boxShadow:"0 0 9px rgba(255,115,181,.8), 0 0 22px rgba(229,54,147,.38)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",gap:10}} disabled={pending||ownerGroup.locked} onClick={()=>setShowInvitation(true)}><svg aria-hidden="true" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>Inviter mes amis</button>
           {showInvitation&&ownerGroup.isOwner&&<InvitationPreview key={ownerGroup.id} group={ownerGroup} load={loadInvitation} onClose={()=>setShowInvitation(false)}/>}
           {inviteStatus&&notice(inviteStatus)}
           {pending&&<p role="status" style={{color:"#ffe5ad",margin:0}}>Communication avec le serveur…</p>}
           {accessControl(false,enterContest,!!lobbyError,ownerGroup.entered===true)}
           {screen==="creator-confirm"?<button type="button" className="group-entry-blue" style={entryButton} onClick={()=>{setCreatorPassword("");openEntry("creator-dashboard");}}>Gérer mon groupe</button>:<>
-            <section style={{display:"grid",gap:10,padding:12,border:"1px solid #64a9ea",borderRadius:13,background:"rgba(84,118,189,.13)",textAlign:"left"}}>
-              <h3 style={{color:"#ffe5ad",fontSize:17,margin:0}}>Participants ({ownerGroup.memberCount}/30)</h3><button type="button" className="group-entry-blue" disabled={pending} onClick={refreshOwner}>Actualiser la liste</button>
+            <section style={{display:"grid",gap:showParticipants?10:0,border:"1px solid #64a9ea",borderRadius:13,background:"rgba(84,118,189,.13)",textAlign:"left",overflow:"hidden"}}>
+              <button type="button" aria-expanded={showParticipants} aria-controls="owner-participants" onClick={()=>setShowParticipants(open=>!open)} style={{...entryButton,minHeight:54,position:"relative",margin:0,padding:"14px 36px",border:0,borderRadius:12,background:"linear-gradient(110deg,#142650,#203e75)",boxShadow:"none",color:"#ffe5ad",fontSize:17}}>Participants ({ownerGroup.memberCount}/30)<span aria-hidden="true" style={{position:"absolute",right:14,top:"50%",transform:showParticipants?"translateY(-50%) rotate(180deg)":"translateY(-50%)",transition:"transform .18s ease",color:"#d7e8ff",fontSize:22,lineHeight:1}}>⌄</span></button>
+              <div id="owner-participants" hidden={!showParticipants} style={{padding:showParticipants?"0 12px 12px":0}}>{showParticipants&&<div style={{display:"grid",gap:10}}>
+              <button type="button" className="group-entry-blue" disabled={pending} onClick={refreshOwner}>Actualiser la liste</button>
               {ownerGroup.members.map(member=><div key={member.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:10,borderRadius:9,background:"#1b315d"}}>
                 <span style={{flex:1,minWidth:0,overflowWrap:"anywhere",textAlign:"left",paddingRight:10}}>{member.pseudo}</span>{member.isOwner?<span style={{fontSize:12,color:"#ffe5ad"}}>Créateur</span>:<button type="button" className="group-entry-remove" disabled={pending||ownerGroup.locked} onClick={()=>{if(window.confirm("Retirer "+member.pseudo+" du groupe ?"))void ownerAction("remove",undefined,member.id);}}>Retirer</button>}
               </div>)}
+              </div>}</div>
             </section>
           </>}
         </>}

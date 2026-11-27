@@ -67,3 +67,9 @@ test("confirmed game reset initializes missing room without deleting registered 
  assert.equal(resetContest(original,"registrations","fresh").code,"room_not_initialized");
  assert.equal(verifyReset(resetContest(null,"game","new").state,"game","new"),true);
 });
+
+test("game reset keeps reports; registration reset clears them",()=>{
+ const r=structuredClone(root);r.events.miss2027.chatReports={g:{m:{status:"pending"}}};
+ const game=resetContest(r,"game","g").state;assert.deepEqual(game.events.miss2027.chatReports,r.events.miss2027.chatReports);
+ const cleared=resetContest(game,"registrations","r").state;assert.equal(cleared.events.miss2027.chatReports,undefined);assert.equal(verifyReset(cleared,"registrations","r"),true);
+});

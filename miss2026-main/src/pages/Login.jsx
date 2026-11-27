@@ -607,7 +607,7 @@ export default function Login({ setUser }) {
             </section>
           </>}
         </>}
-        {lobbyGroup&&firebaseIdentity&&<ChatBubble key={lobbyGroup.id} user={{uid:firebaseIdentity,pseudo:lobbyGroup.pseudo}} groupRequest={lobbyChat} groupName={lobbyGroup.name}/>}
+        {lobbyGroup&&firebaseIdentity&&<ChatBubble key={lobbyGroup.id} user={{uid:firebaseIdentity,pseudo:lobbyGroup.pseudo}} groupRequest={lobbyChat} roomId={lobbyGroup.id} groupName={lobbyGroup.name}/>}
         {lobbyGroup&&lobbyError&&<p role="alert" style={{color:"#ffd0cf"}}>{lobbyError}</p>}
         {screen !== "home" && <button type="button" className="group-entry-back" disabled={pending} onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}
         {error && <p role="alert" style={{color:"#ffd0cf",margin:0}}>{error}</p>}

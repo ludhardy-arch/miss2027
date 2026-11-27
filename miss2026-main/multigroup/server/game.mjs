@@ -1,3 +1,4 @@
+import {adminChatSummary} from "./chat.mjs";
 import {buildFinalResults} from "../finalResults.js";
 import {membershipView,isExcluded} from "./registration.mjs";
 import {CANDIDATES} from "../../src/data/candidates.js";
@@ -79,7 +80,7 @@ export function adminGameView(root){
    players[uid]=record;
  }
  const groups=Object.entries(event.registration?.groups||{}).map(([id,g])=>({id,name:g.name,type:g.type==="public"?"public":"private",memberCount:Object.keys(g.members||{}).length,ownerPseudo:g.members?.[g.ownerUid]?.pseudo||null})).sort((a,b)=>a.name.localeCompare(b.name,"fr"));
- return {players,groups,tour:Number(room.tour||1),gameId:String(room.gameId||""),votesOpen:room.votesOpen===true,groupCount:groups.length};
+ return {players,groups,chatSummary:adminChatSummary(root),tour:Number(room.tour||1),gameId:String(room.gameId||""),votesOpen:room.votesOpen===true,groupCount:groups.length};
 }
 export function advanceRound(root,{gameId,tour,selection}){
  const room=root?.rooms?.miss2027;

@@ -15,3 +15,5 @@
 .tv-admin-page .regie-member-actions .regie-member-unblock{background:#176849!important;border:1px solid #58be96!important}
 .tv-admin-page .regie-member-actions .regie-member-remove{background:#a42b43!important;border:1px solid #ff8793!important}
 @media(min-width:700px){.tv-admin-page .regie-group-member{grid-template-columns:minmax(0,1fr) minmax(250px,auto);align-items:center}}
+
+.regie-chat-alerts{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}.tv-admin-page .regie-chat-alert-button{width:auto;min-height:36px!important;padding:7px 10px!important;background:#a42b43!important;border:1px solid #ff8793!important;border-radius:8px!important;font-size:13px!important;box-shadow:none!important}

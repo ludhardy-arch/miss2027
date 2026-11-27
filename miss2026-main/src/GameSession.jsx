@@ -68,6 +68,6 @@ export default function GameSession({user,setUser,waiting}){
  return <AppContext.Provider value={context}>
    {failure&&<p role="alert" style={{textAlign:"center",color:"#ffb3b3"}}>{failure} <button onClick={()=>void refresh()}>Réessayer</button></p>}
    {view.finaleStarted?(view.final?<FinalShow frozenRanking={view.final.local} national={view.final} groupName={view.group.name} showKey={"miss2027-show-"+view.final.version+"-"+user.uid}/>:<main className="tv-page tv-show-v3"><h2>Le show final arrive !</h2><p>Résultats en attente.</p><button onClick={()=>void refresh()}>Actualiser</button></main>):waiting?<Waiting user={user}/>:<Player user={user} setUser={setUser}/>}
-   {!view.finaleStarted&&<ChatBubble key={user.groupId} user={user} groupRequest={roomChat} groupName={view.group.name}/>}
+   {!view.finaleStarted&&<ChatBubble key={user.groupId} user={user} groupRequest={roomChat} roomId={user.groupId} groupName={view.group.name}/>}
  </AppContext.Provider>;
 }

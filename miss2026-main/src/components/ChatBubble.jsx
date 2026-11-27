@@ -1,5 +1,6 @@
  import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import {emptyMarker,newest,countUnread,getReadMarker,saveReadMarker} from "../chatUnread.mjs";
 import { database } from "../firebase";
 import { ref, push, onValue, get } from "firebase/database";
 
@@ -9,7 +10,7 @@ const isAdminMessage = (message) => {
   return author === "admin" || author === "hardy ludo" || author === "ludo hardy";
 };
 
-export default function ChatBubble({ user, demoMessages = null, onDemoSend = null, groupRequest = null, groupName = null, inline = false }) {
+export default function ChatBubble({ user, demoMessages = null, onDemoSend = null, groupRequest = null, groupName = null, inline = false, roomId = null, onRead = null, onReportChange = null }) {
   const [bubbleOpen, setOpen] = useState(false);
   const open=inline||bubbleOpen;
   const [messages, setMessages] = useState([]);
@@ -23,6 +24,36 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
   const readVersion=useRef(0);
   const [unread, setUnread] = useState(0);
   const [chatBlocked, setChatBlocked] = useState(false);
+  const [reports,setReports]=useState([]),[reportBusy,setReportBusy]=useState(null),[reportNotice,setReportNotice]=useState("");
+  const marker=useRef(roomId?getReadMarker(user.uid,roomId):null);
+  const openRef=useRef(open);openRef.current=open;
+  const onReadRef=useRef(onRead);onReadRef.current=onRead;
+  const onReportChangeRef=useRef(onReportChange);onReportChangeRef.current=onReportChange;
+  function markRead(rows){
+    marker.current=newest(rows,marker.current||emptyMarker);
+    if(roomId)saveReadMarker(user.uid,roomId,marker.current);
+    onReadRef.current?.(marker.current);
+    setUnread(0);
+  }
+  function applyChat(data){
+    const next=data.messages||[];
+    if(marker.current===null||openRef.current)markRead(next);
+    else setUnread(countUnread(next,marker.current,user.uid));
+    setMessages(next);setChatBlocked(data.blocked===true);setReports(data.reports||[]);setChatError("");
+  }
+  async function reportMessage(message){
+    if(reportBusy||message.reported||!groupRequest)return;
+    if(!window.confirm("Alerter la régie d’un comportement inadapté dans le chat ?"))return;
+    setReportBusy(message.id);setReportNotice("");
+    try{const result=await groupRequest({action:"report",messageId:message.id});if(result.accepted!==true)throw Error("Signalement non confirmé.");readVersion.current++;setMessages(old=>old.map(m=>m.id===message.id?{...m,reported:true}:m));setReportNotice("Alerte transmise à la régie.");try{applyChat(await groupRequest());}catch{}onReportChangeRef.current?.();}
+    catch(e){setReportNotice("Alerte non confirmée : "+e.message);}finally{setReportBusy(null);}
+  }
+  async function resolveReport(report){
+    if(reportBusy)return;
+    setReportBusy(report.messageId);setReportNotice("");
+    try{const result=await groupRequest({action:"resolve_report",messageId:report.messageId});if(result.accepted!==true)throw Error("Traitement non confirmé.");readVersion.current++;setReports(old=>old.filter(r=>r.messageId!==report.messageId));try{applyChat(await groupRequest());}catch{}onReportChangeRef.current?.();}
+    catch(e){setReportNotice("Traitement non confirmé : "+e.message);}finally{setReportBusy(null);}
+  }
 
   const messagesEndRef = useRef(null);
   const messagesScrollRef = useRef(null);
@@ -89,9 +120,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
         const version=readVersion.current;
         const data=await groupRequest();
         if(!active||version!==readVersion.current)return;
-        const next=data.messages||[],last=next.at(-1);
-        if(lastMessageRef.current&&last&&last.id!==lastMessageRef.current&&!open&&last.uid!==user.uid)setUnread(u=>u+1);
-        lastMessageRef.current=last?.id||null;setMessages(next);setChatBlocked(data.blocked===true);setChatError("");
+        applyChat(data);
       }catch(e){if(active)setChatError(e.message);}
       finally{busy=false;}
     }
@@ -99,6 +128,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
     window.addEventListener("online",poll);document.addEventListener("visibilitychange",poll);
     return()=>{active=false;clearInterval(timer);window.removeEventListener("online",poll);document.removeEventListener("visibilitychange",poll);};
   },[groupRequest,open,user.uid]);
+  useEffect(()=>{if(open&&groupRequest&&marker.current!==null)markRead(messages);},[open]);
   // Scroll auto
   useEffect(() => {
     if (open && messagesEndRef.current) {
@@ -126,7 +156,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
         readVersion.current++;
         setText(current=>current===message||current.trim()===message?"":current);
         try{
-          const data=await groupRequest();setMessages(data.messages||[]);setChatBlocked(data.blocked===true);
+          const data=await groupRequest();applyChat(data);
         }catch(e){setChatError("Message envoyé. Actualisation en attente.");}
         return;
       }
@@ -269,8 +299,10 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
                       : "none",
                   }}
                 >
-                  <b>{isAdmin ? "✦ ADMIN ✦" : m.author}</b>
-                  <br />
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                    <b>{isAdmin ? "✦ ADMIN ✦" : m.author}</b>
+                    {groupRequest&&!inDemo&&m.id&&m.uid!==user.uid&&<button type="button" title="Alerter la régie d’un comportement inadapté dans le chat" aria-label={"Signaler le message de "+m.author} disabled={!!reportBusy||m.reported===true} onClick={()=>void reportMessage(m)} style={{minHeight:26,minWidth:26,width:26,height:26,margin:0,padding:0,flex:"0 0 26px",fontSize:14,lineHeight:1,background:m.reported?"#374151":"#9a273c",border:"1px solid #ff8793",borderRadius:6,boxShadow:"none",color:"white"}}>{m.reported?"✓":"⚠"}</button>}
+                  </div>
                   {m.text}
                 </div>
               );
@@ -278,6 +310,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
             <div ref={messagesEndRef}></div>
           </div>
 
+          {reportNotice&&<p role="status" style={{color:"#ffd699",padding:6,margin:0,fontSize:12}}>{reportNotice}</p>}
           {sendError&&<p role="alert" style={{color:"#ffb3b3",padding:8,margin:0,fontSize:12}}>{sendError}</p>}
           {chatError && <p role="alert" style={{ color: "#ffb3b3", padding: 8, margin: 0, fontSize: 12 }}>{chatError}</p>}
           {chatBlocked && !inDemo && <p role="status" style={{color:"#ffd699",fontWeight:700,padding:"9px",margin:0,textAlign:"center"}}>🔇 Ton accès à l’écriture dans le chat a été bloqué par l’administrateur.</p>}
@@ -352,5 +385,10 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
       </style>
     </>
   );
-  return inline?content:createPortal(content,document.body);
+  return inline?<>{reports.length>0&&<section style={{marginTop:12,border:"1px solid #ff8793",borderRadius:10,padding:10,background:"#42192a"}}>
+    <strong style={{color:"#ffc0ca"}}>⚠ {reports.length} alerte{reports.length>1?"s":""} à traiter</strong>
+    {reports.map(r=><div key={r.messageId} style={{marginTop:8,padding:8,borderRadius:8,background:"#152849",overflowWrap:"anywhere"}}>
+      <b>{r.author} · {r.count} signalement{r.count>1?"s":""}</b><p style={{margin:"5px 0",whiteSpace:"pre-wrap"}}>{r.text}</p><button type="button" disabled={!!reportBusy} onClick={()=>void resolveReport(r)} style={{background:"#176849",fontSize:12,minHeight:32,padding:"5px 9px",boxShadow:"none"}}>Marquer comme traitée</button>
+    </div>)}
+  </section>}{content}</>:createPortal(content,document.body);
 }

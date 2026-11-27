@@ -9,6 +9,7 @@ import { CANDIDATES } from "../data/candidates";
 import { auth,adminSession } from "../firebase";
 import {testPlayerUrl} from "../testPlayerSession.mjs";
 import ChatBubble from "../components/ChatBubble";
+import {getReadMarker,saveReadMarker,newest,countUnread,emptyMarker} from "../chatUnread.mjs";
 import { signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { database } from "../firebase";
@@ -63,6 +64,13 @@ export default function Admin({ user, setUser }) {
   const [chatGroup,setChatGroup]=useState("");
   const groups=Array.isArray(nationalView?.groups)?nationalView.groups:[...new Map(Object.values(players).map(p=>[p.groupId,p.groupName])).entries()].map(([id,name])=>({id,name,memberCount:Object.values(players).filter(p=>p.groupId===id).length}));
   const chatRooms=groups.map(g=>[g.id,g.name]);
+  const [readMarkers,setReadMarkers]=useState({});
+  const chatSummary=nationalView?.chatSummary||{};
+  const alertRooms=groups.filter(g=>(chatSummary[g.id]?.alerts||0)>0);
+  const unreadFor=id=>{const rows=chatSummary[id]?.messages||[],mark=readMarkers[id]||getReadMarker(user.uid,id);return mark?countUnread(rows,mark,user.uid):0;};
+  useEffect(()=>{for(const [id,data] of Object.entries(chatSummary)){if(!getReadMarker(user.uid,id))saveReadMarker(user.uid,id,newest(data.messages,emptyMarker));}},[nationalView,user.uid]);
+  const chatRead=React.useCallback(mark=>{setReadMarkers(old=>({...old,[chatGroup]:mark}));},[chatGroup]);
+  const refreshReports=React.useCallback(()=>{adminRequest("/admin/game").then(setNationalView).catch(()=>{});},[user.uid]);
   const chatRequest=React.useCallback(body=>body===undefined?adminRequest("/admin/chat?groupId="+encodeURIComponent(chatGroup)):adminRequest("/admin/chat",{...body,groupId:chatGroup}),[chatGroup,user.uid]);
   async function moderate(player,action){
     if(!window.confirm((action==="warn"?"Avertir ":action==="block"?"Bloquer ":"Débloquer ")+player.pseudo+" ?"))return;
@@ -389,8 +397,9 @@ export default function Admin({ user, setUser }) {
 
       <section className="regie-panel" style={{margin:"18px 0"}}>
         <h3>Chat des salles</h3>
-        <label style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginTop:10}}>Choisir la salle <select aria-label="Choisir la salle" value={chatGroup} onChange={e=>setChatGroup(e.target.value)}><option value="">Sélectionner…</option>{chatRooms.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
-        {chatGroup&&chatRooms.some(([id])=>id===chatGroup)&&<ChatBubble key={chatGroup} inline user={user} groupRequest={chatRequest} groupName={chatRooms.find(([id])=>id===chatGroup)?.[1]}/>}
+        <label style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginTop:10}}>Choisir la salle <select aria-label="Choisir la salle" value={chatGroup} onChange={e=>setChatGroup(e.target.value)}><option value="">Sélectionner…</option>{chatRooms.map(([id,name])=><option key={id} value={id}>{chatSummary[id]?.alerts>0?"🔴 ":""}{name}{unreadFor(id)>0?" · "+unreadFor(id)+" nouveau(x)":""}{chatSummary[id]?.alerts>0?" · "+chatSummary[id].alerts+" alerte(s)":""}</option>)}</select></label>
+        {alertRooms.length>0&&<div className="regie-chat-alerts">{alertRooms.map(g=><button type="button" key={g.id} className="regie-chat-alert-button" onClick={()=>setChatGroup(g.id)}>⚠ {g.name} · {chatSummary[g.id].alerts} alerte{chatSummary[g.id].alerts>1?"s":""}</button>)}</div>}
+        {chatGroup&&chatRooms.some(([id])=>id===chatGroup)&&<ChatBubble key={chatGroup} inline user={user} groupRequest={chatRequest} roomId={chatGroup} onRead={chatRead} onReportChange={refreshReports} groupName={chatRooms.find(([id])=>id===chatGroup)?.[1]}/>}
       </section>
 
       <details className="regie-danger" open={showDangerZone} onToggle={event=>setShowDangerZone(event.currentTarget.open)}>

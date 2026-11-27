@@ -68,13 +68,24 @@ export default function Admin({ user, setUser }) {
     if(!window.confirm((action==="warn"?"Avertir ":action==="block"?"Bloquer ":"Débloquer ")+player.pseudo+" ?"))return;
     try{await adminRequest("/admin/chat",{groupId:player.groupId,targetUid:player.uid,action});setNationalView(await adminRequest("/admin/game"));}catch(e){reportActionError(e);}
   }
+  async function removeMember(player){
+    if(removing||finaleStarted||!gameId||gameId==="loading")return;
+    const owner=groups.find(g=>g.id===player.groupId)?.ownerPseudo===player.pseudo;
+    if(!window.confirm("Retirer "+player.pseudo+" du groupe "+player.groupName+" ? Ses votes seront annulés et sa participation bloquée."+ (owner?" Si d’autres membres restent, le plus ancien devient créateur.":"")))return;
+    setRemoving(player.uid);
+    try{
+      const result=await adminRequest("/admin/player/remove",{targetUid:player.uid,groupId:player.groupId,gameId:String(gameId),confirmed:true});
+      if(result.accepted!==true||result.removedUid!==player.uid)throw Error("Retrait non confirmé.");
+      setNationalView(await adminRequest("/admin/game"));
+    }catch(e){reportActionError(e);}finally{setRemoving(null);}
+  }
   async function adminRequest(path,body){
     const current=auth.currentUser;
     if(!adminSession||window.location.origin!=="https://miss2027-test.onrender.com"||!current||current.uid!==import.meta.env.VITE_ADMIN_UID)throw Error("Action réservée à la régie test.");
     const token=await current.getIdToken();
     const res=await fetch("https://miss2027-test-api.onrender.com"+path,{method:body===undefined?"GET":"POST",headers:{Authorization:"Bearer "+token,...(body===undefined?{}:{"Content-Type":"application/json"})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(45000),cache:"no-store"});
     const data=await res.json();
-    if(!res.ok)throw Error(({close_votes_first:"Ferme les votes avant de valider.",game_changed:"La partie a changé.",round_changed:"Le tour a changé.",invalid_vote:"Sélection officielle non valide."})[data.error]||"Serveur de la régie indisponible.");
+    if(!res.ok)throw Error(({close_votes_first:"Ferme les votes avant de valider.",game_changed:"La partie a changé.",round_changed:"Le tour a changé.",invalid_vote:"Sélection officielle non valide.",invalid_member:"Ce joueur ne fait plus partie de ce groupe.",game_finished:"Les résultats sont déjà publiés."})[data.error]||"Serveur de la régie indisponible.");
     return data;
   }
   async function toggleControl(kind,open){
@@ -106,6 +117,7 @@ export default function Admin({ user, setUser }) {
   const [votesExpanded, setVotesExpanded] = useState(false);
   const [rankExpanded, setRankExpanded] = useState(false);
   const [expandedGroup,setExpandedGroup]=useState(null);
+  const [removing,setRemoving]=useState(null);
   const [favoritesExpanded,setFavoritesExpanded]=useState(false);
   const [groupsExpanded,setGroupsExpanded]=useState(false);
   const resetWord=resetKind==="game"?"JEU":"INSCRIPTIONS";
@@ -354,6 +366,7 @@ export default function Admin({ user, setUser }) {
                     <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
                       <button type="button" onClick={()=>void moderate(player,"warn")} style={{background:"#7d4310",padding:"9px 11px",fontSize:12}}>⚠️ Avertir</button>
                       <button type="button" onClick={()=>void moderate(player,player.chatBlocked?"unblock":"block")} style={{background:player.chatBlocked===true?"#176849":"#8a2038",padding:"9px 11px",fontSize:12}}>{player.chatBlocked===true?"🔓 Débloquer":"🔇 Bloquer chat"}</button>
+                      <button type="button" disabled={!!removing||finaleStarted||gameId==="loading"} onClick={()=>void removeMember(player)} style={{background:"#a42b43",border:"1px solid #ff8793",padding:"9px 11px",fontSize:12}}>{removing===uid?"Retrait…":"Retirer"}</button>
                     </div>
                   </div>
                 ))}

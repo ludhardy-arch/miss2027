@@ -9,7 +9,7 @@ import FinalShow from "./components/FinaleOverlay";
 const roomChat=body=>request("/chat",body);
 
 const API="https://miss2027-test-api.onrender.com";
-const errors={not_registered:"Inscription introuvable. Retourne à l’accueil.",game_changed:"La partie a été réinitialisée.",round_changed:"Le tour a changé.",votes_closed:"Les votes sont fermés.",invalid_vote:"Sélection non valide.",invalid_favorite:"Choisis ton coup de cœur parmi les 12 Miss.",already_voted:"Ton vote est déjà enregistré.",chat_blocked:"Ton accès au chat est bloqué.",invalid_message:"Message invalide (500 caractères maximum).",too_many_requests:"Trop de demandes. Réessaie dans un instant."};
+const errors={player_removed:"La régie a retiré ton inscription du concours.",not_registered:"Inscription introuvable. Retourne à l’accueil.",game_changed:"La partie a été réinitialisée.",round_changed:"Le tour a changé.",votes_closed:"Les votes sont fermés.",invalid_vote:"Sélection non valide.",invalid_favorite:"Choisis ton coup de cœur parmi les 12 Miss.",already_voted:"Ton vote est déjà enregistré.",chat_blocked:"Ton accès au chat est bloqué.",invalid_message:"Message invalide (500 caractères maximum).",too_many_requests:"Trop de demandes. Réessaie dans un instant."};
 async function request(path,body){
  const user=auth.currentUser;
  if(window.location.origin!=="https://miss2027-test.onrender.com"||!user)throw Error("Session test indisponible.");
@@ -37,6 +37,7 @@ export default function GameSession({user,setUser,waiting}){
      setView(data);setFailure("");
    }catch(e){
      if(!alive.current||seq!==serial.current)return;
+     if(e.code==="player_removed"){setView(null);setFailure(e.message);return;}
      if(e.code==="not_registered"){
        if(++missing.current>=2){setFailure("Inscription introuvable après vérification. Réessaie ou retourne volontairement à l’accueil.");}
        else setFailure("Vérification de ton inscription en cours…");

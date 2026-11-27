@@ -4,8 +4,8 @@ import {promisify} from "node:util";
 import {initializeApp,cert} from "firebase-admin/app";
 import {getAuth} from "firebase-admin/auth";
 import {getDatabase} from "firebase-admin/database";
-import {createGroup,joinGroup,searchGroups,registerPublic,membershipView,pseudoAvailable,normalizePseudo,groupNameAvailable} from "./registration.mjs";
-import {locked,ownerView,manageGroup,invitationView,acceptInvitation} from "./management.mjs";
+import {createGroup,joinGroup,searchGroups,registerPublic,membershipView,pseudoAvailable,normalizePseudo,groupNameAvailable,isExcluded} from "./registration.mjs";
+import {locked,ownerView,manageGroup,invitationView,acceptInvitation,removePlayer} from "./management.mjs";
 import {chatView,chatAction} from "./chat.mjs";
 import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
 import {conditionalWrite} from "./conditional.mjs";
@@ -199,6 +199,14 @@ const server=http.createServer(async(req,res)=>{
       }
       return reply(res,405,{error:"method_not_allowed"});
     }
+    if(req.method==="POST"&&url.pathname==="/admin/player/remove"){
+      if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});
+      if(limited("admin-remove:"+uid,10))return reply(res,429,{error:"too_many_requests"});
+      const b=await body(req),now=Date.now();
+      const result=await directRootChange(root=>removePlayer(root,{targetUid:b.targetUid,groupId:b.groupId,gameId:b.gameId,confirmed:b.confirmed,now}));
+      console.log("TEST_ADMIN_REMOVE "+JSON.stringify({status:result.status,error:result.body?.error||null,remaining:result.body?.remaining}));
+      return reply(res,result.status,result.body);
+    }
     if(req.method==="POST"&&url.pathname==="/admin/reset"){
       // Verify the same test administrator identity as Firebase RTDB rules.
       // Never trust a client role, a group password, or an email address.
@@ -285,7 +293,7 @@ const server=http.createServer(async(req,res)=>{
       const root=await directRootRead(),event=root?.events?.miss2027||{};
       const group=membershipView(event.registration,uid);
       const members=group?Object.entries(event.registration.groups[group.id].members||{}).map(([id,m])=>({...(group.isOwner?{id}:{}),pseudo:m.pseudo,isOwner:event.registration.groups[group.id].ownerUid===id})):[];
-      return reply(res,200,{group:group?{...group,entered:event.players?.[uid]?.groupId===group.id}:null,members,gameId:root?.rooms?.miss2027?.gameId?String(root.rooms.miss2027.gameId):null});
+      return reply(res,200,{removed:isExcluded(event.registration,uid),group:group?{...group,entered:event.players?.[uid]?.groupId===group.id}:null,members,gameId:root?.rooms?.miss2027?.gameId?String(root.rooms.miss2027.gameId):null});
     }
     if(req.method==="POST"&&url.pathname==="/groups/public"){
       if(limited("public:"+uid,5))return reply(res,429,{error:"too_many_requests"});

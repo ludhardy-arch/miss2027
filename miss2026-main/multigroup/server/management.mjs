@@ -1,4 +1,4 @@
-import {membershipView,joinGroup} from "./registration.mjs";
+import {membershipView,joinGroup,normalizePseudo,isExcluded} from "./registration.mjs";
 const fail=code=>({code});
 const eventOf=root=>root?.events?.miss2027||{};
 const replace=(root,event)=>({...root,events:{...root.events,miss2027:event}});
@@ -39,6 +39,7 @@ export function invitationView(root,digest){
 }
 export function acceptInvitation(root,{uid,digest,pseudo,now}){
  const event=eventOf(root),reg=event.registration;
+ if(isExcluded(reg,uid))return fail("player_removed");
  const existing=membershipView(reg,uid);
  if(existing)return {state:root,result:{group:existing,alreadyRegistered:true}};
  const view=invitationView(root,digest);
@@ -48,4 +49,29 @@ export function acceptInvitation(root,{uid,digest,pseudo,now}){
  if(joined.code)return joined;
  const next=replace(root,{...event,registration:joined.state});
  return {state:next,result:{group:membershipView(joined.state,uid)}};
+}
+
+const safeUid=v=>typeof v==="string"&&/^[a-zA-Z0-9_-]{1,128}$/.test(v)&&!["__proto__","constructor","prototype"].includes(v);
+const omitKey=(obj,key)=>Object.fromEntries(Object.entries(obj||{}).filter(([k])=>k!==key));
+// Regie-only exclusion, authorized at the API boundary. Never change published results.
+export function removePlayer(root,{targetUid,groupId,gameId,confirmed,now}){
+ const room=root?.rooms?.miss2027,event=eventOf(root),reg=event.registration;
+ if(confirmed!==true)return fail("confirmation_required");
+ if(!room?.gameId||String(room.gameId)!==gameId)return fail("game_changed");
+ if(room.finaleStarted===true||event.results)return fail("game_finished");
+ if(!safeUid(targetUid)||!safeUid(groupId))return fail("invalid_member");
+ const view=membershipView(reg,targetUid);
+ if(!view||view.id!==groupId)return fail("invalid_member");
+ const original=reg.groups[groupId],members=omitKey(original.members,targetUid);
+ const group={...original,members};
+ // Keep the group and chat. If its creator is removed, the oldest remaining
+ // member becomes organizer. An empty private group has no owner until joined.
+ if(original.ownerUid===targetUid){
+   const next=Object.entries(members).sort(([a,x],[b,y])=>(Number(x.joinedAt)||0)-(Number(y.joinedAt)||0)||a.localeCompare(b))[0];
+   if(next)group.ownerUid=next[0];else delete group.ownerUid;
+   delete group.inviteDigest;
+ }
+ const registration={...reg,groups:{...reg.groups,[groupId]:group},membership:omitKey(reg.membership,targetUid),excluded:{...reg.excluded,[targetUid]:{pseudo:normalizePseudo(view.pseudo),at:now}}};
+ const next=replace(root,{...event,registration,players:omitKey(event.players,targetUid),votes:omitKey(event.votes,targetUid),chatModeration:omitKey(event.chatModeration,targetUid)});
+ return {state:next,result:{accepted:true,removedUid:targetUid,groupId,remaining:Object.keys(members).length}};
 }

@@ -31,3 +31,37 @@ test("owner UID alone authorizes management; members and strangers cannot manage
  assert.equal(ownerView(r,"u1").result.group.isOwner,true);
  assert.equal(manageGroup(r,{uid:"u1",action:"remove",targetUid:"u2"}).result.group.memberCount,1);
 });
+
+import {removePlayer} from "./management.mjs";
+import {membershipView,joinGroup,pseudoAvailable,registerPublic} from "./registration.mjs";
+import {gameView,castVote,adminGameView} from "./game.mjs";
+import {chatView} from "./chat.mjs";
+test("regie removes exactly one player and votes during open voting; excludes re-registration",()=>{
+ let r=root();r.rooms.miss2027.gameId="game";r=manageGroup(r,{uid:"u1",action:"invite",digest:d}).state;
+ r=acceptInvitation(r,{uid:"u2",digest:d,pseudo:"Jen",now:1}).state;
+ r=acceptInvitation(r,{uid:"u3",digest:d,pseudo:"Rod",now:2}).state;
+ const e=r.events.miss2027;e.players={u2:{groupId:"g"},u3:{groupId:"g"}};e.votes={u2:{tour1:[1],favorite:1},u3:{tour1:[2],favorite:2}};e.chats={g:{m:{uid:"u3",text:"ok"}}};r.rooms.miss2027.votesOpen=true;
+ const params={targetUid:"u2",groupId:"g",gameId:"game",confirmed:true,now:3};
+ assert.equal(removePlayer(r,{...params,confirmed:false}).code,"confirmation_required");
+ assert.equal(removePlayer(r,{...params,groupId:"other"}).code,"invalid_member");
+ assert.equal(removePlayer(r,{...params,gameId:"old"}).code,"game_changed");
+ const removed=removePlayer(r,params);assert.equal(removed.result.accepted,true);const next=removed.state,ev=next.events.miss2027;
+ assert.equal(membershipView(ev.registration,"u2"),null);assert.equal(ev.votes.u2,undefined);
+ assert.deepEqual(ev.votes.u3,e.votes.u3);assert.deepEqual(ev.chats,e.chats);
+ assert.equal(adminGameView(next).players.u2,undefined);assert.equal(adminGameView(next).groups[0].memberCount,2);
+ assert.equal(gameView(next,"u2").code,"player_removed");assert.equal(castVote(next,{uid:"u2"}).code,"player_removed");assert.equal(chatView(next,{uid:"u2"}).code,"not_registered");
+ assert.equal(joinGroup(ev.registration,{uid:"u2",id:"g",pseudo:"New",verifiedSecret:"hash"}).code,"player_removed");
+ assert.equal(pseudoAvailable(ev.registration,"JÉN","fresh"),false);
+ assert.equal(acceptInvitation(next,{uid:"u2",digest:d,pseudo:"New"}).code,"player_removed");
+ next.rooms.miss2027.connectionsOpen=true;assert.equal(registerPublic(next,{uid:"u2",pseudo:"New"}).code,"player_removed");
+});
+test("removing a creator transfers ownership, revokes invitation and preserves other members; published results are protected",()=>{
+ let r=root();r.rooms.miss2027.gameId="game";r=manageGroup(r,{uid:"u1",action:"invite",digest:d}).state;
+ r=acceptInvitation(r,{uid:"u2",digest:d,pseudo:"Jen",now:1}).state;
+ r=acceptInvitation(r,{uid:"u3",digest:d,pseudo:"Rod",now:2}).state;
+ const params={targetUid:"u1",groupId:"g",gameId:"game",confirmed:true,now:3};
+ const out=removePlayer(r,params);assert.equal(ownerView(out.state,"u2").result.group.isOwner,true);
+ assert.equal(invitationView(out.state,d).code,"unavailable");
+ assert.equal(ownerView(out.state,"u2").result.group.memberCount,2);
+ r.rooms.miss2027.finaleStarted=true;assert.equal(removePlayer(r,params).code,"game_finished");
+});

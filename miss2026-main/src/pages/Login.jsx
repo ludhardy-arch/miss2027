@@ -21,7 +21,7 @@ function getRemainingTime() {
 
 
 const GROUP_API="https://miss2027-test-api.onrender.com";
-const groupErrors={recovery_invalid:"Pseudo ou mot de passe du groupe incorrect.",creation_not_verified:"La création du groupe n’a pas pu être confirmée. Réessaie de retrouver ton groupe.",group_name_taken:"Nom du groupe déjà pris. Choisis-en un autre.",group_full:"Ce groupe est complet (30 participants maximum).",pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",owner_required:"Seul le créateur reconnu sur son navigateur peut gérer ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
+const groupErrors={player_removed:"La régie a retiré ton inscription du concours.",recovery_invalid:"Pseudo ou mot de passe du groupe incorrect.",creation_not_verified:"La création du groupe n’a pas pu être confirmée. Réessaie de retrouver ton groupe.",group_name_taken:"Nom du groupe déjà pris. Choisis-en un autre.",group_full:"Ce groupe est complet (30 participants maximum).",pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les inscriptions en salle publique sont fermées par la régie.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",owner_required:"Seul le créateur reconnu sur son navigateur peut gérer ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
 const lobbyChat=body=>groupRequest("/chat",body);
 async function groupRequest(path,body) {
   if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Ce service est réservé au site test.");
@@ -140,6 +140,7 @@ export default function Login({ setUser }) {
     let active=true;
     groupRequest("/groups/me").then(async result=>{
       if(!active)return;
+      if(result.removed){restoredIdentity.current=firebaseIdentity;setError("La régie a retiré ton inscription du concours.");return;}
       if(!result.group){restoredIdentity.current=firebaseIdentity;return;}
       if(result.group.isOwner){
         const owner=await groupRequest("/groups/owner/manage");
@@ -158,12 +159,16 @@ export default function Login({ setUser }) {
       try{
         const data=await groupRequest("/groups/me");
         if(!active)return;
+        if(data.removed){setJoinedGroup(null);setOwnerGroup(null);setEntryMode("home");setError("La régie a retiré ton inscription du concours.");return;}
         if(data.group?.id!==lobbyGroup.id){
           if(++missing<2){setLobbyError("Vérification de ton inscription en cours…");return;}
           setJoinedGroup(null);setOwnerGroup(null);setEntryMode("home");setError("Ton inscription n’est plus active après vérification.");return;
         }
         missing=0;setLobbyMembers(data.members||[]);setLobbyError("");
-        if(data.group.isOwner)setOwnerGroup(old=>old?.id===data.group.id?{...old,...data.group,members:data.members||old.members}:old);
+        if(data.group.isOwner){
+          if(!lobbyGroup.isOwner){const owner=await groupRequest("/groups/owner/manage");if(active){setOwnerGroup(owner.group);setEntryMode("creator-dashboard");}}
+          else setOwnerGroup(old=>old?.id===data.group.id?{...old,...data.group,members:data.members||old.members}:old);
+        }
         else setJoinedGroup(data.group);
       }catch(e){if(active)setLobbyError(e.message);}
       finally{busy=false;}

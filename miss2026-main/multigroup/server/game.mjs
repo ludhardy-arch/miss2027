@@ -1,5 +1,5 @@
 import {buildFinalResults} from "../finalResults.js";
-import {membershipView} from "./registration.mjs";
+import {membershipView,isExcluded} from "./registration.mjs";
 import {CANDIDATES} from "../../src/data/candidates.js";
 const ids=CANDIDATES.map(c=>c.id);
 const fail=code=>({code});
@@ -12,6 +12,7 @@ function context(root,uid){
 function stateWith(root,event){return {...root,events:{...root.events,miss2027:event}};}
 export function enterGame(root,{uid,now}){
  const {room,event,group,entered}=context(root,uid);
+ if(isExcluded(event.registration,uid))return fail("player_removed");
  if(!group)return fail("not_registered");
  if(!room?.gameId)return fail("game_unavailable");
  if(!entered&&room.connectionsOpen!==true)return fail("public_closed");
@@ -21,6 +22,7 @@ export function enterGame(root,{uid,now}){
 }
 export function gameView(root,uid){
  const {room,event,group,entered}=context(root,uid);
+ if(isExcluded(event.registration,uid))return fail("player_removed");
  if(!group||!entered)return fail("not_registered");
  if(!room?.gameId)return fail("game_unavailable");
  const tour=Number(room.tour||1), own=event.votes?.[uid]||{};
@@ -46,6 +48,7 @@ export function gameView(root,uid){
 }
 export function castVote(root,{uid,gameId,tour,selection,favorite,now}){
  const {room,event,group,entered}=context(root,uid);
+ if(isExcluded(event.registration,uid))return fail("player_removed");
  if(!group||!entered)return fail("not_registered");
  if(!room?.gameId||String(room.gameId)!==gameId)return fail("game_changed");
  if(![1,2,3].includes(tour)||Number(room.tour||1)!==tour)return fail("round_changed");

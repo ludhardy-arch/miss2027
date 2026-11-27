@@ -1,9 +1,10 @@
-import {membershipView,normalizePseudo} from "./registration.mjs";
+import {membershipView,normalizePseudo,isExcluded} from "./registration.mjs";
 const fail=code=>({code});
 // Shared group password is deliberately the only recovery credential in this
 // test workflow. Never use it for national admin or public-room identities.
 export function recoveryCandidate(root,{requesterUid,pseudo,adminUid}){
  const reg=root?.events?.miss2027?.registration,key=normalizePseudo(pseudo);
+ if(isExcluded(reg,requesterUid))return fail("player_removed");
  if(!key||requesterUid===adminUid)return fail("recovery_invalid");
  let target=null;
  for(const [id,g] of Object.entries(reg?.groups||{})){
@@ -21,7 +22,7 @@ export function recoveryCandidate(root,{requesterUid,pseudo,adminUid}){
 export async function authenticateGroupMember({read,matches,requesterUid,pseudo,password,adminUid}){
  const args={requesterUid,pseudo,adminUid};
  const initial=recoveryCandidate(await read(),args);
- if(initial.code==="already_member")return initial;
+ if(initial.code==="already_member"||initial.code==="player_removed")return initial;
  // Perform password verification even for unknown pseudonyms using a dummy hash.
  const candidate=initial.result;
  const valid=await matches(password,candidate?.secret||"0".repeat(32)+":"+"0".repeat(128));

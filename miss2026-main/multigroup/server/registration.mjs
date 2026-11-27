@@ -22,9 +22,10 @@ const fail=code=>({code});
 export const PRIVATE_CAPACITY=30;
 // One display name throughout the contest; compare case, accents and repeated spaces.
 export const normalizePseudo=value=>typeof value==="string"?normalizeName(value.normalize("NFKC")):"";
+export const isExcluded=(state,uid)=>!!uid&&Object.hasOwn(state?.excluded||{},uid);
 export function pseudoAvailable(state,pseudo,uid){
   const key=normalizePseudo(pseudo);
-  if(!key||typeof pseudo!=="string"||pseudo.length>24)return false;
+  if(!key||typeof pseudo!=="string"||pseudo.length>24||isExcluded(state,uid)||Object.values(state?.excluded||{}).some(e=>e.pseudo===key))return false;
   for(const group of Object.values(state?.groups||{})){
     for(const [memberUid,member] of Object.entries(group.members||{})){
       if(memberUid!==uid&&normalizePseudo(member?.pseudo)===key)return false;
@@ -46,6 +47,7 @@ export function groupNameAvailable(state,name){
 }
 export function createGroup(state,{uid,id,name,pseudo,secret,now}) {
   const s=state||{};
+  if(isExcluded(s,uid))return fail("player_removed");
   if(s.membership?.[uid])return fail("already_member");
   if(s.groups?.[id])return fail("conflict");
   if(!normalizePseudo(name)||typeof name!=="string"||name.length>80)return fail("invalid_fields");
@@ -56,6 +58,7 @@ export function createGroup(state,{uid,id,name,pseudo,secret,now}) {
 }
 export function joinGroup(state,{uid,id,pseudo,verifiedSecret,now}) {
   const s=state||{};
+  if(isExcluded(s,uid))return fail("player_removed");
   const g=s.groups?.[id];
   const existing=membershipView(s,uid);
   if(existing?.id===id)return {state:s,result:{id,name:g.name,group:existing,alreadyRegistered:true}};
@@ -64,7 +67,7 @@ export function joinGroup(state,{uid,id,pseudo,verifiedSecret,now}) {
   if(g.secret!==verifiedSecret)return fail("invalid_password");
   if(Object.keys(g.members||{}).length>=PRIVATE_CAPACITY)return fail("group_full");
   const invalid=checkPseudo(s,pseudo,uid);if(invalid)return invalid;
-  const group={...g,members:{...g.members,[uid]:{pseudo,joinedAt:now}}};
+  const group={...g,...(!g.ownerUid&&!Object.keys(g.members||{}).length?{ownerUid:uid}:{}),members:{...g.members,[uid]:{pseudo,joinedAt:now}}};
   return {state:{...s,groups:{...s.groups,[id]:group},membership:{...s.membership,[uid]:id}},result:{id,name:g.name}};
 }
 
@@ -82,6 +85,7 @@ export function registerPublic(root,{uid,pseudo,now}){
   if(root?.rooms?.miss2027?.connectionsOpen!==true)return fail("public_closed");
   const event=root.events?.miss2027||{};
   const s=event.registration||{};
+  if(isExcluded(s,uid))return fail("player_removed");
   const existing=membershipView(s,uid);
   if(existing)return {state:root,result:{group:existing,alreadyRegistered:true}};
   if(s.membership?.[uid])return fail("conflict");

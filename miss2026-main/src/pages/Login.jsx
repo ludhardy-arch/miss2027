@@ -595,7 +595,6 @@ export default function Login({ setUser }) {
           </div>
           <button type="button" className="group-entry-blue" style={entryButton} disabled={pending||ownerGroup.locked} onClick={()=>setShowInvitation(true)}>Inviter mes amis</button>
           {showInvitation&&ownerGroup.isOwner&&<InvitationPreview key={ownerGroup.id} group={ownerGroup} load={loadInvitation} onClose={()=>setShowInvitation(false)}/>}
-          {ownerGroup.invitationActive&&<button type="button" className="group-entry-danger" disabled={pending} onClick={()=>{if(window.confirm("Désactiver le lien d’invitation ?"))void ownerAction("revoke");}}>Désactiver le lien</button>}
           {inviteStatus&&notice(inviteStatus)}
           {pending&&<p role="status" style={{color:"#ffe5ad",margin:0}}>Communication avec le serveur…</p>}
           {accessControl(false,enterContest,!!lobbyError,ownerGroup.entered===true)}

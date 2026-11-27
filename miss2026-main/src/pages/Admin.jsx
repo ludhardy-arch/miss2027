@@ -363,10 +363,10 @@ export default function Admin({ user, setUser }) {
                 {members.map(([uid,player])=>(
                   <div key={uid} className="regie-group-member">
                     <strong style={{overflowWrap:"anywhere"}}>{player.pseudo}{g.ownerPseudo===player.pseudo&&<span style={{color:"#f1ce91",fontSize:12}}> · Créateur</span>}{player.chatBlocked===true&&<span style={{color:"#ffb4b4",fontSize:12}}> · Chat bloqué</span>}</strong>
-                    <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-                      <button type="button" onClick={()=>void moderate(player,"warn")} style={{background:"#7d4310",padding:"9px 11px",fontSize:12}}>⚠️ Avertir</button>
-                      <button type="button" onClick={()=>void moderate(player,player.chatBlocked?"unblock":"block")} style={{background:player.chatBlocked===true?"#176849":"#8a2038",padding:"9px 11px",fontSize:12}}>{player.chatBlocked===true?"🔓 Débloquer":"🔇 Bloquer chat"}</button>
-                      <button type="button" disabled={!!removing||finaleStarted||gameId==="loading"} onClick={()=>void removeMember(player)} style={{background:"#a42b43",border:"1px solid #ff8793",padding:"9px 11px",fontSize:12}}>{removing===uid?"Retrait…":"Retirer"}</button>
+                    <div className="regie-member-actions">
+                      <button type="button" className="regie-member-warn" onClick={()=>void moderate(player,"warn")}>Avertir</button>
+                      <button type="button" className={player.chatBlocked?"regie-member-unblock":"regie-member-block"} onClick={()=>void moderate(player,player.chatBlocked?"unblock":"block")} aria-label={player.chatBlocked?"Débloquer le chat":"Bloquer le chat"}>{player.chatBlocked?"Débloquer":"Bloquer"}</button>
+                      <button type="button" className="regie-member-remove" disabled={!!removing||finaleStarted||gameId==="loading"} onClick={()=>void removeMember(player)}>{removing===uid?"Retrait…":"Retirer"}</button>
                     </div>
                   </div>
                 ))}

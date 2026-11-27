@@ -4,3 +4,14 @@
 @media(max-width:600px){.regie-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 .regie-group-list{display:grid;gap:10px}.regie-group-card{border:1px solid #395783;border-radius:12px;overflow:hidden;background:#101e3a}.regie-group-toggle{width:100%;display:flex;align-items:center;gap:10px;text-align:left;padding:13px!important;border:0!important;border-radius:0!important;background:#182c53!important;box-shadow:none!important}.regie-group-toggle>span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}.regie-group-toggle small{display:block;margin-top:4px;color:#abc1de;font-size:11px}.regie-group-toggle>b{color:#f1ce91;white-space:nowrap;font-size:14px}.regie-group-members{display:grid;gap:8px;padding:10px}.regie-group-member{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#152849;border:1px solid #304b76;border-radius:9px;padding:10px;font-size:14px}
+
+/* Compact moderation rows, including narrow mobile screens. Override global button dimensions. */
+.tv-admin-page .regie-group-members{gap:5px;padding:8px}
+.tv-admin-page .regie-group-member{display:grid;grid-template-columns:minmax(0,1fr);gap:5px;padding:7px 8px;font-size:13px}
+.tv-admin-page .regie-member-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;width:100%}
+.tv-admin-page .regie-member-actions button{box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:32px!important;height:auto;margin:0!important;padding:5px 2px!important;font-size:11px!important;line-height:1.2;letter-spacing:0!important;white-space:nowrap;border-radius:6px!important;box-shadow:none!important;transform:none!important;color:#fff}
+.tv-admin-page .regie-member-actions .regie-member-warn{background:#7d4310!important;border:1px solid #be955c!important}
+.tv-admin-page .regie-member-actions .regie-member-block{background:#70263b!important;border:1px solid #c76982!important}
+.tv-admin-page .regie-member-actions .regie-member-unblock{background:#176849!important;border:1px solid #58be96!important}
+.tv-admin-page .regie-member-actions .regie-member-remove{background:#a42b43!important;border:1px solid #ff8793!important}
+@media(min-width:700px){.tv-admin-page .regie-group-member{grid-template-columns:minmax(0,1fr) minmax(250px,auto);align-items:center}}

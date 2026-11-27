@@ -428,7 +428,7 @@ export default function Login({ setUser }) {
         <div style={{textAlign:"left",padding:"12px",marginBottom:14,borderRadius:14,background:"rgba(148,92,205,.17)",border:"1px solid #bc79be",fontSize:15,lineHeight:1.5}}>
           <div style={{fontWeight:800,color:"#f7acd7",marginBottom:8,textAlign:"center"}}>Deux façons de jouer :</div>
           <div style={{marginBottom:8}}>🌍 <strong>En salle publique :</strong> joue seul en rejoignant d’autres participants que tu ne connais pas.</div>
-          <div>👥 <strong>En groupe privé :</strong> un leader crée son groupe et invite ses amis ou sa famille à le rejoindre pour jouer ensemble.</div>
+          <div>👥 <strong>En groupe privé :</strong> un organisateur crée son groupe et invite ses amis ou sa famille à le rejoindre pour jouer ensemble.</div>
         </div>
         {[
           { n: "01", text: "Premier tour : sélectionner 12 Miss et votre coup de cœur.", background: "#83283F", border: "#E66C8B", accent: "#FFD8E0" },

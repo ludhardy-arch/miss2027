@@ -2,9 +2,9 @@ import React, { useContext, useState, useEffect, useRef } from "react";
 import { AppContext } from "../context/AppContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { auth, simulatedPlayerApp } from "../firebase";
-import {TEST_ORIGIN,testPlayerUrl} from "../testPlayerSession.mjs";
+import {TEST_ORIGIN,testPlayerUrl,adminSessionUrl} from "../testPlayerSession.mjs";
 import ChatBubble from "../components/ChatBubble";
-import { GoogleAuthProvider, signInWithPopup, signInWithCustomToken, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
+import { signInWithCustomToken, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
  
 // 12 décembre 2026, 20 h 40 à Paris (heure d'hiver : UTC+1).
 const REGISTRATION_OPEN_AT = new Date("2026-12-12T20:40:00+01:00").getTime();
@@ -102,7 +102,6 @@ export default function Login({ setUser }) {
     return()=>{active=false;clearTimeout(timer);};
   },[nameKey,nameRetry,firebaseIdentity]);
   const nameFeedback=()=>!nameStatus?null:<div aria-live="polite" style={{fontSize:13,fontWeight:600,color:nameStatus==="available"?"#78ffbd":nameStatus==="taken"||nameStatus==="error"?"#ff929a":"#c6d3ee"}}>{nameStatus==="available"?"✓ Nom du groupe disponible":nameStatus==="taken"?"✗ Nom du groupe déjà pris":nameStatus==="error"?<>Vérification indisponible. <button type="button" onClick={()=>setNameRetry(n=>n+1)} style={{fontSize:12,padding:"3px 8px"}}>Réessayer</button></>:"Vérification du nom du groupe…"}</div>;
-  const [adminUid, setAdminUid] = useState("");
   const [remaining, setRemaining] = useState(getRemainingTime);
   useEffect(() => {
     const timer = window.setInterval(() => setRemaining(getRemainingTime()), 1000);
@@ -411,29 +410,6 @@ export default function Login({ setUser }) {
     const url=testPlayerUrl(window.location.href,crypto.randomUUID());
     if(url)window.open(url,"_blank","noopener,noreferrer");
   }
-  async function loginAdmin() {
-    if(simulatedPlayerApp)return;
-    setPending(true); setError(""); setAdminUid("");
-    try {
-      // Admin sessions are deliberately not persisted across browser restarts.
-      if(recoverableGroup&&!window.confirm("Cette session appartient déjà à un joueur. Pour conserver son identité, ouvre la régie dans un autre navigateur. Continuer quand même ?"))return;
-      await setPersistence(auth,browserSessionPersistence);
-      const credential = await signInWithPopup(auth, new GoogleAuthProvider());
-      const uid = credential.user.uid;
-      // This check only controls the interface. Firebase DB rules MUST enforce it server-side.
-      if (!import.meta.env.VITE_ADMIN_UID || uid !== import.meta.env.VITE_ADMIN_UID) {
-        setAdminUid(uid);
-        setError("Compte Google connecté, mais pas encore autorisé comme administrateur.");
-        return;
-      }
-      const userObj = { pseudo: credential.user.displayName || "Admin", role: "admin", uid };
-      setUser(userObj);
-      navigate("/admin");
-    } catch (err) {
-      if(auth.currentUser&&auth.currentUser.uid!==import.meta.env.VITE_ADMIN_UID)await setPersistence(auth,browserLocalPersistence).catch(()=>{});
-      setError("Connexion Google impossible : " + (err?.code || err?.message));
-    } finally { setPending(false); }
-  }
 
   return (
     <div className="tv-login-shell tv-show-v3"><div className="tv-entry-stage" aria-hidden="true"><img className="tv-stage-crown" src="/images/couronne-prestige.svg" alt="" aria-hidden="true" style={{ width: "clamp(130px, 32vw, 195px)", height: "auto", objectFit: "contain", filter: "drop-shadow(0 0 18px rgba(238,190,107,.5))" }} /></div>
@@ -630,7 +606,6 @@ export default function Login({ setUser }) {
         {lobbyGroup&&lobbyError&&<p role="alert" style={{color:"#ffd0cf"}}>{lobbyError}</p>}
         {screen !== "home" && <button type="button" className="group-entry-back" disabled={pending} onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}
         {error && <p role="alert" style={{color:"#ffd0cf",margin:0}}>{error}</p>}
-        {adminUid && <p>Ton UID Firebase : <code>{adminUid}</code> — à renseigner dans Render et dans les règles Firebase.</p>}
       </div>
       {demoLoaded && demoEnabled && <div className="demo-entry-link" style={{ textAlign: "center", padding: "25px 10px 0" }}><button type="button" onClick={() => navigate("/demo")} style={{ background: "linear-gradient(110deg,#143b87,#2862bb)", border: "2px solid #dfbe7b", borderRadius: 15, boxShadow: "0 0 18px rgba(39,131,255,.45),0 0 14px rgba(246,198,102,.3)", color: "white", padding: "15px 24px", fontSize: 16, fontWeight: 800 }}>✦ ESSAYER LA DÉMO · SANS INSCRIPTION ✦</button></div>}
       <footer style={{ textAlign: "center", margin: "38px auto 0", padding: "12px 0 20px" }}>
@@ -640,9 +615,7 @@ export default function Login({ setUser }) {
           <p style={{color:"#9ba8c8",fontSize:12,margin:0}}>Ouvre un autre onglet sans modifier ton joueur actuel.</p>
           {simulatedPlayerApp&&<a href={TEST_ORIGIN+"/#/login"} style={{color:"#c6d3ee",fontSize:12}}>Revenir à ma session normale</a>}
         </div>}
-        {!simulatedPlayerApp&&<button type="button" onClick={loginAdmin} disabled={pending} style={{ background: "transparent", border: "none", boxShadow: "none", color: "#9ba8c8", padding: "6px 12px", fontSize: 12, fontWeight: 500, letterSpacing: ".025em", textDecoration: "underline", textUnderlineOffset: 3, cursor: pending ? "default" : "pointer", opacity: pending ? .45 : .8 }}>
-          Administrateur
-        </button>}
+        {!simulatedPlayerApp&&<a href={adminSessionUrl(window.location.href)} target="_blank" rel="noopener noreferrer" style={{color:"#9ba8c8",fontSize:12,textDecoration:"underline",textUnderlineOffset:3}}>Administrateur</a>}
       </footer>
     </div>
   );

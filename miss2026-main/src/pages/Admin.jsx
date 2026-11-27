@@ -6,7 +6,8 @@ import { calculatePoints } from "../services/points";
 import "./AdminRegie.css";
 
 import { CANDIDATES } from "../data/candidates";
-import { auth } from "../firebase";
+import { auth,adminSession } from "../firebase";
+import {testPlayerUrl} from "../testPlayerSession.mjs";
 import ChatBubble from "../components/ChatBubble";
 import { signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
@@ -29,9 +30,9 @@ export default function Admin({ user, setUser }) {
     setLoggingOut(true);
     try {
       await signOut(auth);
-      sessionStorage.removeItem("miss_user");
+      // Dedicated admin auth: no player session storage mutation.
       setUser(null);
-      navigate("/login", { replace: true });
+      navigate("/admin", { replace: true });
     } catch (error) {
       alert("Déconnexion impossible : " + (error?.message || "erreur inconnue"));
       setLoggingOut(false);
@@ -68,7 +69,7 @@ export default function Admin({ user, setUser }) {
   }
   async function adminRequest(path,body){
     const current=auth.currentUser;
-    if(window.location.origin!=="https://miss2027-test.onrender.com"||!current||current.uid!==import.meta.env.VITE_ADMIN_UID)throw Error("Action réservée à la régie test.");
+    if(!adminSession||window.location.origin!=="https://miss2027-test.onrender.com"||!current||current.uid!==import.meta.env.VITE_ADMIN_UID)throw Error("Action réservée à la régie test.");
     const token=await current.getIdToken();
     const res=await fetch("https://miss2027-test-api.onrender.com"+path,{method:body===undefined?"GET":"POST",headers:{Authorization:"Bearer "+token,...(body===undefined?{}:{"Content-Type":"application/json"})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(45000),cache:"no-store"});
     const data=await res.json();
@@ -111,7 +112,7 @@ export default function Admin({ user, setUser }) {
     setResetBusy(true);setResetFeedback("");
     try{
       const current=auth.currentUser;
-      if(window.location.origin!=="https://miss2027-test.onrender.com"||!current||current.uid!==import.meta.env.VITE_ADMIN_UID)throw Error("Action réservée à la régie test.");
+      if(!adminSession||window.location.origin!=="https://miss2027-test.onrender.com"||!current||current.uid!==import.meta.env.VITE_ADMIN_UID)throw Error("Action réservée à la régie test.");
       const token=await current.getIdToken();
       const response=await fetch("https://miss2027-test-api.onrender.com/admin/reset",{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({kind:resetKind,confirmation:resetConfirmation,confirmed:true}),signal:AbortSignal.timeout(90000),cache:"no-store"});
       const result=await response.json();
@@ -317,6 +318,7 @@ export default function Admin({ user, setUser }) {
         <div className="regie-header-right"><span className="regie-live">● LIVE</span><button type="button" className="regie-logout" disabled={loggingOut} onClick={handleLogout}>↪ {loggingOut?"Déconnexion…":"Se déconnecter"}</button></div>
       </header>
 
+      <div style={{textAlign:"right",margin:"10px 0"}}><button type="button" onClick={()=>{const url=testPlayerUrl(window.location.href,crypto.randomUUID());if(url)window.open(url,"_blank","noopener,noreferrer");}} style={{fontSize:13,padding:"10px 14px"}}>＋ Simuler un nouveau joueur</button></div>
       {nationalError&&<p role="alert" style={{color:"#ffb3b3"}}>Statistiques non actualisées : {nationalError}</p>}
       {!nationalView&&!nationalError&&<p role="status">Chargement des inscriptions…</p>}
       {nationalView&&<p className="regie-muted">{nationalView.groupCount} salles et groupes · suivi national</p>}

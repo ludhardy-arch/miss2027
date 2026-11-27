@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import {testPlayerAppName} from "./testPlayerSession.mjs";
+import {testPlayerAppName,isAdminSession,sessionAppName} from "./testPlayerSession.mjs";
 import { getDatabase } from "firebase/database";
 import { initializeAuth, browserLocalPersistence, browserSessionPersistence, browserPopupRedirectResolver } from "firebase/auth";
 
@@ -34,7 +34,9 @@ if (
 
 // Named Firebase apps have independent auth persistence keys in the same browser.
 export const simulatedPlayerApp=testPlayerAppName(window.location.href);
-const app = simulatedPlayerApp?initializeApp(firebaseConfig,simulatedPlayerApp):initializeApp(firebaseConfig);
+export const adminSession=isAdminSession(window.location.href);
+const appName=sessionAppName(window.location.href);
+const app = appName?initializeApp(firebaseConfig,appName):initializeApp(firebaseConfig);
 export const database = getDatabase(app);
 // The default app keeps the normal persistent identity; each simulator URL
 // has its own named app and persistent identity, including after refresh.

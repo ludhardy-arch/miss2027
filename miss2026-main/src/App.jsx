@@ -12,7 +12,7 @@ import {
 
 import Login from "./pages/Login";
 import Demo from "./pages/Demo";
-import Admin from "./pages/Admin";
+import {adminSessionUrl} from "./testPlayerSession.mjs";
 import GameSession from "./GameSession";
 
 import { AppContext } from "./context/AppContext";
@@ -49,7 +49,7 @@ function RouterContent() {
       setRecoveryError("");setAuthReady(false);
       if(!firebaseUser){setUser(null);setAuthReady(true);return;}
       if(firebaseUser.uid===import.meta.env.VITE_ADMIN_UID){
-        setUser(old=>old?.role==="admin"&&old.uid===firebaseUser.uid&&!firebaseUser.isAnonymous?old:null);
+        setUser(null);
         setAuthReady(true);return;
       }
       try{
@@ -80,11 +80,6 @@ function RouterContent() {
 
   useEffect(() => {
     if (!authReady||!user) return;
-
-    if (user.role === "admin" && location.pathname !== "/admin") {
-      navigate("/admin", { replace: true });
-      return;
-    }
 
     if (user.role === "player" && !["/player","/waiting"].includes(location.pathname)) {
       navigate("/player", { replace: true });
@@ -117,13 +112,7 @@ function RouterContent() {
 
         <Route
           path="/admin"
-          element={
-            user?.role === "admin" ? (
-              <Admin user={user} setUser={setUser} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
+          element={<LegacyAdminRedirect />}
         />
 
         <Route
@@ -148,4 +137,9 @@ function RouterContent() {
       </Routes>
     </>
   );
+}
+
+function LegacyAdminRedirect(){
+ useEffect(()=>{const url=adminSessionUrl(window.location.href);if(url)window.location.replace(url);},[]);
+ return <p role="status">Ouverture de la régie indépendante…</p>;
 }

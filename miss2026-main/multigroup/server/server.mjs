@@ -6,7 +6,7 @@ import {getAuth} from "firebase-admin/auth";
 import {getDatabase} from "firebase-admin/database";
 import {createGroup,joinGroup,searchGroups,registerPublic,membershipView,membershipViews,membershipIds,pseudoAvailable,normalizePseudo,groupNameAvailable,isExcluded} from "./registration.mjs";
 import {locked,ownerView,manageGroup,invitationView,acceptInvitation,removePlayer,deleteGroup,verifyGroupDeleted} from "./management.mjs";
-import {chatView,chatAction,adminAlertDirectory,verifyRoomReport} from "./chat.mjs";
+import {chatView,chatAction,adminAlertDirectory,verifyRoomReport,remindNonVoters,verifyNonVoterReminders} from "./chat.mjs";
 import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
 import {conditionalWrite} from "./conditional.mjs";
 import {authenticateGroupMember} from "./recovery.mjs";
@@ -201,6 +201,18 @@ const server=http.createServer(async(req,res)=>{
       const rooms=adminAlertDirectory(await directRootRead());
       if(rooms.length)console.log("TEST_ADMIN_ALERT_READ "+JSON.stringify({rooms:rooms.length,total:rooms.reduce((n,r)=>n+r.count,0)}));
       return reply(res,200,{rooms});
+    }
+    if(req.method==="POST"&&url.pathname==="/admin/vote-reminders"){
+      if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});
+      if(limited("bulk-reminder:"+uid,5))return reply(res,429,{error:"too_many_requests"});
+      const b=await body(req),id=randomUUID(),now=Date.now();
+      const result=await directRootChange(root=>remindNonVoters(root,{uid,admin:true,gameId:b.gameId,tour:b.tour,id,now}));
+      if(result.status!==200)return reply(res,result.status,result.body);
+      const {receipts,...summary}=result.body;
+      const verified=verifyNonVoterReminders(await directRootRead(),receipts,b.gameId,b.tour);
+      console.log("TEST_BULK_VOTE_REMINDER "+JSON.stringify({...summary,verified}));
+      if(!verified)return reply(res,409,{error:"reminder_not_verified"});
+      return reply(res,200,{...summary,verified:true});
     }
     if(url.pathname==="/chat"||url.pathname==="/admin/chat"){
       const admin=url.pathname==="/admin/chat";

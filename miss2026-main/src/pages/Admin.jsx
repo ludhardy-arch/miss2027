@@ -117,15 +117,16 @@ export default function Admin({ user, setUser }) {
       setNationalView(await adminRequest("/admin/game"));
     }catch(e){reportActionError(e);}finally{setRemoving(null);}
   }
-  async function remindVoter(player){
-    if(reminderBusy||!votesOpen||finaleStarted||playerHasVoted(player))return;
-    if(!window.confirm("Envoyer un rappel de vote à "+player.pseudo+" ?"))return;
-    setReminderBusy(player.uid);
+  async function remindAllNonVoters(){
+    if(reminderBusy||!votesOpen||finaleStarted||!nationalView||gameId==="loading"||totalPlayers===votedCount)return;
+    setReminderBusy(true);setReminderFeedback(null);
+    const scope=String(gameId)+":"+tour;
     try{
-      const result=await adminRequest("/admin/chat",{action:"vote_reminder",groupId:player.groupId,targetUid:player.uid,gameId:String(gameId),tour:Number(tour)});
+      const result=await adminRequest("/admin/vote-reminders",{gameId:String(gameId),tour:Number(tour)});
       if(result.accepted!==true||result.verified!==true)throw Error("Envoi non confirmé.");
-      setReminderSent(old=>({...old,[String(gameId)+":"+tour+":"+player.uid]:Date.now()}));
-    }catch(e){reportActionError(e);}finally{setReminderBusy(null);}
+      setReminderFeedback({scope,text:result.sent?result.sent+" joueur(s) alerté(s)."+(result.skipped?" "+result.skipped+" déjà alerté(s) depuis moins d’une minute.":""):result.skipped?"Les joueurs concernés ont déjà reçu un rappel depuis moins d’une minute.":"Tous les joueurs ont validé leur vote."});
+      setNationalView(await adminRequest("/admin/game"));
+    }catch(e){reportActionError(e);}finally{setReminderBusy(false);}
   }
   async function adminRequest(path,body){
     const current=auth.currentUser;
@@ -164,8 +165,8 @@ export default function Admin({ user, setUser }) {
   const [advancingTour, setAdvancingTour] = useState(false);
   const [votesExpanded, setVotesExpanded] = useState(false);
   const [expandedVoteGroup,setExpandedVoteGroup]=useState(null);
-  const [reminderBusy,setReminderBusy]=useState(null);
-  const [reminderSent,setReminderSent]=useState({});
+  const [reminderBusy,setReminderBusy]=useState(false);
+  const [reminderFeedback,setReminderFeedback]=useState(null);
   const [rankExpanded, setRankExpanded] = useState(false);
   const [expandedGroup,setExpandedGroup]=useState(null);
   const [removing,setRemoving]=useState(null);
@@ -397,6 +398,12 @@ export default function Admin({ user, setUser }) {
         <button type="button" className="regie-kpi" aria-expanded={rankExpanded} onClick={()=>setRankExpanded(x=>!x)}><span className="regie-kpi-icon gold">🏆</span><strong>TOP</strong><span>CLASSEMENT {rankExpanded?"⌃":"⌄"}</span></button>
         <button type="button" className="regie-kpi" aria-expanded={favoritesExpanded} onClick={()=>setFavoritesExpanded(x=>!x)}><span className="regie-kpi-icon gold">★</span><strong>TOP 5</strong><span>MISS FAVORITES {favoritesExpanded?"⌃":"⌄"}</span></button>
       </section>
+      <div style={{margin:"10px 0 14px",display:"grid",gap:6}}>
+        <button type="button" className="regie-vote-reminder" disabled={reminderBusy||!nationalView||!votesOpen||finaleStarted||gameId==="loading"||totalPlayers===votedCount} onClick={()=>void remindAllNonVoters()} style={{width:"100%",boxSizing:"border-box",minHeight:54,padding:"12px 10px",background:"#9a273c",border:"1px solid #ff8793",borderRadius:12,color:"#fff",fontWeight:800,fontSize:15,opacity:(!votesOpen||finaleStarted||totalPlayers===votedCount)?0.55:1}}>
+          {reminderBusy?"Envoi des rappels…":"🔔 Alerter tous les non-votants"}{!reminderBusy&&nationalView&&" ("+(totalPlayers-votedCount)+")"}
+        </button>
+        {reminderFeedback?.scope===String(gameId)+":"+tour&&<p role="status" style={{color:"#a7ffd2",fontSize:13,margin:0,textAlign:"center"}}>{reminderFeedback.text}</p>}
+      </div>
       {favoritesExpanded&&<section className="regie-expand"><div className="regie-panel-heading"><h3>⭐ MISS FAVORITES</h3><span>TOUR {tour}</span></div>
         {popularity.map(m=><div className="regie-popularity" key={m.id}><div><span>{m.label}</span><strong>{m.count} pts</strong></div><div className="regie-meter"><span style={{width:(100*m.count/maxPopularity)+"%"}} /></div></div>)}
         <small className="regie-muted">Cumul des sélections · tours 1, 2 et finale</small>
@@ -452,9 +459,8 @@ export default function Admin({ user, setUser }) {
                 <b>{count}/{total}</b><span aria-hidden="true">{opened?"⌃":"⌄"}</span>
               </button>
               {opened&&<div className="regie-vote-members">
-                {members.map(([uid,p])=>{const voted=!!playerHasVoted(p),sent=Date.now()-(reminderSent[String(gameId)+":"+tour+":"+uid]||0)<60000;return <div key={uid} className={"regie-vote-member "+(voted?"yes":"no")}>
+                {members.map(([uid,p])=>{const voted=!!playerHasVoted(p);return <div key={uid} className={"regie-vote-member "+(voted?"yes":"no")}>
                   <strong>{p.pseudo}</strong><span>{voted?"✓ VOTÉ":"✕ PAS VOTÉ"}</span>
-                  {!voted&&<button type="button" className="regie-vote-reminder" disabled={!!reminderBusy||sent||!votesOpen||finaleStarted} onClick={()=>void remindVoter({...p,groupId:g.id,groupName:g.name})}>{reminderBusy===uid?"Envoi…":sent?"Envoyé ✓":"Alerter"}</button>}
                 </div>})}
                 {!members.length&&<p className="regie-muted">Aucun joueur inscrit.</p>}
               </div>}

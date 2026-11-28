@@ -1,4 +1,4 @@
-import {membershipView} from "./registration.mjs";
+import {membershipView,isExcluded} from "./registration.mjs";
 const fail=code=>({code});
 const eventOf=root=>root?.events?.miss2027||{};
 const store=(root,event)=>({...root,events:{...root.events,miss2027:event}});
@@ -103,4 +103,45 @@ export function chatAction(root,{uid,admin=false,groupId,text,id,now,action="sen
  const retained=[...Object.values(existing),row].sort((a,b)=>a.date-b.date||a.id.localeCompare(b.id)).slice(-120);
  const chats={...event.chats,[roomId]:Object.fromEntries(retained.map(m=>[m.id,m]))};
  return {state:store(root,{...event,chats}),result:{accepted:true}};
+}
+
+// One atomic broadcast, one private message per unique registered player.
+// Use their primary room so the existing in-app reminder works without duplication.
+export function remindNonVoters(root,{uid,admin=false,gameId,tour,id,now}){
+ const event=eventOf(root),room=root?.rooms?.miss2027;
+ if(!admin)return fail("admin_required");
+ if(!room?.gameId||String(room.gameId)!==gameId)return fail("game_changed");
+ if(Number(room.tour||1)!==tour)return fail("round_changed");
+ if(room.votesOpen!==true||room.finaleStarted===true)return fail("votes_closed");
+ if(!safeKey(id)||!Number.isFinite(now))return fail("invalid_message");
+ const recent=new Set();
+ for(const messages of Object.values(event.chats||{})){
+  for(const m of Object.values(messages||{}))if(m.kind==="vote_reminder"&&m.gameId===gameId&&m.tour===tour&&now-m.date<60000)recent.add(m.targetUid);
+ }
+ const additions=new Map(),receipts=[];
+ let skipped=0,eligible=0;
+ for(const targetUid of Object.keys(event.registration?.membership||{})){
+  const group=member(event,targetUid);
+  if(!group||isExcluded(event.registration,targetUid)||hasVoted(event,targetUid,tour))continue;
+  eligible++;
+  if(recent.has(targetUid)){skipped++;continue;}
+  const key=id+"-"+receipts.length;
+  const row={id:key,author:"ADMIN",uid,admin:true,date:now,text:"Merci de valider votre vote !",targetUid,kind:"vote_reminder",gameId,tour};
+  if(Object.hasOwn(event.chats?.[group.id]||{},key))return fail("conflict");
+  if(!additions.has(group.id))additions.set(group.id,[]);
+  additions.get(group.id).push(row);receipts.push({roomId:group.id,messageId:key,targetUid});
+ }
+ const chats={...event.chats};
+ for(const [roomId,rowsToAdd] of additions){
+  // Keep all newly sent reminders even if many messages share the same timestamp.
+  const retained=rows(event,roomId).slice(-(120-rowsToAdd.length)).concat(rowsToAdd);
+  chats[roomId]=Object.fromEntries(retained.map(m=>[m.id,m]));
+ }
+ return {state:receipts.length?store(root,{...event,chats}):root,result:{accepted:true,sent:receipts.length,skipped,eligible,receipts}};
+}
+export function verifyNonVoterReminders(root,receipts,gameId,tour){
+ return receipts.every(({roomId,messageId,targetUid})=>{
+  const m=eventOf(root).chats?.[roomId]?.[messageId];
+  return m?.kind==="vote_reminder"&&m.targetUid===targetUid&&m.gameId===gameId&&m.tour===tour;
+ });
 }

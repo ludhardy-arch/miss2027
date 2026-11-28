@@ -36,6 +36,8 @@ export function attachChatSocket(server,{origin,auth,rootRef,adminUid,isReady,al
   if(timer===null)timer=setTimeout(flush,150);
  }
  function onRootError(){
+  loaded=false;root=null;
+  if(timer!==null){clearTimeout(timer);timer=null;}
   for(const ws of sessions.keys())close(ws,1013);
  }
  function start(){

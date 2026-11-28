@@ -1,7 +1,8 @@
  import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import {emptyMarker,newest,countUnread,getReadMarker,saveReadMarker} from "../chatUnread.mjs";
-import { database } from "../firebase";
+import { auth, database } from "../firebase";
+import {applyChatFrame} from "../chatFrame.mjs";
 import { ref, push, onValue, get } from "firebase/database";
 
 // Messages historiques envoyés avant l'utilisation du nom ADMIN.
@@ -23,6 +24,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
   const sendingRef=useRef(false);
   const readVersion=useRef(0);
   const chatCursor=useRef(null),chatSnapshot=useRef([]);
+  const socketLive=useRef(false);
   const [unread, setUnread] = useState(0);
   useEffect(()=>{onUnread?.(unread);},[unread,onUnread]);
   const [chatBlocked, setChatBlocked] = useState(false);
@@ -55,7 +57,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
       if(result.accepted!==true||result.verified!==true)throw Error("Enregistrement de l’alerte non confirmé. Réessaie.");
       readVersion.current++;
       setReportNotice(result.alreadyReported?"Cette salle a déjà été signalée.":"Alerte transmise à la régie.");
-      try{applyChat(await groupRequest());}catch{}
+      try{if(!socketLive.current){const version=readVersion.current;const data=await groupRequest();if(!socketLive.current&&version===readVersion.current)applyChat(data);}}catch{}
       onReportChangeRef.current?.();
     }catch(e){setReportNotice("Alerte non confirmée : "+e.message);}finally{setReportBusy(null);}
   }
@@ -70,7 +72,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
       setReports(old=>old.filter(r=>!result.clearedIds.includes(r.messageId)));
       onReportChangeRef.current?.(result.rooms);
       setReportNotice("Alerte effacée.");
-      try{applyChat(await groupRequest());}catch{}
+      try{if(!socketLive.current){const version=readVersion.current;const data=await groupRequest();if(!socketLive.current&&version===readVersion.current)applyChat(data);}}catch{}
     }catch(e){setReportNotice("Effacement non confirmé : "+e.message);}finally{setReportBusy(null);}
   }
 
@@ -130,23 +132,74 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
 
   useEffect(() => {
     if (!groupRequest) return;
-    let active=true,busy=false;
-    // Keep the last successful view during reconnects and while opening the bubble.
+    let active=true,busy=false,socket=null,reconnect=null,pollTimer=null,handshake=null,attempt=0;
+    let liveView=null;
+    socketLive.current=false;
+    const enabled=import.meta.env.VITE_TEST_CHAT_WEBSOCKET==="true" &&
+      window.location.origin==="https://miss2027-test.onrender.com" && !!roomId && !inDemo;
+    function clearHandshake(){if(handshake!==null){clearTimeout(handshake);handshake=null;}}
     async function poll(){
-      if(!active||busy||document.visibilityState==="hidden")return;
+      if(!active||busy||socketLive.current||document.visibilityState==="hidden")return;
       busy=true;
       try{
         const version=readVersion.current;
         const data=await groupRequest(undefined,chatCursor.current);
-        if(!active||version!==readVersion.current)return;
+        if(!active||socketLive.current||version!==readVersion.current)return;
         applyChat(data);
-      }catch(e){if(active)setChatError(e.message);}
+      }catch(e){if(active&&!socketLive.current)setChatError(e.message);}
       finally{busy=false;}
     }
-    void poll();const timer=setInterval(poll,open?8000:15000);
-    window.addEventListener("online",poll);document.addEventListener("visibilitychange",poll);
-    return()=>{active=false;clearInterval(timer);window.removeEventListener("online",poll);document.removeEventListener("visibilitychange",poll);};
-  },[groupRequest,open,user.uid]);
+    function schedulePoll(){
+      if(!active||pollTimer!==null||socketLive.current)return;
+      pollTimer=setTimeout(async()=>{pollTimer=null;await poll();schedulePoll();},openRef.current?8000:15000);
+    }
+    function retry(){
+      if(!active||!enabled||reconnect!==null)return;
+      const delay=Math.min(60000,2000*2**Math.min(attempt++,5))+Math.random()*2000;
+      reconnect=setTimeout(()=>{reconnect=null;void connect();},delay);
+    }
+    async function connect(){
+      if(!active||!enabled||socket||document.visibilityState==="hidden")return;
+      try{
+        const current=auth.currentUser;
+        if(!current||current.uid!==user.uid)throw Error("session_changed");
+        const token=await current.getIdToken();
+        if(!active||socket||auth.currentUser?.uid!==user.uid)return;
+        const ws=new WebSocket("wss://miss2027-test-api.onrender.com/chat/live");
+        socket=ws;liveView=null;
+        handshake=setTimeout(()=>{if(socket===ws&&!socketLive.current)ws.close();},15000);
+        ws.onopen=()=>{if(active&&socket===ws)ws.send(JSON.stringify({type:"subscribe",token,groupId:roomId,admin:inline===true}));};
+        ws.onmessage=event=>{
+          if(!active||socket!==ws)return;
+          try{
+            liveView=applyChatFrame(liveView,JSON.parse(event.data));
+            clearHandshake();attempt=0;socketLive.current=true;readVersion.current++;
+            if(pollTimer!==null){clearTimeout(pollTimer);pollTimer=null;}
+            // Socket frames have their own baseline, independent of HTTP cursor deltas.
+            applyChat(liveView);
+          }catch{ws.close();}
+        };
+        ws.onerror=()=>ws.close();
+        ws.onclose=()=>{
+          if(socket!==ws)return;
+          socket=null;clearHandshake();socketLive.current=false;liveView=null;
+          if(active){void poll();schedulePoll();retry();}
+        };
+      }catch{retry();}
+    }
+    function wake(){
+      if(document.visibilityState==="hidden")return;
+      if(!socketLive.current){void poll();schedulePoll();if(reconnect===null)void connect();}
+    }
+    void poll();schedulePoll();void connect();
+    window.addEventListener("online",wake);document.addEventListener("visibilitychange",wake);
+    return()=>{
+      active=false;socketLive.current=false;readVersion.current++;
+      clearHandshake();clearTimeout(reconnect);clearTimeout(pollTimer);
+      if(socket){const ws=socket;socket=null;ws.onclose=null;ws.close();}
+      window.removeEventListener("online",wake);document.removeEventListener("visibilitychange",wake);
+    };
+  },[groupRequest,roomId,user.uid,inline,inDemo]);
   useEffect(()=>{if(open&&groupRequest&&marker.current!==null)markRead(messages);},[open]);
   // Scroll auto
   useEffect(() => {
@@ -175,7 +228,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
         readVersion.current++;
         setText(current=>current===message||current.trim()===message?"":current);
         try{
-          const data=await groupRequest();applyChat(data);
+          if(!socketLive.current){const version=readVersion.current;const data=await groupRequest();if(!socketLive.current&&version===readVersion.current)applyChat(data);}
         }catch(e){setChatError("Message envoyé. Actualisation en attente.");}
         return;
       }

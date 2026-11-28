@@ -96,7 +96,7 @@ export default function Admin({ user, setUser }) {
   async function removeMember(player){
     if(removing||finaleStarted||!gameId||gameId==="loading")return;
     const owner=groups.find(g=>g.id===player.groupId)?.ownerPseudo===player.pseudo;
-    if(!window.confirm("Retirer "+player.pseudo+" du groupe "+player.groupName+" ? Ses votes seront annulés et sa participation bloquée."+ (owner?" Si d’autres membres restent, le plus ancien devient créateur.":"")))return;
+    if(!window.confirm("Retirer "+player.pseudo+" du concours ? Il sera retiré de tous ses groupes, ses votes seront annulés et sa participation bloquée."+ (owner?" Si d’autres membres restent, le plus ancien devient créateur.":"")))return;
     setRemoving(player.uid);
     try{
       const result=await adminRequest("/admin/player/remove",{targetUid:player.uid,groupId:player.groupId,gameId:String(gameId),confirmed:true});
@@ -391,7 +391,7 @@ export default function Admin({ user, setUser }) {
         <h3>GROUPES ET SALLES CRÉÉS</h3>
         <div className="regie-group-list">
           {groups.map(g=>{
-            const members=playerEntries.filter(([,player])=>player.groupId===g.id).sort(([,a],[,b])=>a.pseudo.localeCompare(b.pseudo,"fr"));
+            const members=playerEntries.filter(([,player])=>(player.groupIds||[player.groupId]).includes(g.id)).sort(([,a],[,b])=>a.pseudo.localeCompare(b.pseudo,"fr"));
             const opened=expandedGroup===g.id;
             return <div className="regie-group-card" key={g.id}>
               <button type="button" className="regie-group-toggle" aria-expanded={opened} onClick={()=>setExpandedGroup(old=>old===g.id?null:g.id)}>
@@ -404,9 +404,9 @@ export default function Admin({ user, setUser }) {
                   <div key={uid} className="regie-group-member">
                     <strong style={{overflowWrap:"anywhere"}}>{player.pseudo}{g.ownerPseudo===player.pseudo&&<span style={{color:"#f1ce91",fontSize:12}}> · Créateur</span>}{player.chatBlocked===true&&<span style={{color:"#ffb4b4",fontSize:12}}> · Chat bloqué</span>}</strong>
                     <div className="regie-member-actions">
-                      <button type="button" className="regie-member-warn" onClick={()=>void moderate(player,"warn")}>Avertir</button>
-                      <button type="button" className={player.chatBlocked?"regie-member-unblock":"regie-member-block"} onClick={()=>void moderate(player,player.chatBlocked?"unblock":"block")} aria-label={player.chatBlocked?"Débloquer le chat":"Bloquer le chat"}>{player.chatBlocked?"Débloquer":"Bloquer"}</button>
-                      <button type="button" className="regie-member-remove" disabled={!!removing||finaleStarted||gameId==="loading"} onClick={()=>void removeMember(player)}>{removing===uid?"Retrait…":"Retirer"}</button>
+                      <button type="button" className="regie-member-warn" onClick={()=>void moderate({...player,groupId:g.id,groupName:g.name},"warn")}>Avertir</button>
+                      <button type="button" className={player.chatBlocked?"regie-member-unblock":"regie-member-block"} onClick={()=>void moderate({...player,groupId:g.id,groupName:g.name},player.chatBlocked?"unblock":"block")} aria-label={player.chatBlocked?"Débloquer le chat":"Bloquer le chat"}>{player.chatBlocked?"Débloquer":"Bloquer"}</button>
+                      <button type="button" className="regie-member-remove" disabled={!!removing||finaleStarted||gameId==="loading"} onClick={()=>void removeMember({...player,groupId:g.id,groupName:g.name})}>{removing===uid?"Retrait…":"Retirer"}</button>
                     </div>
                   </div>
                 ))}
@@ -420,7 +420,7 @@ export default function Admin({ user, setUser }) {
       {votesExpanded&&<section className="regie-expand"><h3>SUIVI DES VOTES · TOUR {tour}</h3>
         <div className="regie-group-list">
           {groups.map(g=>{
-            const members=playerEntries.filter(([,p])=>p.groupId===g.id).sort(([,x],[,y])=>Number(!!playerHasVoted(x))-Number(!!playerHasVoted(y))||x.pseudo.localeCompare(y.pseudo,"fr"));
+            const members=playerEntries.filter(([,p])=>(p.groupIds||[p.groupId]).includes(g.id)).sort(([,x],[,y])=>Number(!!playerHasVoted(x))-Number(!!playerHasVoted(y))||x.pseudo.localeCompare(y.pseudo,"fr"));
             const count=members.filter(([,p])=>playerHasVoted(p)).length,total=members.length,opened=expandedVoteGroup===g.id;
             const state=total===0?"empty":count===total?"complete":"incomplete";
             return <div key={g.id} className={"regie-vote-group "+state}>
@@ -431,7 +431,7 @@ export default function Admin({ user, setUser }) {
               {opened&&<div className="regie-vote-members">
                 {members.map(([uid,p])=>{const voted=!!playerHasVoted(p),sent=Date.now()-(reminderSent[String(gameId)+":"+tour+":"+uid]||0)<60000;return <div key={uid} className={"regie-vote-member "+(voted?"yes":"no")}>
                   <strong>{p.pseudo}</strong><span>{voted?"✓ VOTÉ":"✕ PAS VOTÉ"}</span>
-                  {!voted&&<button type="button" className="regie-vote-reminder" disabled={!!reminderBusy||sent||!votesOpen||finaleStarted} onClick={()=>void remindVoter(p)}>{reminderBusy===uid?"Envoi…":sent?"Envoyé ✓":"Alerter"}</button>}
+                  {!voted&&<button type="button" className="regie-vote-reminder" disabled={!!reminderBusy||sent||!votesOpen||finaleStarted} onClick={()=>void remindVoter({...p,groupId:g.id,groupName:g.name})}>{reminderBusy===uid?"Envoi…":sent?"Envoyé ✓":"Alerter"}</button>}
                 </div>})}
                 {!members.length&&<p className="regie-muted">Aucun joueur inscrit.</p>}
               </div>}

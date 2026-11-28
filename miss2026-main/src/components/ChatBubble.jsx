@@ -10,9 +10,9 @@ const isAdminMessage = (message) => {
   return author === "admin" || author === "hardy ludo" || author === "ludo hardy";
 };
 
-export default function ChatBubble({ user, demoMessages = null, onDemoSend = null, groupRequest = null, groupName = null, inline = false, roomId = null, onRead = null, onReportChange = null }) {
+export default function ChatBubble({ user, demoMessages = null, onDemoSend = null, groupRequest = null, groupName = null, inline = false, roomId = null, onRead = null, onReportChange = null, externalOpen=null, hideBubble=false, onUnread=null, headerExtra=null }) {
   const [bubbleOpen, setOpen] = useState(false);
-  const open=inline||bubbleOpen;
+  const open=inline||(externalOpen===null?bubbleOpen:externalOpen);
   const [messages, setMessages] = useState([]);
   const inDemo = Array.isArray(demoMessages);
   const visibleMessages = inDemo ? demoMessages : messages;
@@ -23,6 +23,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
   const sendingRef=useRef(false);
   const readVersion=useRef(0);
   const [unread, setUnread] = useState(0);
+  useEffect(()=>{onUnread?.(unread);},[unread,onUnread]);
   const [chatBlocked, setChatBlocked] = useState(false);
   const [voteReminder,setVoteReminder]=useState(null),[dismissedReminder,setDismissedReminder]=useState(null);
   const [reports,setReports]=useState([]),[reportBusy,setReportBusy]=useState(null),[reportNotice,setReportNotice]=useState("");
@@ -202,7 +203,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
         <button type="button" aria-label="Fermer le rappel" onClick={()=>setDismissedReminder(voteReminder.id)} style={{width:32,minWidth:32,minHeight:32,padding:0,margin:0,background:"#735021",color:"#fff",boxShadow:"none"}}>✕</button>
       </div>}
       {/* Bulle flottante */}
-      {!inline&&<div
+      {!inline&&!hideBubble&&<div
         style={{
           position: "fixed",
           bottom: 20,
@@ -252,7 +253,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
             bottom: inline?undefined:90,
             right: inline?undefined:20,
             width: inline?"100%":"min(340px, calc(100vw - 32px))",
-            height: inline?320:"min(400px, 55dvh)",
+            height: inline?320:headerExtra?"min(540px, 72dvh)":"min(400px, 55dvh)",
             marginTop:inline?12:0,
             border:inline?"1px solid #395783":undefined,
             background: "rgba(10,10,20,0.95)",
@@ -265,6 +266,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
             animation: "slideUp 0.3s ease-out",
           }}
         >
+          {headerExtra}
           {/* Header */}
           <div
             style={{

@@ -1,6 +1,6 @@
 import React from "react";
 import "./InvitationPreview.css";
-export default function InvitationCard({name,password,onJoin}){
+export default function InvitationCard({name,password,onJoin,knownPseudo,disabled=false}){
  return <article className="miss-invite-card">
     <div className="miss-invite-crown"><img src="/images/couronne-prestige.svg" alt=""/></div>
     <div className="miss-invite-kicker">INVITATION À LA SOIRÉE</div>
@@ -12,7 +12,7 @@ export default function InvitationCard({name,password,onJoin}){
      <div className="miss-invite-label">NOM DU GROUPE</div><h3>{name}</h3>
      {password&&<div className="miss-invite-password">Mot de passe du groupe : <strong>{password}</strong></div>}
     </div>
-    <button type="button" className="miss-invite-green" onClick={onJoin}>JE REJOINS MES AMIS</button>
-    <p className="miss-invite-caption">Choisis ton pseudo et c'est parti !</p>
+    <button type="button" className="miss-invite-green" disabled={disabled} onClick={onJoin}>JE REJOINS MES AMIS</button>
+    <p className="miss-invite-caption">{knownPseudo?"Connecté en tant que "+knownPseudo:"Choisis ton pseudo et c’est parti !"}</p>
    </article>;
 }

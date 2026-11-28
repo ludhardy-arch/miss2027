@@ -7,7 +7,7 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test registration.test.mjs reset.test.mjs game.test.mjs chat.test.mjs management.test.mjs chatFrame.test.mjs chatSocket.test.mjs loadControl.test.mjs capacity.test.mjs"
+    "test": "node --test registration.test.mjs reset.test.mjs game.test.mjs chat.test.mjs management.test.mjs chatFrame.test.mjs chatSocket.integration.mjs loadControl.test.mjs capacity.test.mjs"
   },
   "dependencies": {
     "firebase-admin": "13.4.0",

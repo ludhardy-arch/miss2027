@@ -54,3 +54,15 @@
 .miss-invite-menu .miss-invite-top button.miss-invite-close svg{display:block;margin:0;width:20px;height:20px;pointer-events:none}
 .miss-invite-menu .miss-invite-top button.miss-invite-close::before,.miss-invite-menu .miss-invite-top button.miss-invite-close::after{content:none!important;display:none!important}
 .miss-invite-menu .miss-invite-capacity{margin-bottom:20px}
+
+/* The legacy entry-panel first-button gold rule must never recolor the invitation CTA. */
+.tv-login-shell.tv-show-v3 .group-entry-panel .miss-invite-card button.miss-invite-green {
+ background:linear-gradient(135deg,#008743,#00c96b,#00a854)!important;
+ color:#fff!important;border:2px solid #46ff9b!important;
+ box-shadow:0 0 9px #00e58a,0 0 20px rgba(0,235,137,.35)!important;
+ font-size:16px!important;margin-top:22px!important;opacity:1!important;
+}
+.tv-login-shell.tv-show-v3 .group-entry-panel .miss-invite-card button.miss-invite-green:disabled {
+ background:linear-gradient(135deg,#424c58,#5c6571)!important;color:#d3d8e0!important;
+ border:2px solid #7c8693!important;box-shadow:none!important;opacity:1!important;cursor:not-allowed;transform:none!important;
+}

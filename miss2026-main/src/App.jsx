@@ -81,7 +81,7 @@ function RouterContent() {
   useEffect(() => {
     if (!authReady||!user) return;
 
-    if (user.role === "player" && !["/player","/waiting"].includes(location.pathname) && !new URLSearchParams(location.search).has("invite")) {
+    if (user.role === "player" && !["/player","/waiting","/demo"].includes(location.pathname) && !new URLSearchParams(location.search).has("invite")) {
       navigate("/player", { replace: true });
       return;
     }

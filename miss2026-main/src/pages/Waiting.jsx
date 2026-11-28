@@ -5,17 +5,17 @@ import ChatBubble from "../components/ChatBubble";
 import SelectionBubble from "../components/SelectionBubble";
 import { CANDIDATES } from "../data/candidates";
 
-export default function Waiting({ user }) {
+export default function Waiting({ user, demo = false }) {
   const { tour, players, votesOpen, groupTrend } = useContext(AppContext);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!user) return;
+    if (!user||demo) return;
     const player = players[user.pseudo];
     if (!player) return;
     const voted = Array.isArray(player[`tour${tour}`]) && player[`tour${tour}`].length > 0;
     if (!voted) navigate("/player");
-  }, [tour, players, navigate, user?.pseudo]);
+  }, [tour, players, navigate, user?.pseudo,demo]);
 
   const key = `tour${tour}`;
   const { ranking, validatedVotes } = useMemo(() => {

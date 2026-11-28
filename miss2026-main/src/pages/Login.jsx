@@ -412,7 +412,7 @@ export default function Login({ setUser }) {
   const notice = message => <p role="status" style={{margin:0,color:"#e0e8ff",fontSize:14,lineHeight:1.5}}>{message}</p>;
   const canEnter = connectionsLoaded && connectionsOpen && !connectionsError;
   function accessControl(isPublic, action, disabled=false, resume=false) {
-    const label = isPublic ? "Rejoindre un groupe public" : "Accéder au concours";
+    const label = isPublic ? "Rejoindre un groupe public et jouer" : "Accéder au concours";
     if (canEnter || (resume && connectionsLoaded && !connectionsError)) return <button type="button" className="group-entry-green" onClick={action} disabled={disabled || pending}
       style={{...greenButton,opacity:disabled || pending ? .55 : 1}}>{label}</button>;
     return <button type="button" className="group-entry-green group-entry-countdown" disabled
@@ -456,7 +456,8 @@ export default function Login({ setUser }) {
         <div style={{textAlign:"left",padding:"12px",marginBottom:14,borderRadius:14,background:"rgba(148,92,205,.17)",border:"1px solid #bc79be",fontSize:15,lineHeight:1.5}}>
           <div style={{fontWeight:800,color:"#f7acd7",marginBottom:8,textAlign:"center"}}>Deux façons de jouer :</div>
           <div style={{marginBottom:8}}>🌍 <strong>En salle publique :</strong> joue seul en rejoignant d’autres participants que tu ne connais pas.</div>
-          <div>👥 <strong>En groupe privé :</strong> un organisateur crée son groupe et invite ses amis ou sa famille à le rejoindre pour jouer ensemble.</div>
+          <div>👥 <strong>En groupe privé :</strong> crée ton groupe et invite tes amis ou ta famille, ou rejoins leurs groupes. Tu peux créer ton propre groupe et jouer aussi dans ceux de tes amis, jusqu’à trois groupes au total.</div>
+          <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid #a77dc1",color:"#ffe5ad",fontWeight:700}}>Un seul vote par tour, les mêmes points dans tous tes groupes et un classement différent dans chacun !</div>
         </div>
         {[
           { n: "01", text: "Premier tour : sélectionner 12 Miss et votre coup de cœur.", background: "#83283F", border: "#E66C8B", accent: "#FFD8E0" },
@@ -470,7 +471,7 @@ export default function Login({ setUser }) {
         ))}
         <div style={{textAlign:"center",padding:"17px 12px",margin:"12px 0",borderRadius:14,border:"1px solid #d6aa65",background:"linear-gradient(135deg,#493054,#261b38)",color:"#ffe6b3"}}>
           <div style={{fontSize:24}}>👑</div><strong style={{fontSize:19,letterSpacing:".04em"}}>LE SHOW FINAL</strong>
-          <p style={{fontSize:14,lineHeight:1.5,margin:"6px 0 0"}}>Découvre ton classement juste après l’élection de Miss France !</p>
+          <p style={{fontSize:14,lineHeight:1.5,margin:"6px 0 0"}}>Découvre ton classement dans chaque groupe et au niveau national, juste après l’élection de Miss France !</p>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10,textAlign:"left",borderTop:"1px solid #755581",padding:"12px 4px 2px",color:"#f4d6ee",fontSize:14,lineHeight:1.5}}><span style={{fontSize:23}}>⏳</span><span>À chaque tour, attends l’ouverture des votes pour valider tes choix.</span></div>
       </section>
@@ -563,7 +564,7 @@ export default function Login({ setUser }) {
           <button type="button" className="group-entry-gold" style={{...entryButton,background:"linear-gradient(135deg,#d9a42d,#ffe078,#e8b63e)",color:"#342303",border:"2px solid #ffdf77",boxShadow:"0 0 12px rgba(255,204,70,.42)"}} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>
         </>}
         {(screen === "public" || screen === "invite") && <>
-          {screen==="invite"&&inviteGroup&&<InvitationCard name={inviteGroup.name} password={invitationPassword} knownPseudo={knownPseudo} disabled={pending||!inviteIdentityReady||!!knownPseudo&&!multiReady||lobbyGroups.length>=3&&!lobbyGroups.some(g=>g.id===inviteGroup.id)} onJoin={()=>knownPseudo?void acceptInvite():setInviteForm(true)}/>}
+          {screen==="invite"&&inviteGroup&&<InvitationCard name={inviteGroup.name} password={invitationPassword} knownPseudo={knownPseudo} disabled={inviteForm||pending||!inviteIdentityReady||!!knownPseudo&&!multiReady||lobbyGroups.length>=3&&!lobbyGroups.some(g=>g.id===inviteGroup.id)} onJoin={()=>knownPseudo?void acceptInvite():setInviteForm(true)}/>}
           {screen==="invite"&&inviteGroup&&lobbyGroups.length>=3&&!lobbyGroups.some(g=>g.id===inviteGroup.id)&&notice("Tu appartiens déjà à trois groupes. Tu ne peux pas en rejoindre un quatrième.")}
           {(screen==="public"||inviteForm&&!knownPseudo)&&<>
             <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} disabled={pending} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>

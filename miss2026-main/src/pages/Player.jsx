@@ -21,7 +21,7 @@ const votePulseKeyframes = `
 }
 `;
 
-export default function Player({ user, setUser }) {
+export default function Player({ user, setUser, demo = false, demoDraftStores = [], onVoteComplete, onDemoExit }) {
   const {
     tour,
     votesOpen,
@@ -34,9 +34,12 @@ export default function Player({ user, setUser }) {
   } = useContext(AppContext);
 
   const navigate = useNavigate();
+  const goWaiting=()=>demo?onVoteComplete?.():navigate("/waiting");
+  const getDraftStorage=()=>demo?demoDraftStores:draftStorage();
 
   // ⭐⭐⭐ DÉCONNEXION TOTALE ⭐⭐⭐
   const handleLogout = async () => {
+    if(demo){onDemoExit?.();return;}
     if (!window.confirm("Voulez-vous vraiment vous déconnecter ?")) return;
 
     // Keep anonymous Firebase identity so this browser can reclaim the pseudo.
@@ -88,8 +91,8 @@ export default function Player({ user, setUser }) {
 
   // Si déjà voté, aller en attente
   useEffect(() => {
-    if (hasVotedThisTour) navigate("/waiting");
-  }, [hasVotedThisTour, navigate]);
+    if (hasVotedThisTour&&!demo) navigate("/waiting");
+  }, [hasVotedThisTour, navigate,demo]);
 
   // Brouillons propres à cette partie, au joueur et au tour.
   const {draft:draftKey,favorite:favoriteKey}=draftKeys(gameId,tour,user.uid);
@@ -99,7 +102,7 @@ export default function Player({ user, setUser }) {
   useEffect(() => {
     if (hasVotedThisTour || !gameId || gameId === "loading") return;
     setLoadedDraftKey(null);
-    const storage=draftStorage();
+    const storage=getDraftStorage();
     const saved=sanitizeDraft(readSaved(storage,draftKey,tour===3?{}:[]),tour,candidateIds);
     if(tour===3)setRanking(saved);
     else{
@@ -113,28 +116,28 @@ export default function Player({ user, setUser }) {
   // avec EXACTEMENT les mêmes clés que celles utilisées au chargement.
   useEffect(() => {
     if (hasVotedThisTour || loadedDraftKey !== draftKey) return;
-    writeSaved(draftStorage(),draftKey,tour===3?ranking:selection);
+    writeSaved(getDraftStorage(),draftKey,tour===3?ranking:selection);
   }, [draftKey, loadedDraftKey, hasVotedThisTour, tour, selection, ranking]);
 
   useEffect(() => {
     if (tour !== 1 || hasVotedThisTour || loadedDraftKey !== draftKey) return;
-    writeSaved(draftStorage(),favoriteKey,favorite);
+    writeSaved(getDraftStorage(),favoriteKey,favorite);
   }, [tour, hasVotedThisTour, loadedDraftKey, draftKey, favoriteKey, favorite]);
 
   // Sélection pour tour 1 & 2
   const handleClickMiss = (id) => {
     if (!votesOpen || hasVotedThisTour || tour === 3 || loadedDraftKey!==draftKey) return;
     const next=selection.includes(id)?selection.filter(x=>x!==id):selection.length<maxSelect?[...selection,id]:selection;
-    writeSaved(draftStorage(),draftKey,next);
+    writeSaved(getDraftStorage(),draftKey,next);
     setSelection(next);
-    if(tour===1&&favorite!==null&&!next.includes(favorite)){writeSaved(draftStorage(),favoriteKey,null);setFavorite(null);}
+    if(tour===1&&favorite!==null&&!next.includes(favorite)){writeSaved(getDraftStorage(),favoriteKey,null);setFavorite(null);}
   };
 
   const handleFavorite = (event, id) => {
     event.stopPropagation();
     if (tour !== 1 || !votesOpen || hasVotedThisTour || votePending || !selection.includes(id)) return;
     if(loadedDraftKey!==draftKey)return;
-    const next=favorite===id?null:id;writeSaved(draftStorage(),favoriteKey,next);setFavorite(next);
+    const next=favorite===id?null:id;writeSaved(getDraftStorage(),favoriteKey,next);setFavorite(next);
     setVoteFeedback("");
   };
 
@@ -165,7 +168,7 @@ export default function Player({ user, setUser }) {
         if (tour === 1) await updateFirstRoundWithFavorite(user.pseudo, selection, favorite);
         else await updatePlayerVote(user.pseudo, tour, selection);
         setVoteFeedback("Vote enregistré !");
-        navigate("/waiting");
+        goWaiting();
       } catch (error) {
         console.error("Échec enregistrement du vote :", error);
         setVoteFeedback(`Vote non enregistré (${error?.code || "erreur inconnue"}) : ${error?.message || "Réessaie ou contacte l’administrateur."}`);
@@ -199,7 +202,7 @@ export default function Player({ user, setUser }) {
     setVotePending(true);
     try {
       await updatePlayerVote(user.pseudo, 3, ordered);
-      navigate("/waiting");
+      goWaiting();
     } catch (error) {
       console.error("Échec enregistrement du vote :", error);
         alert(`Vote non enregistré (${error?.code || "erreur inconnue"}). ${error?.message || "Réessaie ou contacte l’administrateur."}`);
@@ -274,7 +277,7 @@ export default function Player({ user, setUser }) {
         >
           📢 <b>Les votes sont ouverts !!!</b>
           <br />
-          Le temps limite est le même qu'à la télé.
+          {demo?"Dans la démo, prends le temps de faire tes choix.":"Le temps limite est le même qu'à la télé."}
           <br />
           <button
             onClick={() => setShowVoteBanner(false)}
@@ -471,7 +474,7 @@ export default function Player({ user, setUser }) {
                   const updated={...ranking};
                   for(const mid of Object.keys(updated))if(updated[mid]===newRank||Number(mid)===miss.id)delete updated[mid];
                   if(newRank>=1&&newRank<=5)updated[miss.id]=newRank;
-                  writeSaved(draftStorage(),draftKey,updated);setRanking(updated);
+                  writeSaved(getDraftStorage(),draftKey,updated);setRanking(updated);
                 }}
                 disabled={!votesOpen || hasVotedThisTour}
                 style={{
@@ -531,7 +534,7 @@ export default function Player({ user, setUser }) {
             cursor: "pointer",
           }}
         >
-          ⛔ Déconnexion
+          {demo?"Quitter la démo":"⛔ Déconnexion"}
         </button>
       </div>
     </div>

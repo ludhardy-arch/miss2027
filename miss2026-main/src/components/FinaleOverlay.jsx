@@ -4,7 +4,7 @@ import { calculatePoints } from "../services/points";
 import { AppContext } from "../context/AppContext";
 
 // Premium, mobile-first ceremony for the PLAYERS' prediction competition.
-export default function FinalShow({ players, adminSelections, isAdmin, frozenRanking = null, national = null, showKey = null, groupName = null }) {
+export default function FinalShow({ players, adminSelections, isAdmin, frozenRanking = null, national = null, showKey = null, groupName = null, onDemoExit = null, onDemoRestart = null }) {
   const { updateFinaleStarted } = useContext(AppContext);
   const ranking = useMemo(() => frozenRanking ?? Object.entries(players || {})
     .map(([pseudo, votes]) => ({ pseudo, points: calculatePoints(votes, adminSelections) || 0 }))
@@ -102,6 +102,7 @@ export default function FinalShow({ players, adminSelections, isAdmin, frozenRan
         <div style={{ ...smallCap, fontSize: 14, letterSpacing: ".14em" }}>MISS FRANCE <span style={gold}>2027</span></div>
         <div style={{ ...smallCap, fontSize: 9, color: "#d9bfa0", letterSpacing: ".2em" }}>{groupName||"Le jeu des pronostics"}</div>
         {isAdmin && <button className="finalshow-quit" onClick={quit}>Quitter</button>}
+        {onDemoExit&&<button className="finalshow-quit" onClick={onDemoExit}>Quitter la démo</button>}
       </header>
 
       <div className="finalshow-main">
@@ -228,6 +229,7 @@ export default function FinalShow({ players, adminSelections, isAdmin, frozenRan
               {!ranking.length&&<p>Aucun pronostic enregistré dans cette salle.</p>}
               {national&&<section style={{marginTop:24,textAlign:"center"}}><h2>Classement national</h2>{national.personal?<p>Ton rang : <strong>{national.personal.nationalRank} / {national.personal.nationalTotal}</strong> · {national.personal.points} points</p>:<p>Aucun pronostic enregistré pour toi.</p>}<div className="finalshow-ranking">{(national.nationalTop||[]).map((p,i)=><div className="finalshow-ranking-row" key={i}><span>{p.rank}</span><span>{p.pseudo}</span><strong>{p.points} pts</strong></div>)}</div></section>}
               <p style={{ textAlign: "center", color: "#a8a09b", fontSize: 12, marginTop: 20 }}>Merci à tous d'avoir joué !</p>
+              {onDemoRestart&&<button type="button" onClick={onDemoRestart} style={{display:"block",width:"100%",marginTop:18,padding:14,borderRadius:12,background:"#173a73",color:"#fff",border:"1px solid #7caee3",fontWeight:800}}>Rejouer la démo</button>}
             </div>
           )}
         </div>

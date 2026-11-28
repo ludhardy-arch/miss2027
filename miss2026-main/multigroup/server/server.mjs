@@ -537,7 +537,7 @@ const server=http.createServer(async(req,res)=>{
     else res.end();
   }
 });
-if(process.env.ENABLE_TEST_CHAT_WEBSOCKET==="true")attachChatSocket(server,{origin:ORIGIN,auth,rootRef:getDatabase(app).ref(),adminUid:"fma5bvfcCRYoS1kBf0CUFdBVowJ3",isReady:()=>registrationEnabled&&ready(),allowChatRead:()=>!chatBudgetReached()});
+if(process.env.ENABLE_TEST_CHAT_WEBSOCKET==="true")attachChatSocket(server,{origin:ORIGIN,auth,rootRef:getDatabase(app).ref(),adminUid:"fma5bvfcCRYoS1kBf0CUFdBVowJ3",isReady:()=>registrationEnabled&&ready(),allowChatRead:()=>!chatBudgetReached(),maxClients:highCapacity?5000:1500});
 server.requestTimeout=15000;
 server.headersTimeout=10000;
 server.listen(Number(process.env.PORT||3000),"0.0.0.0");

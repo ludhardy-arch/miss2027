@@ -105,9 +105,9 @@ async function measuredJson(response){
  const raw=await response.text();ioStats.downloadedBytes+=Buffer.byteLength(raw);
  return JSON.parse(raw);
 }
-async function directRootAccess(){
-  // The URL is fixed to the dedicated test project and cannot be supplied by the caller.
-  const url=DATABASE+"/.json";
+async function directRootAccess({chatOnly=false,silent=false}={}){
+  // Scope is selected exclusively by trusted server code, never by the caller.
+  const url=DATABASE+(chatOnly?"/events/miss2027.json":"/.json");
   const token=await app.options.credential.getAccessToken();
   const headers={Authorization:"Bearer "+token.access_token};
   const read=async()=>{
@@ -118,9 +118,12 @@ async function directRootAccess(){
   };
   const write=async(state,etag)=>{
     const payload=JSON.stringify(state);ioStats.writes++;ioStats.uploadedBytes+=Buffer.byteLength(payload);
-    const response=await fetch(url,{method:"PUT",headers:{...headers,"Content-Type":"application/json","If-Match":etag},body:payload,signal:AbortSignal.timeout(12000),redirect:"error"});
+    const response=await fetch(url+(silent?"?print=silent":""),{method:"PUT",headers:{...headers,"Content-Type":"application/json","If-Match":etag},body:payload,signal:AbortSignal.timeout(12000),redirect:"error"});
     if(response.status===412){ioStats.conflicts++;await measuredJson(response).catch(()=>{});return {ok:false};}
     if(!response.ok)throw Object.assign(Error("database_write_failed"),{status:503});
+    // A conditional 204 is an acknowledged commit, not a read-back. Only the
+    // pure batched operations opt into this mode (no server-value transforms).
+    if(silent&&response.status===204)return {ok:true,state};
     return {ok:true,state:await measuredJson(response)};
   };
   return {read,write};
@@ -132,7 +135,22 @@ async function directRootChange(operation,verify){
   try{const access=await directRootAccess();return await conditionalWrite({...access,operation,verify});}
   finally{readCache.invalidate();}
 }
-const voteQueue=createVoteQueue(directRootChange);
+async function changeBatch(operation,{chatOnly=false}={}){
+  readCache.invalidate();
+  try{
+    // Ordinary messages depend on the event's registration, sanctions and
+    // messages, not on rooms/control. Retain one atomic ETag over that event.
+    // Vote-containing batches must retain the root ETag (round and vote gate).
+    const access=await directRootAccess({chatOnly,silent:true});
+    const scoped=chatOnly?state=>{
+      const out=operation({events:{miss2027:state}});
+      if(out.code)return out;
+      return {state:out.state.events.miss2027,result:out.result};
+    }:operation;
+    return await conditionalWrite({...access,operation:scoped});
+  }finally{readCache.invalidate();}
+}
+const voteQueue=createVoteQueue(changeBatch);
 function loadStats(){return {...ioStats,cache:readCache.stats(),votes:voteQueue.stats(),memoryBytes:process.memoryUsage().rss,scope:"process_rest_payload_only",highCapacity,chatBudgetBytes,chatBudgetReached:chatBudgetReached()};}
 async function directReset(kind,id){
   const {read,write}=await directRootAccess();

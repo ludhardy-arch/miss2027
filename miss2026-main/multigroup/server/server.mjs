@@ -48,12 +48,19 @@ function registrationChange(root,operation){if(locked(root))return {code:"member
 const validString=(v,min,max)=>typeof v==="string"&&v.trim().length>=min&&v.length<=max;
 const validId=v=>typeof v==="string"&&/^[a-f0-9-]{36}$/.test(v);
 const rate=new Map();
-const globalRate={count:0,until:0};
+const highCapacity=process.env.ENABLE_TEST_HIGH_CAPACITY==="true";
+// Independent quotas for reads and writes; admin has a reserved lane. Test only.
+const globalWindows=new Map();
+function admitGlobal(kind,now=Date.now()){
+ const lane=highCapacity?kind:"legacy";
+ const max=lane==="legacy"?1500:lane==="admin"?300:lane==="read"?18000:6000;
+ let r=globalWindows.get(lane);
+ if(!r||r.until<=now){r={count:0,until:now+60000};globalWindows.set(lane,r);}
+ return ++r.count<=max;
+}
 let cryptoJobs=0;
 function limited(key,max,period=60000) {
   const now=Date.now();
-  if(globalRate.until<=now){globalRate.count=0;globalRate.until=now+60000;}
-  if(++globalRate.count>1500)return true; // Test-only ceiling; capacity still needs measuring.
   if(rate.size>10000)for(const [k,v] of rate)if(v.until<=now)rate.delete(k);
   if(rate.size>12000&&!rate.has(key))return true;
   let r=rate.get(key);
@@ -126,7 +133,7 @@ async function directRootChange(operation,verify){
   finally{readCache.invalidate();}
 }
 const voteQueue=createVoteQueue(directRootChange);
-function loadStats(){return {...ioStats,cache:readCache.stats(),votes:voteQueue.stats(),memoryBytes:process.memoryUsage().rss,scope:"process_rest_payload_only",chatBudgetBytes,chatBudgetReached:chatBudgetReached()};}
+function loadStats(){return {...ioStats,cache:readCache.stats(),votes:voteQueue.stats(),memoryBytes:process.memoryUsage().rss,scope:"process_rest_payload_only",highCapacity,chatBudgetBytes,chatBudgetReached:chatBudgetReached()};}
 async function directReset(kind,id){
   const {read,write}=await directRootAccess();
   readCache.invalidate();
@@ -212,7 +219,8 @@ const server=http.createServer(async(req,res)=>{
     try{user=await auth.verifyIdToken(bearer[1],true);}catch{return reply(res,401,{error:"invalid_token"});}
     const uid=user.uid;
     if(!/^[a-zA-Z0-9_-]{1,128}$/.test(uid)||["__proto__","constructor","prototype"].includes(uid))return reply(res,403,{error:"unsupported_identity"});
-    if(limited("user:"+uid,30))return reply(res,429,{error:"too_many_requests"});
+    const isAdmin=user.uid==="fma5bvfcCRYoS1kBf0CUFdBVowJ3"&&user.firebase?.sign_in_provider==="google.com";
+    if(!admitGlobal(isAdmin?"admin":req.method==="GET"?"read":"write")||limited("user:"+uid,30))return reply(res,429,{error:"too_many_requests"});
     await ensureScheduledOpening();
     if(req.method==="GET"&&url.pathname==="/admin/chat/alerts"){
       if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});
@@ -245,7 +253,9 @@ const server=http.createServer(async(req,res)=>{
         const b=await body(req),id=randomUUID(),now=Date.now();
         const action=admin?(b.action||"send"):["report","report_room"].includes(b.action)?b.action:"send";
         if(!admin&&action==="send"&&chatBudgetReached())return reply(res,503,{error:"chat_budget_pause"});
-        const result=await directRootChange(root=>chatAction(root,{uid,admin,groupId:b.groupId,text:b.text,id,now,action,targetUid:admin?b.targetUid:undefined,messageId:b.messageId,gameId:b.gameId,tour:b.tour}));
+        const operation=root=>chatAction(root,{uid,admin,groupId:b.groupId,text:b.text,id,now,action,targetUid:admin?b.targetUid:undefined,messageId:b.messageId,gameId:b.gameId,tour:b.tour});
+        // Batch ordinary player messages with spare vote capacity. Moderation stays immediate.
+        const result=await (!admin&&action==="send"?voteQueue.enqueueChat(operation):directRootChange(operation));
         if(action==="clear_room_alerts"&&result.status===200){
           const fresh=await directRootRead();
           const reports=fresh?.events?.miss2027?.chatReports?.[result.body.roomId]||{};

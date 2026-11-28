@@ -93,6 +93,19 @@ export default function Admin({ user, setUser }) {
     if(!window.confirm((action==="warn"?"Avertir ":action==="block"?"Bloquer ":"Débloquer ")+player.pseudo+" ?"))return;
     try{await adminRequest("/admin/chat",{groupId:player.groupId,targetUid:player.uid,action});setNationalView(await adminRequest("/admin/game"));}catch(e){reportActionError(e);}
   }
+  async function confirmDeleteGroup(){
+    if(deleteBusy||!deleteTarget||deleteWord!=="SUPPRIMER"||votesOpen||finaleStarted||tour!==1||gameId==="loading")return;
+    const target=deleteTarget;
+    if(!window.confirm("Dernière confirmation : supprimer définitivement le groupe "+target.name+" et son chat ? Les autres groupes seront conservés."))return;
+    setDeleteBusy(true);setDeleteFeedback("");
+    try{
+      const result=await adminRequest("/admin/group/delete",{groupId:target.id,gameId:String(gameId),confirmation:deleteWord,confirmed:true});
+      if(result.accepted!==true||result.verified!==true||result.groupId!==target.id)throw Error("Suppression non confirmée.");
+      setDeleteTarget(null);setDeleteWord("");setExpandedGroup(null);setChatGroup(old=>old===target.id?"":old);
+      setDeleteFeedback("Groupe "+target.name+" supprimé. "+result.retained+" joueur(s) conservé(s) dans leurs autres groupes ; "+result.unregistered+" inscription(s) libérée(s).");
+      setNationalView(await adminRequest("/admin/game"));
+    }catch(e){reportActionError(e);}finally{setDeleteBusy(false);}
+  }
   async function removeMember(player){
     if(removing||finaleStarted||!gameId||gameId==="loading")return;
     const owner=groups.find(g=>g.id===player.groupId)?.ownerPseudo===player.pseudo;
@@ -120,7 +133,7 @@ export default function Admin({ user, setUser }) {
     const token=await current.getIdToken();
     const res=await fetch("https://miss2027-test-api.onrender.com"+path,{method:body===undefined?"GET":"POST",headers:{Authorization:"Bearer "+token,...(body===undefined?{}:{"Content-Type":"application/json"})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(45000),cache:"no-store"});
     const data=await res.json();
-    if(!res.ok)throw Error(({close_votes_first:"Ferme les votes avant de valider.",game_changed:"La partie a changé.",round_changed:"Le tour a changé.",invalid_vote:"Sélection officielle non valide.",invalid_member:"Ce joueur ne fait plus partie de ce groupe.",game_finished:"Les résultats sont déjà publiés.",votes_closed:"Les votes sont fermés.",already_voted:"Ce joueur a déjà validé son vote.",reminder_not_verified:"Le rappel n’a pas pu être confirmé.",clear_alert_not_verified:"L’effacement de l’alerte n’a pas pu être confirmé."})[data.error]||"Serveur de la régie indisponible.");
+    if(!res.ok)throw Error(({close_votes_first:"Ferme les votes avant de valider.",game_changed:"La partie a changé.",round_changed:"Le tour a changé.",invalid_vote:"Sélection officielle non valide.",invalid_member:"Ce joueur ne fait plus partie de ce groupe.",invalid_group:"Ce groupe n’existe plus.",membership_locked:"Suppression impossible après le début des votes. Remets d’abord le jeu à zéro.",confirmation_required:"Confirmation manquante.",group_delete_not_verified:"La suppression du groupe n’a pas pu être confirmée.",reset_not_verified:"La suppression n’a pas pu être vérifiée.",game_finished:"Les résultats sont déjà publiés.",votes_closed:"Les votes sont fermés.",already_voted:"Ce joueur a déjà validé son vote.",reminder_not_verified:"Le rappel n’a pas pu être confirmé.",clear_alert_not_verified:"L’effacement de l’alerte n’a pas pu être confirmé."})[data.error]||"Serveur de la régie indisponible.");
     return data;
   }
   async function toggleControl(kind,open){
@@ -156,6 +169,7 @@ export default function Admin({ user, setUser }) {
   const [rankExpanded, setRankExpanded] = useState(false);
   const [expandedGroup,setExpandedGroup]=useState(null);
   const [removing,setRemoving]=useState(null);
+  const [deleteTarget,setDeleteTarget]=useState(null),[deleteWord,setDeleteWord]=useState(""),[deleteBusy,setDeleteBusy]=useState(false),[deleteFeedback,setDeleteFeedback]=useState("");
   const [favoritesExpanded,setFavoritesExpanded]=useState(false);
   const [groupsExpanded,setGroupsExpanded]=useState(false);
   const resetWord=resetKind==="game"?"JEU":"INSCRIPTIONS";
@@ -411,11 +425,20 @@ export default function Admin({ user, setUser }) {
                   </div>
                 ))}
                 {!members.length&&<p className="regie-muted">Aucun joueur inscrit dans ce groupe.</p>}
+                <button type="button" disabled={deleteBusy||votesOpen||finaleStarted||tour!==1||gameId==="loading"} onClick={()=>{setDeleteTarget(g);setDeleteWord("");setDeleteFeedback("");}} style={{width:"100%",marginTop:10,padding:11,borderRadius:10,border:"1px solid #ff8793",background:"#8a2542",color:"#fff",fontWeight:800}}>Supprimer ce groupe</button>
+                {deleteTarget?.id===g.id&&<div style={{display:"grid",gap:9,marginTop:10,padding:12,border:"1px solid #ff8793",borderRadius:10,background:"#38172c"}}>
+                  <strong>Supprimer « {g.name} » ?</strong>
+                  <p style={{fontSize:13,margin:0}}>Le groupe, son chat et ses invitations seront supprimés. Les joueurs inscrits ailleurs gardent leurs autres groupes. Les autres pourront se réinscrire.</p>
+                  <label>Écris SUPPRIMER pour confirmer<input value={deleteWord} onChange={e=>setDeleteWord(e.target.value)} autoCapitalize="characters" autoComplete="off" disabled={deleteBusy}/></label>
+                  <button type="button" disabled={deleteBusy||deleteWord!=="SUPPRIMER"||votesOpen||finaleStarted||tour!==1} onClick={()=>void confirmDeleteGroup()} style={{background:"#8a2542",color:"#fff"}}>{deleteBusy?"Suppression…":"Confirmer définitivement"}</button>
+                  <button type="button" disabled={deleteBusy} onClick={()=>{setDeleteTarget(null);setDeleteWord("");}}>Annuler</button>
+                </div>
               </div>}
             </div>;
           })}
         </div>
         {!groups.length&&<p className="regie-muted">Aucun groupe créé.</p>}
+        {deleteFeedback&&<p role="status" style={{color:"#a7ffd2"}}>{deleteFeedback}</p>}
       </section>}
       {votesExpanded&&<section className="regie-expand"><h3>SUIVI DES VOTES · TOUR {tour}</h3>
         <div className="regie-group-list">

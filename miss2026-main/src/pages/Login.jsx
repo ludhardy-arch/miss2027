@@ -11,7 +11,7 @@ import WaitingGroups from "../components/WaitingGroups";
 import { signInWithCustomToken, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
  
 // 12 décembre 2026, 20 h 40 à Paris (heure d'hiver : UTC+1).
-const REGISTRATION_OPEN_AT = new Date("2026-12-12T20:40:00+01:00").getTime();
+import {REGISTRATION_OPEN_AT} from "../contestSchedule.mjs";
 function getRemainingTime() {
   const total = Math.max(0, Math.ceil((REGISTRATION_OPEN_AT - Date.now()) / 1000));
   return {
@@ -116,6 +116,13 @@ export default function Login({ setUser }) {
   },[nameKey,nameRetry,firebaseIdentity]);
   const nameFeedback=()=>!nameStatus?null:<div aria-live="polite" style={{fontSize:13,fontWeight:600,color:nameStatus==="available"?"#78ffbd":nameStatus==="taken"||nameStatus==="error"?"#ff929a":"#c6d3ee"}}>{nameStatus==="available"?"✓ Nom du groupe disponible":nameStatus==="taken"?"✗ Nom du groupe déjà pris":nameStatus==="error"?<>Vérification indisponible. <button type="button" onClick={()=>setNameRetry(n=>n+1)} style={{fontSize:12,padding:"3px 8px"}}>Réessayer</button></>:"Vérification du nom du groupe…"}</div>;
   const [remaining, setRemaining] = useState(getRemainingTime);
+  useEffect(()=>{
+    if(remaining.total>0||connectionsOpen)return;
+    let active=true,busy=false;
+    const wake=async()=>{if(!active||busy||!auth.currentUser)return;busy=true;try{await groupRequest("/groups/me");}catch{}finally{busy=false;}};
+    void wake();const timer=setInterval(wake,30000);
+    return()=>{active=false;clearInterval(timer);};
+  },[remaining.total===0,connectionsOpen]);
   useEffect(() => {
     const timer = window.setInterval(() => setRemaining(getRemainingTime()), 1000);
     return () => window.clearInterval(timer);
@@ -431,7 +438,7 @@ export default function Login({ setUser }) {
           </span>
         </> : <>
           <span className="group-entry-countdown-label">{label}</span>
-          <span className="group-entry-clock-wait">En attente de l’administrateur</span>
+          <span className="group-entry-clock-wait">En attente de l’ouverture des connexions</span>
         </>}
     </button>;
   }
@@ -459,6 +466,7 @@ export default function Login({ setUser }) {
           <div>👥 <strong>En groupe privé :</strong> crée ton groupe et invite tes amis ou ta famille, ou rejoins leurs groupes. Tu peux créer ton propre groupe et jouer aussi dans ceux de tes amis, jusqu’à trois groupes au total.</div>
           <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid #a77dc1",color:"#ffe5ad",fontWeight:700}}>Un seul vote par tour, les mêmes points dans tous tes groupes et un classement différent dans chacun !</div>
         </div>
+        <div style={{display:"flex",alignItems:"center",gap:11,textAlign:"left",padding:"13px 12px",marginBottom:12,background:"#146447",border:"1px solid #51d99e",borderRadius:14,color:"#d9ffeb",fontSize:15,fontWeight:700,lineHeight:1.5}}><span aria-hidden="true" style={{fontSize:24,flexShrink:0}}>⏱</span><span>Attends l’ouverture du jeu après le décompte du chronomètre.</span></div>
         {[
           { n: "01", text: "Premier tour : sélectionner 12 Miss et votre coup de cœur.", background: "#83283F", border: "#E66C8B", accent: "#FFD8E0" },
           { n: "02", text: "Deuxième tour : sélectionner 5 Miss.", background: "#205C99", border: "#64A9EA", accent: "#DAEEFF" },

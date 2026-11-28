@@ -3,7 +3,7 @@ import { AppContext } from "../context/AppContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { auth, simulatedPlayerApp } from "../firebase";
 import {TEST_ORIGIN,testPlayerUrl,adminSessionUrl} from "../testPlayerSession.mjs";
-import ChatBubble from "../components/ChatBubble";
+import MultiGroupChat from "../components/MultiGroupChat";
 import RulesToggle from "../components/RulesToggle";
 import InvitationPreview from "../components/InvitationPreview";
 import InvitationCard from "../components/InvitationCard";
@@ -25,8 +25,8 @@ function getRemainingTime() {
 
 
 const GROUP_API="https://miss2027-test-api.onrender.com";
-const groupErrors={player_removed:"La régie a retiré ton inscription du concours.",recovery_invalid:"Pseudo ou mot de passe du groupe incorrect.",creation_not_verified:"La création du groupe n’a pas pu être confirmée. Réessaie de retrouver ton groupe.",group_name_taken:"Nom du groupe déjà pris. Choisis-en un autre.",group_full:"Ce groupe est complet (30 participants maximum).",pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les connexions sont fermées par la régie. Patiente dans ton groupe.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",owner_required:"Seul le créateur reconnu sur son navigateur peut gérer ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",invitation_changed:"Ce lien a été remplacé ou désactivé. Prépare un nouveau lien.",invitation_unavailable:"Invitation temporairement indisponible. Contacte la régie.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
-const lobbyChat=body=>groupRequest("/chat",body);
+const groupErrors={player_removed:"La régie a retiré ton inscription du concours.",recovery_invalid:"Pseudo ou mot de passe du groupe incorrect.",creation_not_verified:"La création du groupe n’a pas pu être confirmée. Réessaie de retrouver ton groupe.",group_name_taken:"Nom du groupe déjà pris. Choisis-en un autre.",group_full:"Ce groupe est complet (30 participants maximum).",pseudo_taken:"Pseudo déjà pris. Choisis-en un autre.",membership_locked:"Le concours a commencé : les groupes sont figés.",invalid_member:"Ce participant ne peut pas être retiré.",not_registered:"Ton inscription est introuvable. Retourne à l’accueil.",game_unavailable:"Le concours n’est pas encore initialisé.",game_finished:"Le concours est terminé.",public_closed:"Les connexions sont fermées par la régie. Patiente dans ton groupe.",admin_cannot_register:"Utilise une autre session pour jouer : ce compte est réservé à la régie.",registration_reset:"Les inscriptions viennent d’être réinitialisées. Recommence.",owner_required:"Seul le créateur reconnu sur son navigateur peut gérer ce groupe.",already_member:"Tu appartiens déjà à un groupe.",group_limit:"Tu as déjà atteint la limite de trois groupes.",group_or_password_invalid:"Groupe indisponible ou mot de passe incorrect.",invalid_password:"Mot de passe incorrect.",invitation_changed:"Ce lien a été remplacé ou désactivé. Prépare un nouveau lien.",invitation_unavailable:"Invitation temporairement indisponible. Contacte la régie.",unavailable:"Les inscriptions à ce groupe sont fermées.",too_many_requests:"Trop de tentatives. Réessaie dans une minute.",test_registration_disabled:"Le serveur d’inscription est en cours de préparation.",invalid_token:"Ta session a expiré. Actualise la page.",invalid_fields:"Vérifie le pseudo et le mot de passe."};
+
 async function groupRequest(path,body) {
   if(window.location.origin!=="https://miss2027-test.onrender.com")throw Error("Ce service est réservé au site test.");
   const user=auth.currentUser;
@@ -49,6 +49,9 @@ export default function Login({ setUser }) {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [groupPassword, setGroupPassword] = useState("");
   const [joinedGroup, setJoinedGroup] = useState(null);
+  const [lobbyGroups,setLobbyGroups]=useState([]),[multiReady,setMultiReady]=useState(false),[groupsLocked,setGroupsLocked]=useState(false),[additionalFlow,setAdditionalFlow]=useState(false);
+  const knownPseudo=lobbyGroups[0]?.pseudo||"";
+  const [inviteIdentityReady,setInviteIdentityReady]=useState(false);
   const [recoveryInput,setRecoveryInput]=useState("");
   const [recoveryPseudo,setRecoveryPseudo]=useState("");
   const [lobbyMembers,setLobbyMembers]=useState([]);
@@ -143,6 +146,17 @@ export default function Login({ setUser }) {
     return () => { active = false; unsubscribe(); };
   }, []);
 
+  function applyLobby(data){
+    const groups=Array.isArray(data.groups)?data.groups:data.group?[{...data.group,members:data.members||[]}]:[];
+    setMultiReady(data.maxGroups===3);setGroupsLocked(data.locked===true);
+    setLobbyGroups(groups);setJoinedGroup(groups[0]||null);setLobbyMembers(groups[0]?.members||[]);
+    return groups;
+  }
+  function showLobby(data){
+    const groups=applyLobby(data);restoredIdentity.current=firebaseIdentity;
+    setAdditionalFlow(false);setEntryMode(groups.length?"joined-group":"home");
+  }
+  useEffect(()=>{setLobbyGroups([]);setJoinedGroup(null);setOwnerGroup(null);setMultiReady(false);setAdditionalFlow(false);},[firebaseIdentity]);
   const searchGeneration=useRef(0);
   useEffect(()=>{searchGeneration.current++;setGroupResults(null);setSelectedGroup(null);},[gameId]);
   useEffect(()=>{
@@ -151,11 +165,12 @@ export default function Login({ setUser }) {
     groupRequest("/groups/me").then(async result=>{
       if(!active)return;
       if(result.removed){restoredIdentity.current=firebaseIdentity;setError("La régie a retiré ton inscription du concours.");return;}
+      const groups=applyLobby(result);
       if(!result.group){restoredIdentity.current=firebaseIdentity;return;}
-      if(result.group.isOwner){
-        const owner=await groupRequest("/groups/owner/manage");
+      if(result.group.isOwner&&groups.length===1){
+        const owner=await groupRequest("/groups/owner/manage?groupId="+encodeURIComponent(result.group.id));
         if(active){restoredIdentity.current=firebaseIdentity;setOwnerGroup(owner.group);setEntryMode("creator-dashboard");}
-      }else{restoredIdentity.current=firebaseIdentity;setJoinedGroup(result.group);setEntryMode("joined-group");}
+      }else{restoredIdentity.current=firebaseIdentity;setEntryMode("joined-group");}
     }).catch(e=>{if(active)setError(e.message);});
     return()=>{active=false;};
   },[firebaseIdentity,invitation]);
@@ -169,24 +184,24 @@ export default function Login({ setUser }) {
       try{
         const data=await groupRequest("/groups/me");
         if(!active)return;
-        if(data.removed){setJoinedGroup(null);setOwnerGroup(null);setEntryMode("home");setError("La régie a retiré ton inscription du concours.");return;}
-        if(data.group?.id!==lobbyGroup.id){
+        if(data.removed){applyLobby(data);setOwnerGroup(null);setEntryMode("home");setError("La régie a retiré ton inscription du concours.");return;}
+        if(!data.group){
           if(++missing<2){setLobbyError("Vérification de ton inscription en cours…");return;}
-          setJoinedGroup(null);setOwnerGroup(null);setEntryMode("home");setError("Ton inscription n’est plus active après vérification.");return;
+          applyLobby(data);setOwnerGroup(null);setEntryMode("home");setError("Ton inscription n’est plus active après vérification.");return;
         }
-        missing=0;setLobbyMembers(data.members||[]);setLobbyError("");
-        if(data.group.isOwner){
-          if(!lobbyGroup.isOwner){const owner=await groupRequest("/groups/owner/manage");if(active){setOwnerGroup(owner.group);setEntryMode("creator-dashboard");}}
-          else setOwnerGroup(old=>old?.id===data.group.id?{...old,...data.group,members:data.members||old.members}:old);
+        missing=0;const groups=applyLobby(data);setLobbyError("");
+        if(["creator-confirm","creator-dashboard"].includes(screen)){
+          const selected=groups.find(g=>g.id===lobbyGroup.id&&g.isOwner);
+          if(!selected){setOwnerGroup(null);setEntryMode("joined-group");return;}
+          setOwnerGroup(old=>old?.id===selected.id?{...old,...selected,registrationsOpen:!selected.locked&&selected.memberCount<30,members:selected.members||old.members}:old);
         }
-        else setJoinedGroup(data.group);
       }catch(e){if(active)setLobbyError(e.message);}
       finally{busy=false;}
     }
     void poll();const timer=setInterval(poll,15000);
     window.addEventListener("online",poll);document.addEventListener("visibilitychange",poll);
     return()=>{active=false;clearInterval(timer);window.removeEventListener("online",poll);document.removeEventListener("visibilitychange",poll);};
-  },[lobbyGroup?.id,firebaseIdentity]);
+  },[lobbyGroup?.id,firebaseIdentity,screen]);
   // Recover from Firebase, not a cached group name or a pseudo. Do not redirect
   // automatically: the owner must remain free to manage the group or open the demo.
   useEffect(()=>{
@@ -194,7 +209,7 @@ export default function Login({ setUser }) {
     if(screen!=="home"||!firebaseIdentity||firebaseIdentity===import.meta.env.VITE_ADMIN_UID)return;
     setRecoverableGroup(null);setRecoveryStatus("loading");
     groupRequest("/groups/me").then(result=>{
-      if(active){setRecoverableGroup(result.group||null);setRecoveryStatus("done");}
+      if(active){applyLobby(result);setRecoverableGroup(result.group||null);setRecoveryStatus("done");}
     }).catch(()=>{if(active)setRecoveryStatus("failed");});
     return()=>{active=false;};
   },[screen,firebaseIdentity,gameId]);
@@ -222,7 +237,7 @@ export default function Login({ setUser }) {
     try{
       const result=await groupRequest("/groups/me");
       setRecoverableGroup(result.group||null);setRecoveryStatus("done");
-      if(result.group){setJoinedGroup(result.group);setEntryMode("joined-group");}
+      if(result.group){showLobby(result);}
       else setError("Aucune inscription retrouvée sur cette session.");
     }catch(err){setError(err.message||"Impossible de retrouver ton groupe.");}
     finally{setPending(false);}
@@ -230,23 +245,23 @@ export default function Login({ setUser }) {
 
   useEffect(()=>{
     let active=true;
-    setInviteGroup(null);setInviteStatus("");setInvitationPassword("");setInviteForm(false);
+    setInviteGroup(null);setInviteStatus("");setInvitationPassword("");setInviteForm(false);setInviteIdentityReady(false);
     if(!invitation||!firebaseIdentity)return;
-    groupRequest("/groups/invite/preview",{token:invitation}).then(r=>{if(active){setInviteGroup(r.group);setInvitationPassword(typeof r.password==="string"?r.password:"");setInviteStatus("ok");}}).catch(e=>{if(active)setInviteStatus(e.message);});
+    Promise.all([groupRequest("/groups/invite/preview",{token:invitation}),groupRequest("/groups/me")]).then(([r,data])=>{if(active){applyLobby(data);setInviteIdentityReady(true);setInviteGroup(r.group);setInvitationPassword(typeof r.password==="string"?r.password:"");setInviteStatus("ok");}}).catch(e=>{if(active)setInviteStatus(e.message);});
     return()=>{active=false;};
   },[invitation,firebaseIdentity,gameId]);
   async function acceptInvite(event){
-    event.preventDefault();
-    if(pending||!inviteGroup||!pseudoReady)return;
+    event?.preventDefault();
+    if(pending||!inviteGroup||!inviteIdentityReady||(!knownPseudo&&!pseudoReady))return;
     setPending(true);setError("");
-    try{const result=await groupRequest("/groups/invite/join",{token:invitation,pseudo:pseudo.trim()});setJoinedGroup(result.group);setEntryMode("joined-group");setSearchParams({}, {replace:true});}
+    try{const result=await groupRequest("/groups/invite/join",{token:invitation,pseudo:knownPseudo||pseudo.trim(),additional:multiReady&&!!knownPseudo});if(result.group?.id!==inviteGroup.id)throw Error("Ce groupe n’a pas été ajouté. Réessaie après actualisation.");showLobby(await groupRequest("/groups/me"));setSearchParams({}, {replace:true});}
     catch(e){setError(e.message);}finally{setPending(false);}
   }
   async function ownerAction(action,value,targetUid){
     if(pending||!ownerGroup)return;
     setPending(true);setError("");setInviteStatus("");
     try{
-      const result=await groupRequest("/groups/owner/manage",{action,value,targetUid});
+      const result=await groupRequest("/groups/owner/manage",{groupId:ownerGroup.id,action,value,targetUid});
       setOwnerGroup(result.group);
       if(action==="invite"){
         if(!result.token)throw Error("Le serveur n’a pas renvoyé le lien d’invitation.");
@@ -257,7 +272,7 @@ export default function Login({ setUser }) {
     }catch(e){setError(e.message);}finally{setPending(false);}
   }
   async function loadInvitation(password){
-    const result=await groupRequest("/groups/owner/invitation",password===undefined?undefined:{password});
+    const result=await groupRequest("/groups/owner/invitation?groupId="+encodeURIComponent(ownerGroup.id),password===undefined?undefined:{password});
     if(result.group?.id!==ownerGroup?.id||!result.group?.isOwner)throw Error("Le groupe a changé.");
     setOwnerGroup(result.group);
     if(result.passwordRequired)return {passwordRequired:true};
@@ -267,7 +282,7 @@ export default function Login({ setUser }) {
   async function refreshOwner(){
     if(pending)return;
     setPending(true);setError("");
-    try{const result=await groupRequest("/groups/owner/manage");setOwnerGroup(result.group);}catch(e){setError(e.message);}finally{setPending(false);}
+    try{const result=await groupRequest("/groups/owner/manage?groupId="+encodeURIComponent(ownerGroup.id));setOwnerGroup(result.group);}catch(e){setError(e.message);}finally{setPending(false);}
   }
 
   // No fallback to legacy pseudo-based entry before V2 group assignment exists.
@@ -275,7 +290,7 @@ export default function Login({ setUser }) {
     setError(""); setEntryMode(mode);
   }
   function backToHome() {
-    setError(""); setEntryMode("home");
+    setError(""); setEntryMode(additionalFlow||invitation&&knownPseudo||["creator-confirm","creator-dashboard"].includes(screen)?"joined-group":"home");setAdditionalFlow(false);
     setGroupQuery(""); setGroupResults(null); setSelectedGroup(null); setGroupPassword("");
     setCreatorPassword("");setInviteLink("");setInviteStatus("");setRecoveryInput("");
     if (invitation) setSearchParams({}, {replace:true});
@@ -288,42 +303,41 @@ export default function Login({ setUser }) {
     try{
       const membership=await groupRequest("/groups/me");
       if(generation!==searchGeneration.current)return;
-      if(membership.group){setJoinedGroup(membership.group);setEntryMode("joined-group");return;}
+      applyLobby(membership);
+      if(membership.group&&!additionalFlow){showLobby(membership);return;}
       const result=await groupRequest("/groups/search?q="+encodeURIComponent(groupQuery.trim()));
       if(generation===searchGeneration.current)setGroupResults(result.groups);
     }catch(err){setError(err.message||"Recherche impossible.");}
     finally{setPending(false);}
   }
   function selectPreviewGroup(group) {
-    setSelectedGroup(group); setGroupPassword(""); setPseudo(""); setError(""); setEntryMode("join-group");
+    setSelectedGroup(group); setGroupPassword(""); setPseudo(additionalFlow?knownPseudo:""); setError(""); setEntryMode("join-group");
   }
   async function submitRealGroup(event) {
     event.preventDefault();
-    if(pending||!selectedGroup||!pseudoReady||groupPassword.length<6)return;
+    if(pending||!selectedGroup||(!additionalFlow&&!pseudoReady)||groupPassword.length<6)return;
     setPending(true);setError("");
     try{
-      const result=await groupRequest("/groups/join",{id:selectedGroup.id,pseudo:pseudo.trim(),password:groupPassword});
-      
-      setJoinedGroup(result.group||{id:result.id,name:result.name,pseudo:pseudo.trim(),isOwner:false});
-      setEntryMode("joined-group");
+      await groupRequest("/groups/join",{id:selectedGroup.id,pseudo:additionalFlow?knownPseudo:pseudo.trim(),password:groupPassword,additional:additionalFlow});
+      showLobby(await groupRequest("/groups/me"));
     }catch(err){setError(err.message||"Inscription impossible.");}
     finally{setGroupPassword("");setPending(false);}
   }
   function showExistingMembership(group){
     setJoinedGroup(group);setCreatorPassword("");setInviteLink("");setEntryMode("joined-group");
-    setError("Tu appartiens déjà à un groupe. Tu ne peux pas en créer un deuxième.");
+    setError("");
   }
   async function createRealGroup(event){
     event.preventDefault();
-    if(pending||!firebaseIdentity||!nameReady||!pseudoReady||creatorPassword.length<6)return;
+    if(pending||!firebaseIdentity||!nameReady||(!additionalFlow&&!pseudoReady)||creatorPassword.length<6)return;
     setPending(true);setError("");
     try{
-      const result=await groupRequest("/groups/create",{name:creatorName.trim(),pseudo:creatorPseudo.trim(),password:creatorPassword});
+      const result=await groupRequest("/groups/create",{name:creatorName.trim(),pseudo:additionalFlow?knownPseudo:creatorPseudo.trim(),password:creatorPassword,additional:additionalFlow});
       if(!result.group?.isOwner||result.group.id!==result.id)throw Error("Création non confirmée par le serveur. Essaie de retrouver ton groupe.");
       
       restoredIdentity.current=firebaseIdentity;
       setOwnerGroup(result.group);
-      setEntryMode("creator-confirm");
+      if(additionalFlow){showLobby(await groupRequest("/groups/me"));}else{setEntryMode("creator-confirm");}
     }catch(err){
       if(err.code==="already_member"){
         try{const membership=await groupRequest("/groups/me");if(membership.group){showExistingMembership(membership.group);return;}}catch{}
@@ -331,20 +345,30 @@ export default function Login({ setUser }) {
       setError(err.message||"Création impossible.");
     }finally{setCreatorPassword("");setPending(false);}
   }
+  async function manageSelected(id){
+    if(pending)return;setPending(true);setError("");
+    try{const result=await groupRequest("/groups/owner/manage?groupId="+encodeURIComponent(id));setOwnerGroup(result.group);setEntryMode("creator-dashboard");}catch(e){setError(e.message);}finally{setPending(false);}
+  }
+  function startAdditional(mode){
+    if(pending||!multiReady||groupsLocked||lobbyGroups.length>=3||!knownPseudo)return;
+    setAdditionalFlow(true);setGroupQuery("");setGroupResults(null);setSelectedGroup(null);setGroupPassword("");setCreatorName("");setCreatorPassword("");setCreatorPseudo(knownPseudo);setPseudo(knownPseudo);openEntry(mode);
+  }
   async function startCreatorFlow(mode){
     if(pending)return;
     setError("");setPending(true);
     try{
       const membership=await groupRequest("/groups/me");
-      if(mode==="creator-login"||membership.group?.isOwner){
-        if(!membership.group?.isOwner){
+      const groups=applyLobby(membership),owned=groups.filter(g=>g.isOwner);
+      if(mode==="creator-login"&&owned.length>1){showLobby(membership);return;}
+      if(mode==="creator-login"||owned.length){
+        if(!owned.length){
           setError("Aucun groupe à gérer sur ce navigateur. Seul son créateur peut y accéder.");
           return;
         }
-        const result=await groupRequest("/groups/owner/manage");
+        const result=await groupRequest("/groups/owner/manage?groupId="+encodeURIComponent(owned[0].id));
         setOwnerGroup(result.group);setInviteLink("");setInviteStatus("");setEntryMode("creator-dashboard");return;
       }
-      if(membership.group){showExistingMembership(membership.group);return;}
+      if(membership.group){showLobby(membership);return;}
       setCreatorName("");setCreatorPseudo("");setCreatorPassword("");setOwnerGroup(null);setInviteLink("");setInviteStatus("");openEntry(mode);
     }catch(err){setError(err.message||"Impossible de vérifier ton inscription.");}
     finally{setPending(false);}
@@ -357,8 +381,7 @@ export default function Login({ setUser }) {
       const result=await groupRequest("/groups/public",{pseudo:pseudo.trim()});
       if(!result.group?.id||!result.group?.name)throw Error("Inscription non confirmée. Réessaie.");
       
-      setJoinedGroup(result.group);
-      setEntryMode("joined-group");
+      showLobby(await groupRequest("/groups/me"));
     }catch(err){setError(err.message||"Inscription impossible.");}
     finally{setPending(false);}
   }
@@ -457,7 +480,7 @@ export default function Login({ setUser }) {
       </section>
         </div>
       </div>
-      {screen==="join"&&<div style={{width:"min(100%,600px)",margin:"0 auto 16px"}}>
+      {screen==="join"&&!additionalFlow&&<div style={{width:"min(100%,600px)",margin:"0 auto 16px"}}>
         <button type="button" disabled={pending} onClick={()=>{setError("");setEntryMode("recover-account");}} style={{...entryButton,display:"block",minHeight:74,fontSize:18,margin:0,border:"2px solid #80caff",boxShadow:"0 0 7px rgba(82,173,255,.85),0 0 19px rgba(39,131,255,.6),0 0 30px rgba(39,131,255,.23)"}}>Se connecter à son compte</button>
       </div>}
       <div className={"tv-entry tv-entry-v3 group-entry-panel"+(screen==="joined-group"&&joinedGroup?" group-entry-lobby":"")} style={{display:"grid",gap:12}}>
@@ -498,6 +521,8 @@ export default function Login({ setUser }) {
             color:#ffe5ad!important;border:0!important;box-shadow:none!important;
             font-size:17px;
           }
+          .tv-login-shell .group-entry-panel button.waiting-group-action {background:linear-gradient(110deg,#14366b,#204783)!important;border:1px solid #649ad5!important;box-shadow:0 0 6px rgba(39,131,255,.18)!important;opacity:1!important;color:#fff!important;}
+          .tv-login-shell .group-entry-panel button.waiting-group-action:disabled {opacity:.62!important;}
           .tv-login-shell .group-entry-panel button.group-entry-green {
             background:linear-gradient(135deg,#008743,#00c96b,#00a854)!important;
             color:#fff!important;border:2px solid #46ff9b!important;
@@ -536,13 +561,14 @@ export default function Login({ setUser }) {
           }
         `}</style>
         {screen === "home" && <>
+          {recoverableGroup&&<button type="button" className="group-entry-blue" style={entryButton} onClick={recoverGroup} disabled={pending}>Retrouver mes groupes</button>}
           {accessControl(true, () => openEntry("public"))}
           <button type="button" className="group-entry-blue group-entry-neon" style={entryButton} disabled={pending} onClick={() => openEntry("join")}>Rejoindre mon groupe d’amis ou de famille</button>
           <button type="button" className="group-entry-gold" style={{...entryButton,background:"linear-gradient(135deg,#d9a42d,#ffe078,#e8b63e)",color:"#342303",border:"2px solid #ffdf77",boxShadow:"0 0 12px rgba(255,204,70,.42)"}} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>
         </>}
         {(screen === "public" || screen === "invite") && <>
-          {screen==="invite"&&inviteGroup&&<InvitationCard name={inviteGroup.name} password={invitationPassword} onJoin={()=>setInviteForm(true)}/>}
-          {(screen==="public"||inviteForm)&&<>
+          {screen==="invite"&&inviteGroup&&<InvitationCard name={inviteGroup.name} password={invitationPassword} knownPseudo={knownPseudo} disabled={pending||!inviteIdentityReady||!!knownPseudo&&!multiReady} onJoin={()=>knownPseudo?void acceptInvite():setInviteForm(true)}/>}
+          {(screen==="public"||inviteForm&&!knownPseudo)&&<>
             <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} disabled={pending} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
             {pseudoFeedback()}
             {screen === "public" && notice("Tu seras automatiquement inscrit dans une salle publique de 30 joueurs maximum. Si tu appartiens déjà à un groupe, tu retrouveras ton groupe actuel.")}
@@ -552,17 +578,18 @@ export default function Login({ setUser }) {
           {screen === "invite" && notice(inviteStatus==="ok"?"Invitation vérifiée. Aucun mot de passe à saisir.":inviteStatus||"Vérification de l’invitation…")}
         </>}
         {screen === "join" && <>
-          <h2 style={{margin:0,color:"#ffe5ad",fontSize:20,textAlign:"center"}}>Créer mon groupe</h2>
+          <h2 style={{margin:0,color:"#ffe5ad",fontSize:20,textAlign:"center"}}>{additionalFlow?"Rejoindre un "+(lobbyGroups.length===1?"deuxième":"troisième")+" groupe":"Créer mon groupe"}</h2>
+          {additionalFlow&&notice("Connecté en tant que "+knownPseudo)}
           <form onSubmit={searchRealGroups} style={{display:"grid",gap:12}}>
             <input aria-label="Nom du groupe" placeholder="Nom du groupe" maxLength={80} value={groupQuery} disabled={pending} onChange={e => {setGroupQuery(e.target.value);setGroupResults(null);setError("");}} style={inputStyle}/>
             <button type="submit" className="group-entry-blue" style={entryButton} disabled={pending||!groupQuery.trim()}>{pending?"Recherche en cours…":"Rechercher"}</button>
           </form>
           {groupResults !== null && <div aria-live="polite" style={{display:"grid",gap:10,textAlign:"left"}}>
-            <p style={{fontSize:12,color:"#ffd49c",margin:"4px 0"}}>Groupes enregistrés dans Firebase test</p>
+            
             {groupResults.length === 0 ? notice("Aucun groupe correspondant. Essaie une autre recherche.") : <>
               <p style={{margin:0,color:"#e0e8ff",fontWeight:700}}>Choisis ton groupe :</p>
               {groupResults.map(group => <button key={group.id} type="button" className="group-entry-blue" style={{...entryButton,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}} onClick={() => selectPreviewGroup(group)}>
-                <span>{group.name}</span><span aria-hidden="true">›</span>
+                <span>{group.name}{typeof group.memberCount==="number"&&<small style={{display:"block",color:"#d7e8ff",fontWeight:500}}>{group.memberCount}/30 participants</small>}</span><span aria-hidden="true">›</span>
               </button>)}
             </>}
           </div>}
@@ -577,16 +604,13 @@ export default function Login({ setUser }) {
         </form>}
         {screen === "join-group" && selectedGroup && <form onSubmit={submitRealGroup} style={{display:"grid",gap:12}}>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:19}}>Rejoindre {selectedGroup.name}</h2>
-          {notice("Inscription réelle dans Firebase test. Utilise un mot de passe réservé au groupe de test.")}
-          <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
-          {pseudoFeedback()}
+          {additionalFlow?notice("Connecté en tant que "+knownPseudo):<><input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>{pseudoFeedback()}</>}
           <input type="password" aria-label="Mot de passe du groupe" autoComplete="off" placeholder="Mot de passe du groupe" maxLength={128} value={groupPassword} onChange={e => setGroupPassword(e.target.value)} style={inputStyle}/>
-          <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!pseudoReady||groupPassword.length<6}>{pending?"Inscription en cours…":"Intégrer le groupe"}</button>
+          <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||(!additionalFlow&&!pseudoReady)||groupPassword.length<6}>{pending?"Inscription en cours…":"Intégrer le groupe"}</button>
           <button type="button" className="group-entry-back" disabled={pending} onClick={() => {setGroupPassword("");setSelectedGroup(null);setError("");setEntryMode("join");}}>Retour aux résultats</button>
         </form>}
         {screen === "joined-group" && joinedGroup && <>
-          <WaitingGroups groups={[{...joinedGroup,members:lobbyMembers}]} buttonStyle={entryButton} />
-          {joinedGroup.isOwner&&<button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={()=>startCreatorFlow("creator-login")}>Gérer mon groupe</button>}
+          <WaitingGroups groups={lobbyGroups.length?lobbyGroups:[{...joinedGroup,members:lobbyMembers}]} buttonStyle={entryButton} onJoin={multiReady?()=>startAdditional("join"):undefined} onCreate={multiReady?()=>startAdditional("create-group"):undefined} onManage={manageSelected} pending={pending||!!lobbyError} locked={groupsLocked}/>
           <div className="waiting-group-access">{accessControl(false,enterContest,!!lobbyError,joinedGroup.entered===true)}</div>
         </>}
         {screen === "manage" && <>
@@ -595,10 +619,10 @@ export default function Login({ setUser }) {
         </>}
         {screen === "create-group" && <form onSubmit={createRealGroup} style={{display:"grid",gap:12,textAlign:"left"}}>
           <h2 style={{margin:0,color:"#ffe5ad",fontSize:19,textAlign:"center"}}>Créer ton groupe</h2>
-          <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton pseudo
+          {additionalFlow?notice("Connecté en tant que "+knownPseudo):<label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Ton pseudo
             <input autoComplete="nickname" maxLength={24} required placeholder="Mon pseudo" value={creatorPseudo} onChange={e=>setCreatorPseudo(e.target.value)} disabled={pending} style={inputStyle}/>
             {pseudoFeedback()}
-          </label>
+          </label>}
           <label style={{display:"grid",gap:5,color:"#e0e8ff",fontSize:14}}>Nom du groupe
             <input autoComplete="off" maxLength={80} required placeholder="Nom du groupe" value={creatorName} onChange={e=>setCreatorName(e.target.value)} disabled={pending} style={inputStyle}/>
             {nameFeedback()}
@@ -607,8 +631,8 @@ export default function Login({ setUser }) {
             <input type="password" autoComplete="new-password" minLength={6} maxLength={128} required placeholder="Mot de passe (6 caractères minimum)" value={creatorPassword} onChange={e=>setCreatorPassword(e.target.value)} disabled={pending} style={inputStyle}/>
           </label>
           <p style={{fontSize:14,fontWeight:700,color:"#ffe5ad",margin:0,lineHeight:1.5}}>Crée un mot de passe qui sera partagé avec tes amis. <strong style={{display:"block",color:"#ffcf99",fontWeight:900}}>⚠ N’utilise pas de mot de passe personnel.</strong></p>
-          <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!firebaseIdentity||!nameReady||!pseudoReady||creatorPassword.length<6}>{pending?"Création…":"Créer mon groupe"}</button>
-          <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setCreatorPassword("");openEntry("manage");}}>Retour</button>
+          <button type="submit" className="group-entry-green" style={greenButton} disabled={pending||!firebaseIdentity||!nameReady||(!additionalFlow&&!pseudoReady)||creatorPassword.length<6}>{pending?"Création…":"Créer mon groupe"}</button>
+          <button type="button" className="group-entry-back" disabled={pending} onClick={()=>{setCreatorPassword("");if(additionalFlow){setAdditionalFlow(false);openEntry("joined-group");}else openEntry("manage");}}>Retour</button>
         </form>}
         {(screen === "creator-confirm" || screen === "creator-dashboard") && ownerGroup && <>
           <p style={{fontSize:12,color:"#78ffbd",margin:0}}>Groupe enregistré</p>
@@ -633,9 +657,9 @@ export default function Login({ setUser }) {
             </section>
           </>}
         </>}
-        {lobbyGroup&&firebaseIdentity&&<ChatBubble key={lobbyGroup.id} user={{uid:firebaseIdentity,pseudo:lobbyGroup.pseudo}} groupRequest={lobbyChat} roomId={lobbyGroup.id} groupName={lobbyGroup.name}/>}
+        {lobbyGroup&&firebaseIdentity&&<MultiGroupChat user={{uid:firebaseIdentity,pseudo:lobbyGroup.pseudo}} groups={lobbyGroups.length?lobbyGroups:[lobbyGroup]} request={groupRequest}/>}
         {lobbyGroup&&lobbyError&&<p role="alert" style={{color:"#ffd0cf"}}>{lobbyError}</p>}
-        {screen !== "home" && screen !== "joined-group" && <button type="button" className="group-entry-back" disabled={pending} onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}
+        {screen !== "home" && screen !== "joined-group" && <button type="button" className="group-entry-back" disabled={pending} onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>{additionalFlow||["creator-confirm","creator-dashboard"].includes(screen)||invitation&&knownPseudo?"Retour à mes groupes":"Retour à l’accueil"}</button>}
         {error && <p role="alert" style={{color:"#ffd0cf",margin:0}}>{error}</p>}
       </div>
       {demoLoaded && demoEnabled && <div className="demo-entry-link" style={{ textAlign: "center", padding: "25px 10px 0" }}><button type="button" onClick={() => navigate("/demo")} style={{ background: "linear-gradient(110deg,#143b87,#2862bb)", border: "2px solid #dfbe7b", borderRadius: 15, boxShadow: "0 0 18px rgba(39,131,255,.45),0 0 14px rgba(246,198,102,.3)", color: "white", padding: "15px 24px", fontSize: 16, fontWeight: 800 }}>✦ ESSAYER LA DÉMO · SANS INSCRIPTION ✦</button></div>}

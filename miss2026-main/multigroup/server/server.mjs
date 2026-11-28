@@ -9,6 +9,7 @@ import {locked,ownerView,manageGroup,invitationView,acceptInvitation,removePlaye
 import {chatView,chatAction,adminAlertDirectory,verifyRoomReport,remindNonVoters,verifyNonVoterReminders} from "./chat.mjs";
 import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
 import {conditionalWrite} from "./conditional.mjs";
+import {createReadCache,createVoteQueue} from "./loadControl.mjs";
 import {authenticateGroupMember} from "./recovery.mjs";
 import {invitationKey,sealInvitation,openInvitation} from "./invitationCard.mjs";
 import {previewToken,previewDetails,previewPage} from "./richInvitation.mjs";
@@ -87,6 +88,11 @@ async function atomic(operation,target=registry,verify=null){
   if(verify){const snapshot=tx.snapshot.val();if(!verify(snapshot))return {status:409,body:{error:"reset_not_verified"}};return {status:200,body:{...outcome.result,verified:true,remaining:registrationCounts(snapshot)}};}
   return {status:200,body:outcome.result};
 }
+const ioStats={startedAt:Date.now(),reads:0,writes:0,conflicts:0,downloadedBytes:0,uploadedBytes:0};
+async function measuredJson(response){
+ const raw=await response.text();ioStats.downloadedBytes+=Buffer.byteLength(raw);
+ return JSON.parse(raw);
+}
 async function directRootAccess(){
   // The URL is fixed to the dedicated test project and cannot be supplied by the caller.
   const url=DATABASE+"/.json";
@@ -94,25 +100,32 @@ async function directRootAccess(){
   const headers={Authorization:"Bearer "+token.access_token};
   const read=async()=>{
     const response=await fetch(url,{headers:{...headers,"X-Firebase-ETag":"true"},cache:"no-store",signal:AbortSignal.timeout(12000),redirect:"error"});
+    ioStats.reads++;
     if(!response.ok)throw Object.assign(Error("database_read_failed"),{status:503});
-    return {state:await response.json(),etag:response.headers.get("etag")};
+    return {state:await measuredJson(response),etag:response.headers.get("etag")};
   };
   const write=async(state,etag)=>{
-    const response=await fetch(url,{method:"PUT",headers:{...headers,"Content-Type":"application/json","If-Match":etag},body:JSON.stringify(state),signal:AbortSignal.timeout(12000),redirect:"error"});
-    if(response.status===412)return {ok:false};
+    const payload=JSON.stringify(state);ioStats.writes++;ioStats.uploadedBytes+=Buffer.byteLength(payload);
+    const response=await fetch(url,{method:"PUT",headers:{...headers,"Content-Type":"application/json","If-Match":etag},body:payload,signal:AbortSignal.timeout(12000),redirect:"error"});
+    if(response.status===412){ioStats.conflicts++;await measuredJson(response).catch(()=>{});return {ok:false};}
     if(!response.ok)throw Object.assign(Error("database_write_failed"),{status:503});
-    return {ok:true,state:await response.json()};
+    return {ok:true,state:await measuredJson(response)};
   };
   return {read,write};
 }
 async function directRootRead(){return (await (await directRootAccess()).read()).state;}
+const readCache=createReadCache(directRootRead);
 async function directRootChange(operation,verify){
-  const access=await directRootAccess();
-  return conditionalWrite({...access,operation,verify});
+  readCache.invalidate();
+  try{const access=await directRootAccess();return await conditionalWrite({...access,operation,verify});}
+  finally{readCache.invalidate();}
 }
+const voteQueue=createVoteQueue(directRootChange);
+function loadStats(){return {...ioStats,cache:readCache.stats(),votes:voteQueue.stats(),memoryBytes:process.memoryUsage().rss,scope:"process_rest_payload_only"};}
 async function directReset(kind,id){
   const {read,write}=await directRootAccess();
-  const outcome=await conditionalWrite({read,write,operation:state=>resetContest(state,kind,id,Date.now()),verify:state=>verifyReset(state,kind,id)});
+  readCache.invalidate();
+  let outcome;try{outcome=await conditionalWrite({read,write,operation:state=>resetContest(state,kind,id,Date.now()),verify:state=>verifyReset(state,kind,id)});}finally{readCache.invalidate();}
   if(outcome.status!==200)return outcome;
   const after=await read();
   if(!verifyReset(after.state,kind,id))return {status:409,body:{error:"reset_not_verified"}};
@@ -198,7 +211,7 @@ const server=http.createServer(async(req,res)=>{
     await ensureScheduledOpening();
     if(req.method==="GET"&&url.pathname==="/admin/chat/alerts"){
       if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});
-      const rooms=adminAlertDirectory(await directRootRead());
+      const rooms=adminAlertDirectory(await readCache.get());
       if(rooms.length)console.log("TEST_ADMIN_ALERT_READ "+JSON.stringify({rooms:rooms.length,total:rooms.reduce((n,r)=>n+r.count,0)}));
       return reply(res,200,{rooms});
     }
@@ -218,7 +231,7 @@ const server=http.createServer(async(req,res)=>{
       const admin=url.pathname==="/admin/chat";
       if(admin&&(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com"))return reply(res,403,{error:"admin_required"});
       if(req.method==="GET"){
-        const view=chatView(await directRootRead(),{uid,admin,groupId:url.searchParams.get("groupId")});
+        const view=chatView(await readCache.get(),{uid,admin,groupId:url.searchParams.get("groupId")});
         if(view.code)console.log("TEST_CHAT_READ "+JSON.stringify({status:403,error:view.code,admin}));
         return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
       }
@@ -259,7 +272,7 @@ const server=http.createServer(async(req,res)=>{
     }
     if(url.pathname==="/admin/game"||url.pathname==="/admin/round"||url.pathname==="/admin/finale"||url.pathname==="/admin/votes"||url.pathname==="/admin/connections"){
       if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});
-      if(req.method==="GET"&&url.pathname==="/admin/game")return reply(res,200,adminGameView(await directRootRead()));
+      if(req.method==="GET"&&url.pathname==="/admin/game")return reply(res,200,{...adminGameView(await readCache.get()),loadStats:loadStats()});
       if(req.method==="POST"&&["/admin/votes","/admin/connections"].includes(url.pathname)){
         const b=await body(req),kind=url.pathname.endsWith("/votes")?"votes":"connections";
         let before;
@@ -323,13 +336,13 @@ const server=http.createServer(async(req,res)=>{
       return reply(res,result.status,result.body);
     }
     if(req.method==="GET"&&url.pathname==="/game/state"){
-      const view=gameView(await directRootRead(),uid);
+      const view=gameView(await readCache.get(),uid);
       return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
     }
     if(req.method==="POST"&&url.pathname==="/game/vote"){
       if(limited("vote:"+uid,8))return reply(res,429,{error:"too_many_requests"});
       const b=await body(req),now=Date.now();
-      const result=await directRootChange(root=>castVote(root,{uid,gameId:b.gameId,tour:b.tour,selection:b.selection,favorite:b.favorite,now}));
+      const result=await voteQueue.enqueue(root=>castVote(root,{uid,gameId:b.gameId,tour:b.tour,selection:b.selection,favorite:b.favorite,now}));
       return reply(res,result.status,result.body);
     }
     if(req.method==="POST"&&url.pathname==="/groups/invite/preview"){
@@ -380,7 +393,7 @@ const server=http.createServer(async(req,res)=>{
     }
     if(url.pathname==="/groups/owner/manage"){
       if(req.method==="GET"){
-        const view=ownerView(await directRootRead(),uid,url.searchParams.get("groupId"));
+        const view=ownerView(await readCache.get(),uid,url.searchParams.get("groupId"));
         return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
       }
       if(req.method==="POST"){
@@ -429,7 +442,7 @@ const server=http.createServer(async(req,res)=>{
       return reply(res,200,{available:pseudoAvailable(state,b.pseudo,b.creating===true&&!membershipView(state,uid)?null:uid)});
     }
     if(req.method==="GET"&&url.pathname==="/groups/me"){
-      const root=await directRootRead(),event=root?.events?.miss2027||{};
+      const root=await readCache.get(),event=root?.events?.miss2027||{};
       const entered=membershipIds(event.registration,uid).includes(event.players?.[uid]?.groupId);
       const groups=membershipViews(event.registration,uid).map(group=>({...group,entered,locked:locked(root),members:Object.entries(event.registration.groups[group.id].members||{}).map(([id,m])=>({...(group.isOwner?{id}:{}),pseudo:m.pseudo,isOwner:event.registration.groups[group.id].ownerUid===id}))}));
       const group=groups[0]||null;

@@ -406,6 +406,18 @@ export default function Admin({ user, setUser }) {
         <button type="button" className="regie-kpi" aria-expanded={rankExpanded} onClick={()=>setRankExpanded(x=>!x)}><span className="regie-kpi-icon gold">🏆</span><strong>TOP</strong><span>CLASSEMENT {rankExpanded?"⌃":"⌄"}</span></button>
         <button type="button" className="regie-kpi" aria-expanded={favoritesExpanded} onClick={()=>setFavoritesExpanded(x=>!x)}><span className="regie-kpi-icon gold">★</span><strong>TOP 5</strong><span>MISS FAVORITES {favoritesExpanded?"⌃":"⌄"}</span></button>
       </section>
+      {nationalView?.loadStats&&<details className="regie-panel" style={{margin:"12px 0",padding:14}}>
+        <summary style={{cursor:"pointer",color:"#b5d4ff",fontWeight:800}}>📊 Surveillance technique (test)</summary>
+        <div style={{display:"grid",gap:8,marginTop:12,fontSize:13}}>
+          <span>Données Firebase reçues (API) : <b>{(nationalView.loadStats.downloadedBytes/1e6).toFixed(2)} Mo</b></span>
+          <span>Lectures réelles : <b>{nationalView.loadStats.reads}</b> · Lectures évitées : <b>{nationalView.loadStats.cache.hits+nationalView.loadStats.cache.coalesced}</b></span>
+          <span>Écritures : <b>{nationalView.loadStats.writes}</b> · Conflits : <b>{nationalView.loadStats.conflicts}</b></span>
+          <span>Votes en attente : <b>{nationalView.loadStats.votes.pending}</b> · Lots de votes : <b>{nationalView.loadStats.votes.batches}</b></span>
+          <span>Mémoire du serveur : <b>{(nationalView.loadStats.memoryBytes/1048576).toFixed(1)} Mio</b></span>
+          <small className="regie-muted">Depuis le dernier redémarrage du serveur. Volume JSON reçu par l’API, hors connexions directes et surcoûts réseau. Ce n’est pas la facture Firebase ni un plafond de dépenses.</small>
+        </div>
+      </details>}
+
       {favoritesExpanded&&<section className="regie-expand"><div className="regie-panel-heading"><h3>⭐ MISS FAVORITES</h3><span>TOUR {tour}</span></div>
         {popularity.map(m=><div className="regie-popularity" key={m.id}><div><span>{m.label}</span><strong>{m.count} pts</strong></div><div className="regie-meter"><span style={{width:(100*m.count/maxPopularity)+"%"}} /></div></div>)}
         <small className="regie-muted">Cumul des sélections · tours 1, 2 et finale</small>

@@ -609,6 +609,7 @@ export default function Admin({ user, setUser }) {
         {tour === 3 && !finalRankingValidated && <p role="status" style={{color:"#ffd48a",fontWeight:700,marginTop:10}}>Le show final reste verrouillé tant que le classement officiel n'est pas validé.</p>}
       </div>
 
+      <div aria-hidden="true" style={{height:100,pointerEvents:"none"}} />
       <details className="regie-danger" open={showDangerZone} onToggle={event=>setShowDangerZone(event.currentTarget.open)}>
         <summary>⚠️ Zone sensible — Réinitialisation</summary>
         <div style={{display:"grid",gap:12,marginTop:12}}>

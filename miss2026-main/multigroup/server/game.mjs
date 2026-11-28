@@ -1,4 +1,5 @@
 import {adminChatSummary} from "./chat.mjs";
+import {REGISTRATION_OPEN_AT} from "../../src/contestSchedule.mjs";
 import {buildFinalResults} from "../finalResults.js";
 import {membershipView,membershipViews,membershipIds,isExcluded} from "./registration.mjs";
 import {CANDIDATES} from "../../src/data/candidates.js";
@@ -132,12 +133,12 @@ export function setVoteOpening(root,{gameId,open}){
 }
 
 // Opening/closing connections must never replace registrations, players, ballots or chats.
-export function setConnectionOpening(root,{gameId,open}){
+export function setConnectionOpening(root,{gameId,open,now=0}){
  const room=root?.rooms?.miss2027;
  if(!room?.gameId||String(room.gameId)!==gameId)return fail("game_changed");
  if(typeof open!=="boolean")return fail("invalid_action");
  if(open&&room.finaleStarted===true)return fail("game_finished");
- return {state:{...root,rooms:{...root.rooms,miss2027:{...room,connectionsOpen:open,...(open?{demoEnabled:false}:{})}}},result:{connectionsOpen:open}};
+ return {state:{...root,rooms:{...root.rooms,miss2027:{...room,connectionsOpen:open,...(now>=REGISTRATION_OPEN_AT?{scheduledOpeningHandled:true}:{}),...(open?{demoEnabled:false}:{})}}},result:{connectionsOpen:open}};
 }
 // A control switch is not a reset. The entire event must survive unchanged.
 export function protectedControlChange(root,operation){
@@ -145,4 +146,13 @@ export function protectedControlChange(root,operation){
  if(next.code)return next;
  if(!next.state||next.state.events!==root?.events||next.state.rooms?.miss2027?.gameId!==root?.rooms?.miss2027?.gameId)return fail("control_data_changed");
  return next;
+}
+
+export function scheduledOpening(root,now){
+ const room=root?.rooms?.miss2027;
+ if(now<REGISTRATION_OPEN_AT)return fail("schedule_not_due");
+ if(!room?.gameId)return fail("schedule_not_initialized");
+ if(room.scheduledOpeningHandled===true)return fail("schedule_already_handled");
+ const blocked=room.finaleStarted===true||room.registrationLocked===true||room.votesOpen===true||Number(room.tour||1)!==1||Object.keys(root?.events?.miss2027?.votes||{}).length>0;
+ return {state:{...root,rooms:{...root.rooms,miss2027:{...room,...(!blocked?{connectionsOpen:true,demoEnabled:false}:{}),scheduledOpeningHandled:true}}},result:{opened:!blocked&&room.connectionsOpen!==true,handled:true}};
 }

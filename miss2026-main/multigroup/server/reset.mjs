@@ -1,3 +1,4 @@
+import {REGISTRATION_OPEN_AT} from "../../src/contestSchedule.mjs";
 // Pure, test-only reset operations. Never delete an entire database or event.
 const without=(value,keys)=>Object.fromEntries(Object.entries(value||{}).filter(([key])=>!keys.includes(key)));
 const voteFields=["tour1","tour2","tour3","favorite","points","score","rank","ranking","results","votes"];
@@ -13,7 +14,7 @@ export function verifyReset(root,kind,id){
  if(kind==="registrations")return e.registration?.epoch===id&&Object.values(registrationCounts(root)).every(n=>n===0)&&!count(room.players)&&!count(room.chat)&&!count(e.invitations)&&!count(e.chatModeration)&&!count(e.chatReports);
  return room.tour===1&&room.connectionsOpen===false&&room.votesOpen===false&&room.finaleStarted===false&&e.control?.connectionsOpen===false&&!count(e.players)&&!count(e.votes)&&!Object.values(room.adminSelections||{}).some(v=>count(v))&&!hasVotes(room.players)&&!e.results;
 }
-export function resetContest(root,kind,id){
+export function resetContest(root,kind,id,now=0){
   if(root!==null&&(!root||typeof root!=="object"||Array.isArray(root)))return {code:"room_not_initialized"};
   root=root||{};
   // Only an explicitly confirmed GAME reset may initialize a genuinely absent room.
@@ -40,5 +41,6 @@ export function resetContest(root,kind,id){
     newRoom={...without(room,["players","chat","chats","invitations",...gameFields]),connectionsOpen:false,registrationLocked:false,gameId:id};
     newEvent={...without(event,registrationFields),registration:{epoch:id},control:{...without(control,["resultsVersion"]),connectionsOpen:false,gameId:id}};
   }else return {code:"invalid_reset"};
+  if(now>=REGISTRATION_OPEN_AT)newRoom.scheduledOpeningHandled=true;
   return {state:{...root,rooms:{...root.rooms,miss2027:newRoom},events:{...root.events,miss2027:newEvent}},result:{kind,gameId:id,before:registrationCounts(root)}};
 }

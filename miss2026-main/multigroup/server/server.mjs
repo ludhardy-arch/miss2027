@@ -5,14 +5,15 @@ import {initializeApp,cert} from "firebase-admin/app";
 import {getAuth} from "firebase-admin/auth";
 import {getDatabase} from "firebase-admin/database";
 import {createGroup,joinGroup,searchGroups,registerPublic,membershipView,membershipViews,membershipIds,pseudoAvailable,normalizePseudo,groupNameAvailable,isExcluded} from "./registration.mjs";
-import {locked,ownerView,manageGroup,invitationView,acceptInvitation,removePlayer} from "./management.mjs";
+import {locked,ownerView,manageGroup,invitationView,acceptInvitation,removePlayer,deleteGroup,verifyGroupDeleted} from "./management.mjs";
 import {chatView,chatAction,adminAlertDirectory,verifyRoomReport} from "./chat.mjs";
 import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
 import {conditionalWrite} from "./conditional.mjs";
 import {authenticateGroupMember} from "./recovery.mjs";
 import {invitationKey,sealInvitation,openInvitation} from "./invitationCard.mjs";
 import {previewToken,previewDetails,previewPage} from "./richInvitation.mjs";
-import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal,setVoteOpening,setConnectionOpening,protectedControlChange} from "./game.mjs";
+import {enterGame,gameView,castVote,adminGameView,advanceRound,publishFinal,setVoteOpening,setConnectionOpening,protectedControlChange,scheduledOpening} from "./game.mjs";
+import {REGISTRATION_OPEN_AT} from "../../src/contestSchedule.mjs";
 
 const PROJECT="miss2027-test-v2";
 const DATABASE="https://miss2027-test-v2-default-rtdb.europe-west1.firebasedatabase.app";
@@ -111,7 +112,7 @@ async function directRootChange(operation,verify){
 }
 async function directReset(kind,id){
   const {read,write}=await directRootAccess();
-  const outcome=await conditionalWrite({read,write,operation:state=>resetContest(state,kind,id),verify:state=>verifyReset(state,kind,id)});
+  const outcome=await conditionalWrite({read,write,operation:state=>resetContest(state,kind,id,Date.now()),verify:state=>verifyReset(state,kind,id)});
   if(outcome.status!==200)return outcome;
   const after=await read();
   if(!verifyReset(after.state,kind,id))return {status:409,body:{error:"reset_not_verified"}};
@@ -142,6 +143,25 @@ async function verifyTestFirebase(){
 }
 const ready=()=>Object.values(readiness).every(value=>value==="ok");
 void verifyTestFirebase();
+// Server clock, one-time persisted opening, catch-up on cold start.
+let openingHandled=false,openingJob=null,nextOpeningCheck=0;
+async function ensureScheduledOpening(){
+ if(!registrationEnabled||!ready()||openingHandled||Date.now()<REGISTRATION_OPEN_AT)return;
+ if(openingJob)return openingJob;
+ if(Date.now()<nextOpeningCheck)return;
+ openingJob=(async()=>{
+  try{
+   const result=await directRootChange(root=>scheduledOpening(root,Date.now()));
+   if(result.status===200||result.body?.error==="schedule_already_handled"){
+    openingHandled=true;
+    if(result.status===200)console.log("TEST_SCHEDULED_OPENING "+JSON.stringify(result.body));
+   }
+  }catch{console.warn("TEST_SCHEDULED_OPENING_RETRY");}
+  finally{nextOpeningCheck=Date.now()+5000;openingJob=null;}
+ })();
+ return openingJob;
+}
+setInterval(()=>void ensureScheduledOpening(),1000).unref();
 // Isolated, bounded read-only preview requests; no Firebase auth bypass on existing API routes.
 let previewWindow=0,previewCount=0,previewJobs=0;
 const server=http.createServer(async(req,res)=>{
@@ -175,6 +195,7 @@ const server=http.createServer(async(req,res)=>{
     const uid=user.uid;
     if(!/^[a-zA-Z0-9_-]{1,128}$/.test(uid)||["__proto__","constructor","prototype"].includes(uid))return reply(res,403,{error:"unsupported_identity"});
     if(limited("user:"+uid,30))return reply(res,429,{error:"too_many_requests"});
+    await ensureScheduledOpening();
     if(req.method==="GET"&&url.pathname==="/admin/chat/alerts"){
       if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});
       const rooms=adminAlertDirectory(await directRootRead());
@@ -232,7 +253,7 @@ const server=http.createServer(async(req,res)=>{
         let before;
         const result=await directRootChange(root=>{
           before=registrationCounts(root);
-          return protectedControlChange(root,r=>(kind==="votes"?setVoteOpening:setConnectionOpening)(r,{gameId:b.gameId,open:b.open}));
+          return protectedControlChange(root,r=>(kind==="votes"?setVoteOpening:setConnectionOpening)(r,{gameId:b.gameId,open:b.open,now:Date.now()}));
         });
         console.log("TEST_ADMIN_CONTROL "+JSON.stringify({kind,open:b.open===true,status:result.status,error:result.body?.error||null,before,after:result.status===200?registrationCounts(result.state):null}));
         return reply(res,result.status,result.body);
@@ -249,6 +270,18 @@ const server=http.createServer(async(req,res)=>{
         return reply(res,result.status,result.body);
       }
       return reply(res,405,{error:"method_not_allowed"});
+    }
+    if(req.method==="POST"&&url.pathname==="/admin/group/delete"){
+      if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});
+      if(limited("admin-group-delete:"+uid,10))return reply(res,429,{error:"too_many_requests"});
+      const b=await body(req);
+      const result=await directRootChange(root=>deleteGroup(root,{groupId:b.groupId,gameId:b.gameId,confirmation:b.confirmation,confirmed:b.confirmed}),root=>verifyGroupDeleted(root,b.groupId));
+      if(result.status===200){
+        if(!verifyGroupDeleted(await directRootRead(),b.groupId))return reply(res,409,{error:"group_delete_not_verified"});
+        console.log("TEST_GROUP_DELETE "+JSON.stringify({verified:true,retained:result.body.retained,unregistered:result.body.unregistered}));
+        return reply(res,200,{...result.body,verified:true});
+      }
+      return reply(res,result.status,result.body);
     }
     if(req.method==="POST"&&url.pathname==="/admin/player/remove"){
       if(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com")return reply(res,403,{error:"admin_required"});

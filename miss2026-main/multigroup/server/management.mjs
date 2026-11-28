@@ -93,3 +93,26 @@ export function removePlayer(root,{targetUid,groupId,gameId,confirmed,now}){
  const next=replace(root,{...event,registration,players:omitKey(event.players,targetUid),votes:omitKey(event.votes,targetUid),chatModeration:omitKey(event.chatModeration,targetUid)});
  return {state:next,result:{accepted:true,removedUid:targetUid,groupId,remaining:Object.keys(updated[groupId].members).length}};
 }
+
+export function deleteGroup(root,{groupId,gameId,confirmation,confirmed}){
+ const room=root?.rooms?.miss2027,event=eventOf(root),reg=event.registration;
+ if(confirmed!==true||confirmation!=="SUPPRIMER")return fail("confirmation_required");
+ if(!room?.gameId||String(room.gameId)!==gameId)return fail("game_changed");
+ if(locked(root)||event.results||Object.values(room.adminSelections||{}).some(v=>Object.keys(v||{}).length))return fail("membership_locked");
+ if(!safeUid(groupId)||!Object.hasOwn(reg?.groups||{},groupId))return fail("invalid_group");
+ const group=reg.groups[groupId],groups=omitKey(reg.groups,groupId);
+ let membership={...reg.membership},players={...event.players},chatModeration={...event.chatModeration},votes={...event.votes};
+ let retained=0,unregistered=0;
+ for(const uid of Object.keys(group.members||{})){
+  const ids=membershipIds(reg,uid).filter(id=>id!==groupId);
+  membership=membershipIndex({membership},uid,ids);
+  if(ids.length){retained++;if(players[uid]?.groupId===groupId)players[uid]={...players[uid],groupId:ids[0]};}
+  else{unregistered++;delete players[uid];delete chatModeration[uid];delete votes[uid];}
+ }
+ const next=replace(root,{...event,registration:{...reg,groups,membership},players,votes,chatModeration,chats:omitKey(event.chats,groupId),chatReports:omitKey(event.chatReports,groupId)});
+ return {state:next,result:{accepted:true,groupId,retained,unregistered}};
+}
+export function verifyGroupDeleted(root,groupId){
+ const event=eventOf(root),reg=event.registration||{};
+ return !Object.hasOwn(reg.groups||{},groupId)&&!Object.hasOwn(event.chats||{},groupId)&&!Object.hasOwn(event.chatReports||{},groupId)&&!Object.values(reg.membership||{}).some(raw=>(typeof raw==="string"?[raw]:Object.values(raw||{})).includes(groupId))&&!Object.values(event.players||{}).some(p=>p.groupId===groupId);
+}

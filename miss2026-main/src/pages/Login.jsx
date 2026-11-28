@@ -469,9 +469,23 @@ export default function Login({ setUser }) {
             <span style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.5 }}>{item.text}</span>
           </div>
         ))}
-        <div style={{textAlign:"center",padding:"17px 12px",margin:"12px 0",borderRadius:14,border:"1px solid #d6aa65",background:"linear-gradient(135deg,#493054,#261b38)",color:"#ffe6b3"}}>
-          <div style={{fontSize:24}}>👑</div><strong style={{fontSize:19,letterSpacing:".04em"}}>LE SHOW FINAL</strong>
-          <p style={{fontSize:14,lineHeight:1.5,margin:"6px 0 0"}}>Découvre ton classement dans chaque groupe et au niveau national, juste après l’élection de Miss France !</p>
+        <div className="rules-final-show">
+          <style>{`
+            .rules-final-show{position:relative;isolation:isolate;overflow:hidden;text-align:center;margin:20px 0 14px;padding:16px 12px 22px;border-radius:17px;border:1.5px solid #e8be78;color:#fff0d9;background:radial-gradient(ellipse at 75% 100%,#641f65 0%,transparent 57%),radial-gradient(ellipse at 8% 0%,#52216d 0%,transparent 43%),linear-gradient(145deg,#160d37,#24154c 55%,#19102c);box-shadow:inset 0 0 22px #ad57ce24,0 0 12px #e9b96920}
+            .rules-final-show::before,.rules-final-show::after{content:"";position:absolute;z-index:-1;pointer-events:none;width:85%;height:72%;border:1px solid #ef9de0;border-radius:50%;box-shadow:0 0 8px #ff9de5,0 0 20px #e24cc8,0 0 35px #9b3bb99c;background:linear-gradient(155deg,#d853b540,transparent 35%);transform:rotate(-35deg)}
+            .rules-final-show::before{top:-59%;left:-31%}
+            .rules-final-show::after{bottom:-59%;right:-32%}
+            .rules-final-show .rules-final-crown{display:block;width:clamp(86px,26vw,128px);height:clamp(58px,18vw,87px);object-fit:contain;margin:0 auto 3px;filter:drop-shadow(0 0 8px #ffd18b88)}
+            .rules-final-show .rules-final-title{display:block;margin:0;color:#ffe4aa;font:700 clamp(23px,6.8vw,35px)/1.15 Georgia,"Times New Roman",serif;letter-spacing:.025em;text-shadow:0 0 13px #f9bf6355}
+            .rules-final-show .rules-final-divider{display:flex;align-items:center;justify-content:center;gap:7px;margin:10px auto 12px;width:68%;color:#ffdb95;font-size:18px;line-height:1;text-shadow:0 0 9px #ffb341}
+            .rules-final-show .rules-final-divider::before,.rules-final-show .rules-final-divider::after{content:"";height:1px;flex:1;background:linear-gradient(90deg,transparent,#f8d48a)}
+            .rules-final-show .rules-final-divider::after{transform:rotate(180deg)}
+            .rules-final-show .rules-final-copy{font-size:14px;line-height:1.5;margin:0;color:#fff0df;font-weight:400}
+          `}</style>
+          <img className="rules-final-crown" src="/images/couronne-prestige.svg" alt="" aria-hidden="true"/>
+          <strong className="rules-final-title">LE SHOW FINAL</strong>
+          <div className="rules-final-divider" aria-hidden="true">✦</div>
+          <p className="rules-final-copy">Découvre ton classement dans chaque groupe et au niveau national, juste après l’élection de Miss France !</p>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10,textAlign:"left",borderTop:"1px solid #755581",padding:"12px 4px 2px",color:"#f4d6ee",fontSize:14,lineHeight:1.5}}><span style={{fontSize:23}}>⏳</span><span>À chaque tour, attends l’ouverture des votes pour valider tes choix.</span></div>
       </section>

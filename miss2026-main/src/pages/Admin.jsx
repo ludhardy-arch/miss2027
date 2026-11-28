@@ -62,6 +62,7 @@ export default function Admin({ user, setUser }) {
   const [nationalError,setNationalError]=useState("");
   const players=nationalView?.players||{};
   const [chatGroup,setChatGroup]=useState("");
+  const [chatExpanded,setChatExpanded]=useState(false);
   const groups=Array.isArray(nationalView?.groups)?nationalView.groups:[...new Map(Object.values(players).map(p=>[p.groupId,p.groupName])).entries()].map(([id,name])=>({id,name,memberCount:Object.values(players).filter(p=>p.groupId===id).length}));
   const chatRooms=groups.map(g=>[g.id,g.name]);
   const [readMarkers,setReadMarkers]=useState({});
@@ -83,7 +84,7 @@ export default function Admin({ user, setUser }) {
     window.addEventListener("online",poll);document.addEventListener("visibilitychange",poll);
     return()=>{active=false;alertSequence.current++;clearInterval(timer);window.removeEventListener("online",poll);document.removeEventListener("visibilitychange",poll);};
   },[user.uid]);
-  function openAlertRoom(id){setChatGroup(id);requestAnimationFrame(()=>document.getElementById("regie-room-chat")?.scrollIntoView({behavior:"smooth",block:"start"}));}
+  function openAlertRoom(id){setChatExpanded(true);setChatGroup(id);requestAnimationFrame(()=>document.getElementById("regie-room-chat")?.scrollIntoView({behavior:"smooth",block:"start"}));}
   const unreadFor=id=>{const rows=chatSummary[id]?.messages||[],mark=readMarkers[id]||getReadMarker(user.uid,id);return mark?countUnread(rows,mark,user.uid):0;};
   useEffect(()=>{for(const [id,data] of Object.entries(chatSummary)){if(!getReadMarker(user.uid,id))saveReadMarker(user.uid,id,newest(data.messages,emptyMarker));}},[nationalView,user.uid]);
   const chatRead=React.useCallback(mark=>{setReadMarkers(old=>({...old,[chatGroup]:mark}));},[chatGroup]);
@@ -398,12 +399,6 @@ export default function Admin({ user, setUser }) {
         <button type="button" className="regie-kpi" aria-expanded={rankExpanded} onClick={()=>setRankExpanded(x=>!x)}><span className="regie-kpi-icon gold">🏆</span><strong>TOP</strong><span>CLASSEMENT {rankExpanded?"⌃":"⌄"}</span></button>
         <button type="button" className="regie-kpi" aria-expanded={favoritesExpanded} onClick={()=>setFavoritesExpanded(x=>!x)}><span className="regie-kpi-icon gold">★</span><strong>TOP 5</strong><span>MISS FAVORITES {favoritesExpanded?"⌃":"⌄"}</span></button>
       </section>
-      <div style={{margin:"10px 0 14px",display:"grid",gap:6}}>
-        <button type="button" className="regie-vote-reminder" disabled={reminderBusy||!nationalView||!votesOpen||finaleStarted||gameId==="loading"||totalPlayers===votedCount} onClick={()=>void remindAllNonVoters()} style={{width:"100%",boxSizing:"border-box",minHeight:54,padding:"12px 10px",background:"#9a273c",border:"1px solid #ff8793",borderRadius:12,color:"#fff",fontWeight:800,fontSize:15,opacity:(!votesOpen||finaleStarted||totalPlayers===votedCount)?0.55:1}}>
-          {reminderBusy?"Envoi des rappels…":"🔔 Alerter tous les non-votants"}{!reminderBusy&&nationalView&&" ("+(totalPlayers-votedCount)+")"}
-        </button>
-        {reminderFeedback?.scope===String(gameId)+":"+tour&&<p role="status" style={{color:"#a7ffd2",fontSize:13,margin:0,textAlign:"center"}}>{reminderFeedback.text}</p>}
-      </div>
       {favoritesExpanded&&<section className="regie-expand"><div className="regie-panel-heading"><h3>⭐ MISS FAVORITES</h3><span>TOUR {tour}</span></div>
         {popularity.map(m=><div className="regie-popularity" key={m.id}><div><span>{m.label}</span><strong>{m.count} pts</strong></div><div className="regie-meter"><span style={{width:(100*m.count/maxPopularity)+"%"}} /></div></div>)}
         <small className="regie-muted">Cumul des sélections · tours 1, 2 et finale</small>
@@ -448,6 +443,12 @@ export default function Admin({ user, setUser }) {
         {deleteFeedback&&<p role="status" style={{color:"#a7ffd2"}}>{deleteFeedback}</p>}
       </section>}
       {votesExpanded&&<section className="regie-expand"><h3>SUIVI DES VOTES · TOUR {tour}</h3>
+      <div style={{margin:"10px 0 14px",display:"grid",gap:6}}>
+        <button type="button" className="regie-vote-reminder" disabled={reminderBusy||!nationalView||!votesOpen||finaleStarted||gameId==="loading"||totalPlayers===votedCount} onClick={()=>void remindAllNonVoters()} style={{width:"100%",boxSizing:"border-box",minHeight:54,padding:"12px 10px",background:"#9a273c",border:"1px solid #ff8793",borderRadius:12,color:"#fff",fontWeight:800,fontSize:15,opacity:(!votesOpen||finaleStarted||totalPlayers===votedCount)?0.55:1}}>
+          {reminderBusy?"Envoi des rappels…":"🔔 Alerter tous les non-votants"}{!reminderBusy&&nationalView&&" ("+(totalPlayers-votedCount)+")"}
+        </button>
+        {reminderFeedback?.scope===String(gameId)+":"+tour&&<p role="status" style={{color:"#a7ffd2",fontSize:13,margin:0,textAlign:"center"}}>{reminderFeedback.text}</p>}
+      </div>
         <div className="regie-group-list">
           {groups.map(g=>{
             const members=playerEntries.filter(([,p])=>(p.groupIds||[p.groupId]).includes(g.id)).sort(([,x],[,y])=>Number(!!playerHasVoted(x))-Number(!!playerHasVoted(y))||x.pseudo.localeCompare(y.pseudo,"fr"));
@@ -479,13 +480,15 @@ export default function Admin({ user, setUser }) {
         <button type="button" className="regie-show" disabled={publishing||votesOpen||finaleStarted||!finalRankingValidated} onClick={()=>void launchShow()}><span>♛</span><b>SHOW FINAL</b><strong>{finaleStarted?"SHOW LANCÉ":publishing?"PUBLICATION…":"LANCER LE SHOW"}</strong></button>
       </div></section>
 
-      <section className="regie-panel" style={{margin:"18px 0"}}>
-        <h3 id="regie-room-chat">Chat des salles</h3>
+      <details id="regie-room-chat" className="regie-panel regie-chat-fold" open={chatExpanded} onToggle={event=>setChatExpanded(event.currentTarget.open)}>
+        <summary><span>💬 Chat des salles</span>{alertRooms.length>0&&<span className="regie-chat-fold-alert">{alertRooms.reduce((sum,g)=>sum+g.count,0)} alerte(s)</span>}</summary>
+        {chatExpanded&&<div className="regie-chat-fold-content">
         {alertDirectory!==null&&!alertError&&alertRooms.length===0&&<p className="regie-muted" role="status">Aucune alerte en attente.</p>}
         <label style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginTop:10}}>Choisir la salle <select aria-label="Choisir la salle" value={chatGroup} onChange={e=>setChatGroup(e.target.value)}><option value="">Sélectionner…</option>{chatRooms.map(([id,name])=><option key={id} value={id}>{alertCount(id)>0?"🔴 ":""}{name}{unreadFor(id)>0?" · "+unreadFor(id)+" nouveau(x)":""}{alertCount(id)>0?" · "+alertCount(id)+" alerte(s)":""}</option>)}</select></label>
         {alertRooms.length>0&&<div className="regie-chat-alerts">{alertRooms.map(g=><button type="button" key={g.id} className="regie-chat-alert-button" onClick={()=>setChatGroup(g.id)}>⚠ {g.name} · {g.count} alerte{g.count>1?"s":""}</button>)}</div>}
         {chatGroup&&chatRooms.some(([id])=>id===chatGroup)&&<ChatBubble key={chatGroup} inline user={user} groupRequest={chatRequest} roomId={chatGroup} onRead={chatRead} onReportChange={refreshReports} groupName={chatRooms.find(([id])=>id===chatGroup)?.[1]}/>}
-      </section>
+        </div>}
+      </details>
 
       <details className="regie-danger" open={showDangerZone} onToggle={event=>setShowDangerZone(event.currentTarget.open)}>
         <summary>⚠️ Zone sensible — Réinitialisation</summary>

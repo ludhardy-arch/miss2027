@@ -28,3 +28,18 @@
 .tv-admin-page .regie-vote-group.incomplete{border-color:#f5687d}.tv-admin-page .regie-vote-group.incomplete .regie-vote-group-toggle{background:#861c34!important}
 .tv-admin-page .regie-vote-group.empty .regie-vote-group-toggle{background:#273b58!important}
 .regie-vote-members{padding:6px;display:grid;gap:5px}.regie-vote-member{display:flex;align-items:center;gap:6px;min-width:0;padding:5px 6px;border-radius:6px;background:#152849;font-size:12px}.regie-vote-member>strong{flex:1;min-width:0;overflow-wrap:anywhere}.regie-vote-member>span{font-size:10px;font-weight:800;white-space:nowrap}.regie-vote-member.yes>span{color:#74ffc0}.regie-vote-member.no>span{color:#ff9eaa}.tv-admin-page .regie-vote-member .regie-vote-reminder{flex:0 0 auto;width:auto;min-width:0;min-height:32px!important;margin:0!important;padding:4px 7px!important;font-size:11px!important;letter-spacing:0!important;background:#9c303e!important;border:1px solid #ff8793!important;border-radius:6px!important;box-shadow:none!important}
+
+/* Compact foldouts: chat is neutral blue; destructive tools clearly marked red. */
+.tv-admin-page .regie-chat-fold,.tv-admin-page .regie-danger{box-sizing:border-box;width:100%;margin:18px 0;padding:0;overflow:hidden}
+.tv-admin-page .regie-chat-fold>summary,.tv-admin-page .regie-danger>summary{display:flex;align-items:center;gap:9px;min-height:56px;box-sizing:border-box;list-style:none;padding:14px 16px;cursor:pointer;font-weight:800;font-size:clamp(14px,3.8vw,17px);line-height:1.35}
+.tv-admin-page .regie-chat-fold>summary::-webkit-details-marker,.tv-admin-page .regie-danger>summary::-webkit-details-marker{display:none}
+.tv-admin-page .regie-chat-fold>summary::before,.tv-admin-page .regie-danger>summary::before{content:"▸";font-size:18px;flex:none}
+.tv-admin-page .regie-chat-fold[open]>summary::before,.tv-admin-page .regie-danger[open]>summary::before{content:"▾"}
+.tv-admin-page .regie-chat-fold>summary{color:#d7e6ff;background:linear-gradient(110deg,#172d57,#102142)}
+.tv-admin-page .regie-chat-fold[open]>summary{border-bottom:1px solid #395783}
+.tv-admin-page .regie-chat-fold-content{padding:16px}
+.tv-admin-page .regie-chat-fold-alert{margin-left:auto;color:#ffd1d7;background:#a42b43;border:1px solid #ff8793;border-radius:8px;padding:4px 7px;font-size:12px}
+.tv-admin-page .regie-danger{border:2px solid #ff3d58;background:#391020;box-shadow:0 0 15px #ff315444}
+.tv-admin-page .regie-danger>summary{color:#fff0f1;background:linear-gradient(110deg,#a21130,#690c24);text-shadow:0 1px 2px #360008}
+.tv-admin-page .regie-danger[open]>summary{border-bottom:1px solid #ff6379}
+.tv-admin-page .regie-danger>div{padding:0 14px 14px}

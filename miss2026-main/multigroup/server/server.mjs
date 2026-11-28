@@ -11,6 +11,7 @@ import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
 import {conditionalWrite} from "./conditional.mjs";
 import {createReadCache,createVoteQueue} from "./loadControl.mjs";
 import {chatDelta} from "./chatDelta.mjs";
+import {attachChatSocket} from "./chatSocket.mjs";
 import {authenticateGroupMember} from "./recovery.mjs";
 import {invitationKey,sealInvitation,openInvitation} from "./invitationCard.mjs";
 import {previewToken,previewDetails,previewPage} from "./richInvitation.mjs";
@@ -508,6 +509,7 @@ const server=http.createServer(async(req,res)=>{
     else res.end();
   }
 });
+if(process.env.ENABLE_TEST_CHAT_WEBSOCKET==="true")attachChatSocket(server,{origin:ORIGIN,auth,rootRef:getDatabase(app).ref(),adminUid:"fma5bvfcCRYoS1kBf0CUFdBVowJ3",isReady:()=>registrationEnabled&&ready(),allowChatRead:()=>!chatBudgetReached()});
 server.requestTimeout=15000;
 server.headersTimeout=10000;
 server.listen(Number(process.env.PORT||3000),"0.0.0.0");

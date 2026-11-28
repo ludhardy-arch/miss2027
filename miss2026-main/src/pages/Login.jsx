@@ -7,6 +7,7 @@ import ChatBubble from "../components/ChatBubble";
 import RulesToggle from "../components/RulesToggle";
 import InvitationPreview from "../components/InvitationPreview";
 import InvitationCard from "../components/InvitationCard";
+import WaitingGroups from "../components/WaitingGroups";
 import { signInWithCustomToken, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
  
 // 12 décembre 2026, 20 h 40 à Paris (heure d'hiver : UTC+1).
@@ -459,9 +460,23 @@ export default function Login({ setUser }) {
       {screen==="join"&&<div style={{width:"min(100%,600px)",margin:"0 auto 16px"}}>
         <button type="button" disabled={pending} onClick={()=>{setError("");setEntryMode("recover-account");}} style={{...entryButton,display:"block",minHeight:74,fontSize:18,margin:0,border:"2px solid #80caff",boxShadow:"0 0 7px rgba(82,173,255,.85),0 0 19px rgba(39,131,255,.6),0 0 30px rgba(39,131,255,.23)"}}>Se connecter à son compte</button>
       </div>}
-      <div className="tv-entry tv-entry-v3 group-entry-panel" style={{display:"grid",gap:12}}>
+      <div className={"tv-entry tv-entry-v3 group-entry-panel"+(screen==="joined-group"&&joinedGroup?" group-entry-lobby":"")} style={{display:"grid",gap:12}}>
         <style>{`
           .tv-login-shell .group-entry-panel button { margin-top:0; }
+          .tv-login-shell.tv-show-v3 .tv-entry-v3.group-entry-lobby {width:100%;box-sizing:border-box;padding:0!important;border:0!important;border-radius:0;background:transparent!important;box-shadow:none!important;gap:14px!important;}
+          .tv-login-shell .group-entry-lobby::before {display:none!important;content:none!important;}
+          .group-entry-lobby .waiting-group-card {display:grid;gap:16px;min-width:0;box-sizing:border-box;padding:24px 20px;border:2px solid #ffdb97;border-radius:22px;background:linear-gradient(150deg,rgba(12,34,89,.95),rgba(8,9,43,.98));box-shadow:0 0 20px rgba(255,219,151,.22),0 0 30px rgba(28,126,255,.22);}
+          .group-entry-lobby .waiting-group-card h2 {margin:0!important;overflow-wrap:anywhere;font-size:clamp(19px,5.3vw,26px)!important;line-height:1.25;color:#ffe5ad;text-align:center;}
+          .group-entry-lobby .waiting-group-roster {display:grid;gap:5px;padding:12px;border:1px solid #64a9ea;border-radius:13px;text-align:left;}
+          .group-entry-lobby .waiting-group-roster h3 {margin:0 0 7px;color:#ffe5ad;text-align:center;font-size:clamp(16px,4.6vw,21px);}
+          .group-entry-lobby .waiting-group-member {display:flex;align-items:center;gap:9px;padding:7px 0;color:#e0e8ff;overflow-wrap:anywhere;min-width:0;}
+          .group-entry-lobby .waiting-group-count {margin:2px 0 0;text-align:center;font-size:14px;color:#e0e8ff;font-weight:700;}
+          .tv-login-shell .group-entry-lobby button.waiting-group-action {display:flex;justify-content:center;align-items:center;gap:8px;padding:12px 10px;min-height:54px;font-size:15px;line-height:1.3;}
+          .tv-login-shell .group-entry-lobby button.waiting-group-action:disabled {opacity:.62;cursor:not-allowed;}
+          .group-entry-lobby .waiting-group-access {margin-top:4px;}
+          .group-entry-lobby .waiting-group-access button {width:100%;}
+          .tv-login-shell .waiting-return {display:block;margin:18px auto 0;background:transparent!important;color:#c6d3ee!important;border:0!important;box-shadow:none!important;font-size:14px;min-height:42px;padding:8px;}
+          .tv-login-shell .group-entry-lobby + .demo-entry-link {padding-top:14px!important;}
           .tv-login-shell .group-entry-panel button.group-entry-blue {
             background:linear-gradient(110deg,#143b87,#2862bb)!important;
             color:#fff!important;border:1px solid #64a9ea!important;
@@ -570,14 +585,9 @@ export default function Login({ setUser }) {
           <button type="button" className="group-entry-back" disabled={pending} onClick={() => {setGroupPassword("");setSelectedGroup(null);setError("");setEntryMode("join");}}>Retour aux résultats</button>
         </form>}
         {screen === "joined-group" && joinedGroup && <>
-          <h2 style={{margin:0,color:"#ffe5ad",fontSize:21}}>Bienvenue {joinedGroup.pseudo} dans le groupe {joinedGroup.name} !</h2>
-          {joinedGroup.type==="public" && <p style={{margin:0,color:"#78ffbd",fontWeight:800}}>Salle publique · {joinedGroup.memberCount}/30 inscrits lors de ta connexion</p>}
-          <section style={{padding:12,border:"1px solid #64a9ea",borderRadius:13,textAlign:"left"}}>
-            <h3 style={{margin:"0 0 10px",color:"#ffe5ad"}}>Participants ({lobbyMembers.length}/30)</h3>
-            {lobbyMembers.map(member=><div key={member.pseudo} style={{padding:"7px 0",color:"#e0e8ff"}}>{member.pseudo}{member.isOwner?" · Créateur":""}</div>)}
-          </section>
-          {accessControl(false,enterContest,!!lobbyError,joinedGroup.entered===true)}
+          <WaitingGroups groups={[{...joinedGroup,members:lobbyMembers}]} buttonStyle={entryButton} />
           {joinedGroup.isOwner&&<button type="button" className="group-entry-blue" style={entryButton} disabled={pending} onClick={()=>startCreatorFlow("creator-login")}>Gérer mon groupe</button>}
+          <div className="waiting-group-access">{accessControl(false,enterContest,!!lobbyError,joinedGroup.entered===true)}</div>
         </>}
         {screen === "manage" && <>
           <button type="button" className="group-entry-gold" style={{...entryButton,background:"linear-gradient(135deg,#d9a42d,#ffe078,#e8b63e)",color:"#342303",border:"2px solid #ffdf77",boxShadow:"0 0 12px rgba(255,204,70,.42)"}} disabled={pending} onClick={()=>startCreatorFlow("create-group")}>Créer un groupe</button>
@@ -625,10 +635,11 @@ export default function Login({ setUser }) {
         </>}
         {lobbyGroup&&firebaseIdentity&&<ChatBubble key={lobbyGroup.id} user={{uid:firebaseIdentity,pseudo:lobbyGroup.pseudo}} groupRequest={lobbyChat} roomId={lobbyGroup.id} groupName={lobbyGroup.name}/>}
         {lobbyGroup&&lobbyError&&<p role="alert" style={{color:"#ffd0cf"}}>{lobbyError}</p>}
-        {screen !== "home" && <button type="button" className="group-entry-back" disabled={pending} onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}
+        {screen !== "home" && screen !== "joined-group" && <button type="button" className="group-entry-back" disabled={pending} onClick={backToHome} style={{background:"transparent",border:0,color:"#c6d3ee",fontSize:14,padding:8,cursor:"pointer"}}>Retour à l’accueil</button>}
         {error && <p role="alert" style={{color:"#ffd0cf",margin:0}}>{error}</p>}
       </div>
       {demoLoaded && demoEnabled && <div className="demo-entry-link" style={{ textAlign: "center", padding: "25px 10px 0" }}><button type="button" onClick={() => navigate("/demo")} style={{ background: "linear-gradient(110deg,#143b87,#2862bb)", border: "2px solid #dfbe7b", borderRadius: 15, boxShadow: "0 0 18px rgba(39,131,255,.45),0 0 14px rgba(246,198,102,.3)", color: "white", padding: "15px 24px", fontSize: 16, fontWeight: 800 }}>✦ ESSAYER LA DÉMO · SANS INSCRIPTION ✦</button></div>}
+      {screen==="joined-group"&&joinedGroup&&<button type="button" className="waiting-return" disabled={pending} onClick={backToHome}>Retour à l’accueil</button>}
       <footer style={{ textAlign: "center", margin: "38px auto 0", padding: "12px 0 20px" }}>
         {window.location.origin===TEST_ORIGIN&&<div style={{display:"grid",justifyItems:"center",gap:9,marginBottom:14}}>
           {simulatedPlayerApp&&<p role="status" style={{color:"#ffd49c",fontSize:13,margin:0}}>Session de joueur simulé · indépendante</p>}

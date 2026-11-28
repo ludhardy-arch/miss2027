@@ -48,7 +48,7 @@ export function createVoteQueue(change,{windowMs=100,maxBatch=64,maxPending=1600
      state=r.state;return {status:200,body:r.result};
     });
     return {state,result:{items}};
-   });
+   },{chatOnly:jobs.every(job=>job.lane==="chat")});
    if(out.status===200){
     if(out.body.items.length!==jobs.length)throw Error("mutation_batch_mismatch");
     jobs.forEach((job,i)=>settle(job,out.body.items[i]));

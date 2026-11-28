@@ -432,7 +432,7 @@ export default function Admin({ user, setUser }) {
                   <label>Écris SUPPRIMER pour confirmer<input value={deleteWord} onChange={e=>setDeleteWord(e.target.value)} autoCapitalize="characters" autoComplete="off" disabled={deleteBusy}/></label>
                   <button type="button" disabled={deleteBusy||deleteWord!=="SUPPRIMER"||votesOpen||finaleStarted||tour!==1} onClick={()=>void confirmDeleteGroup()} style={{background:"#8a2542",color:"#fff"}}>{deleteBusy?"Suppression…":"Confirmer définitivement"}</button>
                   <button type="button" disabled={deleteBusy} onClick={()=>{setDeleteTarget(null);setDeleteWord("");}}>Annuler</button>
-                </div>
+                </div>}
               </div>}
             </div>;
           })}

@@ -393,6 +393,13 @@ export default function Admin({ user, setUser }) {
       {nationalError&&<p role="alert" style={{color:"#ffb3b3"}}>Statistiques non actualisées : {nationalError}</p>}
       {!nationalView&&!nationalError&&<p role="status">Chargement des inscriptions…</p>}
       {nationalView&&<p className="regie-muted">{nationalView.groupCount} salles et groupes · suivi national</p>}
+      <section className="regie-controls"><h2>COMMANDES DE LA RÉGIE</h2><div className="regie-control-grid">
+        <button type="button" className={"regie-switch "+(connectionsOpen?"is-on":"is-off")} disabled={controlBusy||gameId==="loading"} onClick={()=>void toggleControl("connections",!connectionsOpen)}><span>⇥</span><b>CONNEXIONS</b><strong>{connectionsOpen?"ON":"OFF"}</strong></button>
+        <button type="button" className={"regie-switch "+(votesOpen?"is-on":"is-off")} disabled={controlBusy||finaleStarted||gameId==="loading"} onClick={()=>void toggleControl("votes",!votesOpen)}><span>✉</span><b>VOTES</b><strong>{votesOpen?"ON":"OFF"}</strong></button>
+        <button type="button" disabled={!demoLoaded} className={"regie-switch "+(demoEnabled?"is-on":"is-off")} onClick={()=>safely(()=>updateDemoEnabled(!demoEnabled))}><span>▣</span><b>MODE DÉMO</b><strong>{!demoLoaded?"…":demoEnabled?"ON":"OFF"}</strong></button>
+        <button type="button" className="regie-show" disabled={publishing||votesOpen||finaleStarted||!finalRankingValidated} onClick={()=>void launchShow()}><span>♛</span><b>SHOW FINAL</b><strong>{finaleStarted?"SHOW LANCÉ":publishing?"PUBLICATION…":"LANCER LE SHOW"}</strong></button>
+      </div></section>
+
       <section className="regie-kpis" aria-label="Statistiques du concours">
         <button type="button" className="regie-kpi" aria-expanded={groupsExpanded} onClick={()=>setGroupsExpanded(x=>!x)}><span className="regie-kpi-icon">♟</span><strong>{nationalView?groups.length:"…"}</strong><span>GROUPES CRÉÉS {groupsExpanded?"⌃":"⌄"}</span></button>
         <button type="button" className="regie-kpi" aria-expanded={votesExpanded} onClick={()=>setVotesExpanded(x=>!x)}><span className="regie-kpi-icon green">✓</span><strong>{nationalView?`${votedCount}/${totalPlayers}`:"…"}</strong><span>VOTES VALIDÉS {votesExpanded?"⌃":"⌄"}</span></button>
@@ -473,12 +480,7 @@ export default function Admin({ user, setUser }) {
       </section>}
       {rankExpanded && <section className="regie-expand"><h3>CLASSEMENT DES JOUEURS</h3><div className="regie-standing-list">{standings.map((p,i)=><div key={p.uid}><strong>{i===0?"👑":String(i+1).padStart(2,"0")}</strong><span>{p.pseudo}</span><b>{p.points} pts</b></div>)}</div>{!standings.length&&<p>Aucun score pour le moment.</p>}</section>}
 
-      <section className="regie-controls"><h2>COMMANDES DE LA RÉGIE</h2><div className="regie-control-grid">
-        <button type="button" className={"regie-switch "+(connectionsOpen?"is-on":"is-off")} disabled={controlBusy||gameId==="loading"} onClick={()=>void toggleControl("connections",!connectionsOpen)}><span>⇥</span><b>CONNEXIONS</b><strong>{connectionsOpen?"ON":"OFF"}</strong></button>
-        <button type="button" className={"regie-switch "+(votesOpen?"is-on":"is-off")} disabled={controlBusy||finaleStarted||gameId==="loading"} onClick={()=>void toggleControl("votes",!votesOpen)}><span>✉</span><b>VOTES</b><strong>{votesOpen?"ON":"OFF"}</strong></button>
-        <button type="button" disabled={!demoLoaded} className={"regie-switch "+(demoEnabled?"is-on":"is-off")} onClick={()=>safely(()=>updateDemoEnabled(!demoEnabled))}><span>▣</span><b>MODE DÉMO</b><strong>{!demoLoaded?"…":demoEnabled?"ON":"OFF"}</strong></button>
-        <button type="button" className="regie-show" disabled={publishing||votesOpen||finaleStarted||!finalRankingValidated} onClick={()=>void launchShow()}><span>♛</span><b>SHOW FINAL</b><strong>{finaleStarted?"SHOW LANCÉ":publishing?"PUBLICATION…":"LANCER LE SHOW"}</strong></button>
-      </div></section>
+
 
       <details id="regie-room-chat" className="regie-panel regie-chat-fold" open={chatExpanded} onToggle={event=>setChatExpanded(event.currentTarget.open)}>
         <summary><span>💬 Chat des salles</span>{alertRooms.length>0&&<span className="regie-chat-fold-alert">{alertRooms.reduce((sum,g)=>sum+g.count,0)} alerte(s)</span>}</summary>

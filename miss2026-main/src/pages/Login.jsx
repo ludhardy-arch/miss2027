@@ -149,14 +149,14 @@ export default function Login({ setUser }) {
   function applyLobby(data){
     const groups=Array.isArray(data.groups)?data.groups:data.group?[{...data.group,members:data.members||[]}]:[];
     setMultiReady(data.maxGroups===3);setGroupsLocked(data.locked===true);
-    setLobbyGroups(groups);setJoinedGroup(groups[0]||null);setLobbyMembers(groups[0]?.members||[]);
+    setLobbyGroups(groups);setJoinedGroup(groups[0]||null);setLobbyMembers(groups[0]?.members||[]);setRecoverableGroup(groups[0]||null);
     return groups;
   }
   function showLobby(data){
     const groups=applyLobby(data);restoredIdentity.current=firebaseIdentity;
     setAdditionalFlow(false);setEntryMode(groups.length?"joined-group":"home");
   }
-  useEffect(()=>{setLobbyGroups([]);setJoinedGroup(null);setOwnerGroup(null);setMultiReady(false);setAdditionalFlow(false);},[firebaseIdentity]);
+  useEffect(()=>{setLobbyGroups([]);setJoinedGroup(null);setOwnerGroup(null);setRecoverableGroup(null);setMultiReady(false);setAdditionalFlow(false);},[firebaseIdentity]);
   const searchGeneration=useRef(0);
   useEffect(()=>{searchGeneration.current++;setGroupResults(null);setSelectedGroup(null);},[gameId]);
   useEffect(()=>{
@@ -332,7 +332,8 @@ export default function Login({ setUser }) {
       
       restoredIdentity.current=firebaseIdentity;
       setOwnerGroup(result.group);
-      if(additionalFlow){showLobby(await groupRequest("/groups/me"));}else{setEntryMode("creator-confirm");}
+      const fresh=await groupRequest("/groups/me");
+      if(additionalFlow){showLobby(fresh);}else{applyLobby(fresh);setEntryMode("creator-confirm");}
     }catch(err){
       if(err.code==="already_member"){
         try{const membership=await groupRequest("/groups/me");if(membership.group){showLobby(membership);return;}}catch{}
@@ -562,7 +563,8 @@ export default function Login({ setUser }) {
           <button type="button" className="group-entry-gold" style={{...entryButton,background:"linear-gradient(135deg,#d9a42d,#ffe078,#e8b63e)",color:"#342303",border:"2px solid #ffdf77",boxShadow:"0 0 12px rgba(255,204,70,.42)"}} onClick={() => openEntry("manage")}>Créer / Gérer son groupe</button>
         </>}
         {(screen === "public" || screen === "invite") && <>
-          {screen==="invite"&&inviteGroup&&<InvitationCard name={inviteGroup.name} password={invitationPassword} knownPseudo={knownPseudo} disabled={pending||!inviteIdentityReady||!!knownPseudo&&!multiReady} onJoin={()=>knownPseudo?void acceptInvite():setInviteForm(true)}/>}
+          {screen==="invite"&&inviteGroup&&<InvitationCard name={inviteGroup.name} password={invitationPassword} knownPseudo={knownPseudo} disabled={pending||!inviteIdentityReady||!!knownPseudo&&!multiReady||lobbyGroups.length>=3&&!lobbyGroups.some(g=>g.id===inviteGroup.id)} onJoin={()=>knownPseudo?void acceptInvite():setInviteForm(true)}/>}
+          {screen==="invite"&&inviteGroup&&lobbyGroups.length>=3&&!lobbyGroups.some(g=>g.id===inviteGroup.id)&&notice("Tu appartiens déjà à trois groupes. Tu ne peux pas en rejoindre un quatrième.")}
           {(screen==="public"||inviteForm&&!knownPseudo)&&<>
             <input aria-label="Mon pseudo" autoComplete="nickname" maxLength={24} placeholder="Mon pseudo" value={pseudo} disabled={pending} onChange={e => setPseudo(e.target.value)} style={inputStyle}/>
             {pseudoFeedback()}

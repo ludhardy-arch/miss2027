@@ -427,6 +427,7 @@ const server=http.createServer(async(req,res)=>{
       return reply(res,200,{...result.body,group:view.result.group});
     }
     if(req.method==="POST"&&url.pathname==="/groups/join"){
+      if(uid==="fma5bvfcCRYoS1kBf0CUFdBVowJ3")return reply(res,403,{error:"admin_cannot_register"});
       if(limited("join:"+uid,5))return reply(res,429,{error:"too_many_requests"});
       const b=await body(req);
       if(!validId(b.id)||!validString(b.pseudo,1,24)||!validString(b.password,6,128))return reply(res,400,{error:"invalid_fields"});

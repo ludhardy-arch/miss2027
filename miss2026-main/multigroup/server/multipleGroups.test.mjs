@@ -56,3 +56,15 @@ test("separate chat and a single vote / national score across groups",()=>{
  assert.equal(v.finals[0].local[0].points,v.finals[1].local[0].points);
  assert.deepEqual(adminGameView(r).players.marc.groupIds,["a","b"]);
 });
+
+test("game lock and full rooms reject additional membership",()=>{
+ let r=fixture();r=manageGroup(r,{uid:"jean",action:"invite",digest}).state;
+ r.rooms.miss2027.registrationLocked=true;
+ assert.equal(acceptInvitation(r,{uid:"marc",digest,pseudo:"Marc",additional:true}).code,"unavailable");
+ r.rooms.miss2027.registrationLocked=false;
+ for(let i=0;i<29;i++){
+  const joined=joinGroup(reg(r),{uid:"guest"+i,id:"b",pseudo:"Guest "+i,verifiedSecret:"b",now:10+i});
+  assert.equal(joined.code,undefined);r.events.miss2027.registration=joined.state;
+ }
+ assert.equal(join(r,"b").code,"group_full");
+});

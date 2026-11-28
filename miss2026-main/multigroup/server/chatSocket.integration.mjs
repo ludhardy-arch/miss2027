@@ -39,3 +39,41 @@ test("live chat: isolated rooms, targeted warnings, sanctions and a single sourc
  delete state.events.miss2027.registration.membership.u2;source();
  await until(()=>b.ws.readyState===WebSocket.CLOSED);
 });
+
+test("real local WebSocket connections: ramp to 1500 players in groups of 30", {timeout:90000}, async t=>{
+ const membership={},groups={};
+ for(let i=0;i<1500;i++){
+  const uid="u"+i,g="g"+Math.floor(i/30);
+  membership[uid]=g;groups[g]??={name:g,members:{}};groups[g].members[uid]={pseudo:uid};
+ }
+ let state={events:{miss2027:{registration:{groups,membership}}}};
+ let listener=null,subscriptions=0;
+ const rootRef={on(event,fn){subscriptions++;listener=fn;fn({val:()=>state});},off(event,fn){if(listener===fn)listener=null;}};
+ const server=http.createServer();
+ const wss=attachChatSocket(server,{origin:"https://test.invalid",auth:{verifyIdToken:async uid=>({uid,exp:Date.now()/1000+3600,firebase:{sign_in_provider:"anonymous"}})},rootRef,adminUid:"admin",isReady:()=>true,maxClients:5000});
+ server.listen(0,"127.0.0.1");await once(server,"listening");
+ const clients=[];
+ t.after(async()=>{for(const c of clients)c.ws.terminate();for(const ws of wss.clients)ws.terminate();wss.close();await new Promise(resolve=>server.close(resolve));});
+ async function connect(i){
+  const ws=new WebSocket("ws://127.0.0.1:"+server.address().port+"/chat/live",{origin:"https://test.invalid"});
+  const c={ws,view:null,frames:0};clients[i]=c;
+  ws.on("message",raw=>{c.view=applyChatFrame(c.view,JSON.parse(raw.toString()));c.frames++;});
+  await once(ws,"open");ws.send(JSON.stringify({type:"subscribe",token:"u"+i,groupId:"g"+Math.floor(i/30)}));
+ }
+ async function until(fn){for(let i=0;i<400;i++){if(fn())return;await new Promise(r=>setTimeout(r,25));}throw Error("timed out");}
+ let previous=0;
+ for(const n of [50,100,250,500,1000,1500]){
+  const started=Date.now();
+  // Controlled bursts avoid measuring a manufactured authentication denial.
+  for(let i=previous;i<n;i+=25)await Promise.all(Array.from({length:Math.min(25,n-i)},(_,j)=>connect(i+j)));
+  await until(()=>clients.every(c=>c?.view));
+  assert.equal(subscriptions,1);assert.equal(wss.clients.size,n);
+  const id="m"+n;
+  const result=chatAction(state,{uid:"u0",groupId:"g0",text:"Test "+n,id,now:n});
+  assert.equal(result.result.accepted,true);state=result.state;listener({val:()=>state});
+  await until(()=>clients.slice(0,30).every(c=>c.view.messages.some(m=>m.id===id)));
+  assert.ok(clients.slice(30).every(c=>!c.view.messages.some(m=>m.id===id)));
+  t.diagnostic(JSON.stringify({connections:n,elapsedMs:Date.now()-started,rssBytes:process.memoryUsage().rss,sourceSubscriptions:subscriptions}));
+  previous=n;
+ }
+});

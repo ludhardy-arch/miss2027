@@ -1,6 +1,6 @@
  import React, { useState, useEffect, useRef } from "react";
 import { database } from "../firebase";
-import { ref, push, onValue, get } from "firebase/database";
+import { ref, push, onValue, get, query, orderByKey, limitToLast } from "firebase/database";
 
 // Messages historiques envoyés avant l'utilisation du nom ADMIN.
 const isAdminMessage = (message) => {
@@ -21,47 +21,36 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
 
   const messagesEndRef = useRef(null);
 
-  // Stocke l’ancien dernier message pour détecter les vrais nouveaux
-  const lastMessageRef = useRef(null);
+  // Keep a single live subscription, whether the bubble is open or closed.
+  const openRef = useRef(false);
 
-  // Charger messages Firebase
   useEffect(() => {
-    if (inDemo) return;
-    const chatRef = ref(database, "rooms/miss2027/chat");
+    if (inDemo || !user?.uid || !user?.pseudo) return;
+    const chatQuery = query(ref(database, "rooms/miss2027/chat"), orderByKey(), limitToLast(100));
+    let previousKeys = null;
+    setMessages([]);
+    setUnread(0);
 
-    const unsubscribe = onValue(chatRef, (snap) => {
-      const data = snap.val() || {};
-      const list = Object.values(data).filter(m => !m.targetUid || m.targetUid === user.uid).sort((a, b) => a.date - b.date);
+    return onValue(chatQuery, (snap) => {
+      const list = [];
+      snap.forEach(child => {
+        const message = child.val();
+        if (message && (!message.targetUid || message.targetUid === user.uid)) {
+          list.push({ ...message, messageId: child.key });
+        }
+      });
+      list.sort((a, b) => (a.date || 0) - (b.date || 0) || a.messageId.localeCompare(b.messageId));
+      const keys = new Set(list.map(message => message.messageId));
+      if (previousKeys !== null && !openRef.current) {
+        const added = list.filter(message => !previousKeys.has(message.messageId) && message.author !== user.pseudo).length;
+        if (added) setUnread(count => count + added);
+      }
+      previousKeys = keys;
       setMessages(list);
-
-      const last = list[list.length - 1] || null;
-
-      // Première lecture = aucun badge
-      if (lastMessageRef.current === null) {
-        lastMessageRef.current = last;
-        return;
-      }
-
-      // Aucun nouveau message ?
-      if (
-        !last ||
-        (lastMessageRef.current && last.date === lastMessageRef.current.date)
-      ) {
-        return;
-      }
-
-      // Si c'est un nouveau message ET que la bulle est fermée ET que ce n'est pas l'utilisateur
-      if (!open && last.author !== user.pseudo) {
-        setUnread((u) => u + 1);
-      }
-
-      lastMessageRef.current = last;
     }, (error) => {
       setChatError("Lecture du chat refusée : " + error.code);
     });
-
-    return () => unsubscribe();
-  }, [open, user.pseudo, inDemo]);
+  }, [user?.uid, user?.pseudo, inDemo]);
 
   // Restriction du chat mise à jour en temps réel.
   useEffect(() => {
@@ -129,7 +118,8 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
           animation: unread > 0 ? "pulseBubble 1.5s infinite" : "none",
         }}
         onClick={() => {
-          setOpen(!open);
+          openRef.current = !open;
+           setOpen(!open);
           setUnread(0); // reset badge
         }}
       >
@@ -202,7 +192,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
 
               return (
                 <div
-                  key={i}
+                  key={m.messageId || i}
                   style={{
                     alignSelf: isMe ? "flex-end" : "flex-start",
 

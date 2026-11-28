@@ -165,12 +165,7 @@ export default function Login({ setUser }) {
     groupRequest("/groups/me").then(async result=>{
       if(!active)return;
       if(result.removed){restoredIdentity.current=firebaseIdentity;setError("La régie a retiré ton inscription du concours.");return;}
-      const groups=applyLobby(result);
-      if(!result.group){restoredIdentity.current=firebaseIdentity;return;}
-      if(result.group.isOwner&&groups.length===1){
-        const owner=await groupRequest("/groups/owner/manage?groupId="+encodeURIComponent(result.group.id));
-        if(active){restoredIdentity.current=firebaseIdentity;setOwnerGroup(owner.group);setEntryMode("creator-dashboard");}
-      }else{restoredIdentity.current=firebaseIdentity;setEntryMode("joined-group");}
+      showLobby(result);
     }).catch(e=>{if(active)setError(e.message);});
     return()=>{active=false;};
   },[firebaseIdentity,invitation]);
@@ -340,14 +335,14 @@ export default function Login({ setUser }) {
       if(additionalFlow){showLobby(await groupRequest("/groups/me"));}else{setEntryMode("creator-confirm");}
     }catch(err){
       if(err.code==="already_member"){
-        try{const membership=await groupRequest("/groups/me");if(membership.group){showExistingMembership(membership.group);return;}}catch{}
+        try{const membership=await groupRequest("/groups/me");if(membership.group){showLobby(membership);return;}}catch{}
       }
       setError(err.message||"Création impossible.");
     }finally{setCreatorPassword("");setPending(false);}
   }
   async function manageSelected(id){
     if(pending)return;setPending(true);setError("");
-    try{const result=await groupRequest("/groups/owner/manage?groupId="+encodeURIComponent(id));setOwnerGroup(result.group);setEntryMode("creator-dashboard");}catch(e){setError(e.message);}finally{setPending(false);}
+    try{const result=await groupRequest("/groups/owner/manage?groupId="+encodeURIComponent(id));setOwnerGroup(result.group);setInviteLink("");setInviteStatus("");setEntryMode("creator-dashboard");}catch(e){setError(e.message);}finally{setPending(false);}
   }
   function startAdditional(mode){
     if(pending||!multiReady||groupsLocked||lobbyGroups.length>=3||!knownPseudo)return;

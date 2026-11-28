@@ -4,9 +4,9 @@ import {AppContext} from "./context/AppContext";
 import {auth} from "./firebase";
 import Player from "./pages/Player";
 import Waiting from "./pages/Waiting";
-import ChatBubble from "./components/ChatBubble";
+import MultiGroupChat from "./components/MultiGroupChat";
 import FinalShow from "./components/FinaleOverlay";
-const roomChat=body=>request("/chat",body);
+
 
 const API="https://miss2027-test-api.onrender.com";
 const errors={player_removed:"La régie a retiré ton inscription du concours.",not_registered:"Inscription introuvable. Retourne à l’accueil.",game_changed:"La partie a été réinitialisée.",round_changed:"Le tour a changé.",votes_closed:"Les votes sont fermés.",invalid_vote:"Sélection non valide.",invalid_favorite:"Choisis ton coup de cœur parmi les 12 Miss.",already_voted:"Ton vote est déjà enregistré.",chat_blocked:"Ton accès au chat est bloqué.",invalid_message:"Message invalide (500 caractères maximum).",too_many_requests:"Trop de demandes. Réessaie dans un instant."};
@@ -24,6 +24,7 @@ async function request(path,body){
 export default function GameSession({user,setUser,waiting}){
  const national=useContext(AppContext),navigate=useNavigate();
  const [view,setView]=useState(null),[failure,setFailure]=useState("");
+ const [showGroup,setShowGroup]=useState(null);
  const serial=useRef(0),alive=useRef(false),missing=useRef(0);
  const leave=()=>{try{sessionStorage.setItem("miss_manual_exit",user.uid);}catch{}setUser(null);navigate("/login",{replace:true});};
  async function refresh(){
@@ -31,9 +32,10 @@ export default function GameSession({user,setUser,waiting}){
    try{
      const data=await request("/game/state");
      if(!alive.current||seq!==serial.current)return;
-     if(data.group?.id!==user.groupId){setFailure("Vérification de ton inscription en cours…");return;}
+     if(!data.group?.id){setFailure("Vérification de ton inscription en cours…");return;}
+     if(data.group.id!==user.groupId){setUser(old=>({...old,groupId:data.group.id,groupName:data.group.name}));return;}
      missing.current=0;
-     if(data.gameId!==user.gameId){setView(null);setUser(old=>({...old,gameId:data.gameId}));return;}
+     if(data.gameId!==user.gameId){setView(null);setShowGroup(null);setUser(old=>({...old,gameId:data.gameId}));return;}
      setView(data);setFailure("");
    }catch(e){
      if(!alive.current||seq!==serial.current)return;
@@ -69,10 +71,11 @@ export default function GameSession({user,setUser,waiting}){
    await refresh();
  }
  if(!view)return <main className="tv-page"><p role="status">{failure||"Connexion à ton groupe…"}</p>{failure&&<button onClick={()=>void refresh()}>Réessayer</button>}<button onClick={leave}>Retour à l’accueil</button></main>;
+ const finals=view.finals||[];const selectedFinal=finals.find(f=>f.group.id===showGroup);
  const context={...national,tour:view.tour,votesOpen:view.votesOpen&&!failure,adminSelections:view.adminSelections,gameId:view.gameId,players:{[user.pseudo]:view.ownVote},groupTrend:view.trend,updateFirstRoundWithFavorite:(_pseudo,selection,favorite)=>vote(1,selection,favorite),updatePlayerVote:(_pseudo,tour,selection)=>vote(tour,selection)};
  return <AppContext.Provider value={context}>
    {failure&&<p role="alert" style={{textAlign:"center",color:"#ffb3b3"}}>{failure} <button onClick={()=>void refresh()}>Réessayer</button></p>}
-   {view.finaleStarted?(view.final?<FinalShow frozenRanking={view.final.local} national={view.final} groupName={view.group.name} showKey={"miss2027-show-"+view.final.version+"-"+user.uid}/>:<main className="tv-page tv-show-v3"><h2>Le show final arrive !</h2><p>Résultats en attente.</p><button onClick={()=>void refresh()}>Actualiser</button></main>):waiting?<Waiting user={user}/>:<Player user={user} setUser={setUser}/>}
-   {!view.finaleStarted&&<ChatBubble key={user.groupId} user={user} groupRequest={roomChat} roomId={user.groupId} groupName={view.group.name}/>}
+   {view.finaleStarted?(view.final?(finals.length>1&&!selectedFinal?<main className="tv-page tv-show-v3" style={{textAlign:"center"}}><img src="/images/couronne-prestige.svg" alt="" style={{width:130}}/><h1 style={{color:"#ffe1a0"}}>LE SHOW FINAL</h1>{finals.map(f=><section key={f.group.id} style={{background:"#101e43",border:"1px solid #d5b16a",borderRadius:18,padding:20,margin:"16px auto",maxWidth:480}}><h2 style={{color:"#ffe1a0"}}>{f.group.name}</h2><button type="button" onClick={()=>{try{sessionStorage.removeItem("miss2027-show-"+view.final.version+"-"+user.uid+"-"+f.group.id);}catch{}setShowGroup(f.group.id);}} style={{width:"100%",background:"linear-gradient(110deg,#d9a42d,#ffe078,#e8b63e)",color:"#342303",border:"2px solid #ffdf77",fontWeight:800,padding:15,borderRadius:12}}>Découvre ton résultat</button></section>)}</main>:<><FinalShow key={selectedFinal?.group.id||view.group.id} frozenRanking={(selectedFinal||view.final).local} national={selectedFinal||view.final} groupName={selectedFinal?.group.name||view.group.name} showKey={"miss2027-show-"+view.final.version+"-"+user.uid+(finals.length>1?"-"+selectedFinal.group.id:"")}/>{finals.length>1&&<button type="button" onClick={()=>setShowGroup(null)} style={{position:"fixed",top:"max(8px,env(safe-area-inset-top))",right:8,zIndex:2147483647,width:"auto",padding:"9px 13px",minHeight:38,fontSize:13}}>Mes autres résultats</button>}</>):<main className="tv-page tv-show-v3"><h2>Le show final arrive !</h2><p>Résultats en attente.</p><button onClick={()=>void refresh()}>Actualiser</button></main>):waiting?<Waiting user={user}/>:<Player user={user} setUser={setUser}/>}
+   {!view.finaleStarted&&<MultiGroupChat user={user} groups={view.groups||[view.group]} request={request}/>}
  </AppContext.Provider>;
 }

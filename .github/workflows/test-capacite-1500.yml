@@ -3,6 +3,9 @@ on:
   push:
     branches: [test-capacite-1500]
   workflow_dispatch:
+concurrency:
+  group: miss2027-capacity-test
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -22,4 +25,4 @@ jobs:
       - run: npm run build
       - run: npm --prefix multigroup/server install --no-audit --no-fund
       - run: node --check multigroup/server/server.mjs
-      - run: node --test multigroup/server/*.test.mjs multigroup/finalResults.test.js
+      - run: node --test multigroup/server/*.test.mjs multigroup/server/chatSocket.integration.mjs multigroup/finalResults.test.js

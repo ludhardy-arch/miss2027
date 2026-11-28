@@ -2,7 +2,7 @@ import React,{useCallback,useState} from "react";
 import {createPortal} from "react-dom";
 import ChatBubble from "./ChatBubble";
 function Conversation({group,user,request,open,header,onUnread}){
- const send=useCallback(body=>body===undefined?request("/chat?groupId="+encodeURIComponent(group.id)):request("/chat",{...body,groupId:group.id}),[group.id,request]);
+ const send=useCallback((body,cursor)=>body===undefined?request("/chat?"+new URLSearchParams({groupId:group.id,...(cursor||{})})):request("/chat",{...body,groupId:group.id}),[group.id,request]);
  const changed=useCallback(n=>onUnread(group.id,n),[group.id,onUnread]);
  return <ChatBubble user={user} groupRequest={send} roomId={group.id} groupName={group.name} externalOpen={open} hideBubble onUnread={changed} headerExtra={header}/>;
 }

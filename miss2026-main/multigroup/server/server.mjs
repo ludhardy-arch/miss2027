@@ -10,6 +10,7 @@ import {chatView,chatAction,adminAlertDirectory,verifyRoomReport,remindNonVoters
 import {resetContest,verifyReset,registrationCounts} from "./reset.mjs";
 import {conditionalWrite} from "./conditional.mjs";
 import {createReadCache,createVoteQueue} from "./loadControl.mjs";
+import {chatDelta} from "./chatDelta.mjs";
 import {authenticateGroupMember} from "./recovery.mjs";
 import {invitationKey,sealInvitation,openInvitation} from "./invitationCard.mjs";
 import {previewToken,previewDetails,previewPage} from "./richInvitation.mjs";
@@ -89,6 +90,9 @@ async function atomic(operation,target=registry,verify=null){
   return {status:200,body:outcome.result};
 }
 const ioStats={startedAt:Date.now(),reads:0,writes:0,conflicts:0,downloadedBytes:0,uploadedBytes:0};
+// Optional soft guard. Disabled until the owner chooses a threshold.
+const chatBudgetBytes=Math.max(0,Number(process.env.TEST_CHAT_READ_BUDGET_BYTES)||0);
+const chatBudgetReached=()=>chatBudgetBytes>0&&ioStats.downloadedBytes>=chatBudgetBytes;
 async function measuredJson(response){
  const raw=await response.text();ioStats.downloadedBytes+=Buffer.byteLength(raw);
  return JSON.parse(raw);
@@ -121,7 +125,7 @@ async function directRootChange(operation,verify){
   finally{readCache.invalidate();}
 }
 const voteQueue=createVoteQueue(directRootChange);
-function loadStats(){return {...ioStats,cache:readCache.stats(),votes:voteQueue.stats(),memoryBytes:process.memoryUsage().rss,scope:"process_rest_payload_only"};}
+function loadStats(){return {...ioStats,cache:readCache.stats(),votes:voteQueue.stats(),memoryBytes:process.memoryUsage().rss,scope:"process_rest_payload_only",chatBudgetBytes,chatBudgetReached:chatBudgetReached()};}
 async function directReset(kind,id){
   const {read,write}=await directRootAccess();
   readCache.invalidate();
@@ -231,14 +235,15 @@ const server=http.createServer(async(req,res)=>{
       const admin=url.pathname==="/admin/chat";
       if(admin&&(uid!=="fma5bvfcCRYoS1kBf0CUFdBVowJ3"||user.firebase?.sign_in_provider!=="google.com"))return reply(res,403,{error:"admin_required"});
       if(req.method==="GET"){
-        const view=chatView(await readCache.get(),{uid,admin,groupId:url.searchParams.get("groupId")});
+        const view=chatView(await readCache.get({allowFetch:admin||!chatBudgetReached()}),{uid,admin,groupId:url.searchParams.get("groupId")});
         if(view.code)console.log("TEST_CHAT_READ "+JSON.stringify({status:403,error:view.code,admin}));
-        return reply(res,view.code?403:200,view.code?{error:view.code}:view.result);
+        return reply(res,view.code?403:200,view.code?{error:view.code}:chatDelta(view.result,{first:url.searchParams.get("first"),last:url.searchParams.get("last"),digest:url.searchParams.get("digest")}));
       }
       if(req.method==="POST"){
         if(limited("chat:"+uid,12))return reply(res,429,{error:"too_many_requests"});
         const b=await body(req),id=randomUUID(),now=Date.now();
         const action=admin?(b.action||"send"):["report","report_room"].includes(b.action)?b.action:"send";
+        if(!admin&&action==="send"&&chatBudgetReached())return reply(res,503,{error:"chat_budget_pause"});
         const result=await directRootChange(root=>chatAction(root,{uid,admin,groupId:b.groupId,text:b.text,id,now,action,targetUid:admin?b.targetUid:undefined,messageId:b.messageId,gameId:b.gameId,tour:b.tour}));
         if(action==="clear_room_alerts"&&result.status===200){
           const fresh=await directRootRead();

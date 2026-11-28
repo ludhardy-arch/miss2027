@@ -22,6 +22,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
   const [sendError,setSendError]=useState("");
   const sendingRef=useRef(false);
   const readVersion=useRef(0);
+  const chatCursor=useRef(null),chatSnapshot=useRef([]);
   const [unread, setUnread] = useState(0);
   useEffect(()=>{onUnread?.(unread);},[unread,onUnread]);
   const [chatBlocked, setChatBlocked] = useState(false);
@@ -38,7 +39,8 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
     setUnread(0);
   }
   function applyChat(data){
-    const next=data.messages||[];
+    const next=data.delta===true?[...chatSnapshot.current,...(data.messages||[])]:data.messages||[];
+    chatSnapshot.current=next;chatCursor.current=data.cursor||null;
     if(marker.current===null||openRef.current)markRead(next);
     else setUnread(countUnread(next,marker.current,user.uid));
     setVoteReminder(data.voteReminder||null);
@@ -135,7 +137,7 @@ export default function ChatBubble({ user, demoMessages = null, onDemoSend = nul
       busy=true;
       try{
         const version=readVersion.current;
-        const data=await groupRequest();
+        const data=await groupRequest(undefined,chatCursor.current);
         if(!active||version!==readVersion.current)return;
         applyChat(data);
       }catch(e){if(active)setChatError(e.message);}

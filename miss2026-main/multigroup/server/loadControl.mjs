@@ -4,10 +4,11 @@ export function createReadCache(read,{ttl=1500,clock=Date.now}={}){
  const counts={hits:0,misses:0,coalesced:0};
  return {
   invalidate(){generation++;current=null;pending=null;},
-  async get(){
+  async get({allowFetch=true}={}){
    const t=clock();
    if(current&&t<current.until){counts.hits++;return current.state;}
    if(pending){counts.coalesced++;return pending.promise;}
+   if(!allowFetch)throw Object.assign(Error("chat_budget_pause"),{status:503});
    counts.misses++;
    const g=generation,job={};
    job.promise=Promise.resolve().then(read).then(state=>{

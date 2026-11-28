@@ -89,7 +89,7 @@ export default function Admin({ user, setUser }) {
   useEffect(()=>{for(const [id,data] of Object.entries(chatSummary)){if(!getReadMarker(user.uid,id))saveReadMarker(user.uid,id,newest(data.messages,emptyMarker));}},[nationalView,user.uid]);
   const chatRead=React.useCallback(mark=>{setReadMarkers(old=>({...old,[chatGroup]:mark}));},[chatGroup]);
   const refreshReports=React.useCallback(rooms=>{if(Array.isArray(rooms)){alertSequence.current++;setAlertDirectory(rooms);setAlertError("");}void loadAlerts();},[user.uid]);
-  const chatRequest=React.useCallback(body=>body===undefined?adminRequest("/admin/chat?groupId="+encodeURIComponent(chatGroup)):adminRequest("/admin/chat",{...body,groupId:chatGroup}),[chatGroup,user.uid]);
+  const chatRequest=React.useCallback((body,cursor)=>body===undefined?adminRequest("/admin/chat?"+new URLSearchParams({groupId:chatGroup,...(cursor||{})})):adminRequest("/admin/chat",{...body,groupId:chatGroup}),[chatGroup,user.uid]);
   async function moderate(player,action){
     if(!window.confirm((action==="warn"?"Avertir ":action==="block"?"Bloquer ":"Débloquer ")+player.pseudo+" ?"))return;
     try{await adminRequest("/admin/chat",{groupId:player.groupId,targetUid:player.uid,action});setNationalView(await adminRequest("/admin/game"));}catch(e){reportActionError(e);}
@@ -414,6 +414,7 @@ export default function Admin({ user, setUser }) {
           <span>Écritures : <b>{nationalView.loadStats.writes}</b> · Conflits : <b>{nationalView.loadStats.conflicts}</b></span>
           <span>Votes en attente : <b>{nationalView.loadStats.votes.pending}</b> · Lots de votes : <b>{nationalView.loadStats.votes.batches}</b></span>
           <span>Mémoire du serveur : <b>{(nationalView.loadStats.memoryBytes/1048576).toFixed(1)} Mio</b></span>
+          <span>Protection chat : <b>{nationalView.loadStats.chatBudgetReached?"Seuil atteint":nationalView.loadStats.chatBudgetBytes>0?"Seuil "+(nationalView.loadStats.chatBudgetBytes/1e6).toFixed(0)+" Mo":"Non configurée"}</b></span>
           <small className="regie-muted">Depuis le dernier redémarrage du serveur. Volume JSON reçu par l’API, hors connexions directes et surcoûts réseau. Ce n’est pas la facture Firebase ni un plafond de dépenses.</small>
         </div>
       </details>}

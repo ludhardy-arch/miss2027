@@ -1,0 +1,25 @@
+name: Miss2027 isolated capacity checks
+on:
+  push:
+    branches: [test-capacite-1500]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  checks:
+    if: github.ref == 'refs/heads/test-capacite-1500'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: miss2026-main
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npm --prefix multigroup/server install --no-audit --no-fund
+      - run: node --check multigroup/server/server.mjs
+      - run: node --test multigroup/server/*.test.mjs multigroup/finalResults.test.js

@@ -58,7 +58,7 @@ export function rankPlayers(entries) {
 // IDs, not display names, determine membership and uniqueness.
 export function buildFinalResults({
   players = {}, votesByUid = {}, groups = {}, membershipsByGroup = {},
-  eligibleUids, adminSelections
+  eligibleUids, adminSelections, maxGroups=1
 }) {
   if (!Array.isArray(eligibleUids)) throw new Error("Liste des joueurs éligibles requise");
   const official = validatedOfficial(adminSelections);
@@ -90,8 +90,9 @@ export function buildFinalResults({
     for (const uid of memberUids) {
       assertId(uid);
       if (!own(players, uid)) throw new Error("Membre sans identité");
-      if (assignedGroups.has(uid)) throw new Error("Deux groupes pour un même joueur");
-      assignedGroups.set(uid, groupId);
+      const prior=assignedGroups.get(uid)||[];
+      if(prior.length>=maxGroups)throw new Error(maxGroups===1?"Deux groupes pour un même joueur":"Plus de trois groupes pour un même joueur");
+      assignedGroups.set(uid,[...prior,groupId]);
     }
     const ranking = rankPlayers(memberUids.filter(uid => byUid.has(uid)).map(uid => {
       const { rank, ...entry } = byUid.get(uid);
@@ -99,7 +100,9 @@ export function buildFinalResults({
     }));
     local[groupId] = ranking;
     for (const p of ranking) {
-      perPlayer[p.uid].group = { groupId, rank: p.rank, total: ranking.length };
+      const result={groupId,rank:p.rank,total:ranking.length};
+      if(!perPlayer[p.uid].group)perPlayer[p.uid].group=result;
+      if(maxGroups>1)perPlayer[p.uid].groups={...perPlayer[p.uid].groups,[groupId]:result};
     }
   }
   if (national.some(p => !assignedGroups.has(p.uid))) throw new Error("Joueur éligible sans groupe");

@@ -1,4 +1,4 @@
-import {membershipView,joinGroup,normalizePseudo,isExcluded} from "./registration.mjs";
+import {membershipView,membershipViews,membershipIds,membershipIndex,joinGroup,normalizePseudo,isExcluded} from "./registration.mjs";
 const fail=code=>({code});
 const eventOf=root=>root?.events?.miss2027||{};
 const replace=(root,event)=>({...root,events:{...root.events,miss2027:event}});
@@ -6,14 +6,14 @@ export function locked(root){
  const room=root?.rooms?.miss2027,event=eventOf(root);
  return room?.registrationLocked===true||room?.votesOpen===true||room?.finaleStarted===true||Number(room?.tour||1)!==1||Object.keys(event.votes||{}).length>0;
 }
-export function ownerView(root,uid){
- const event=eventOf(root),reg=event.registration,view=membershipView(reg,uid);
+export function ownerView(root,uid,groupId){
+ const event=eventOf(root),reg=event.registration,view=groupId?membershipView(reg,uid,groupId):membershipViews(reg,uid).find(g=>g.isOwner);
  if(!view?.isOwner)return fail("owner_required");
  const group=reg.groups[view.id];
- return {result:{group:{...view,entered:event.players?.[uid]?.groupId===view.id,registrationsOpen:!locked(root)&&Object.keys(group.members||{}).length<30,locked:locked(root),invitationActive:!!(group.inviteDigest||group.inviteCard?.digest),members:Object.entries(group.members).map(([id,m])=>({id,pseudo:m.pseudo,isOwner:id===uid}))}}};
+ return {result:{group:{...view,entered:membershipIds(reg,uid).includes(event.players?.[uid]?.groupId),registrationsOpen:!locked(root)&&Object.keys(group.members||{}).length<30,locked:locked(root),invitationActive:!!(group.inviteDigest||group.inviteCard?.digest),members:Object.entries(group.members).map(([id,m])=>({id,pseudo:m.pseudo,isOwner:id===uid}))}}};
 }
-export function manageGroup(root,{uid,action,value,targetUid,digest,verifiedSecret,reuse=false,card}){
- const initial=ownerView(root,uid);
+export function manageGroup(root,{uid,groupId,action,value,targetUid,digest,verifiedSecret,reuse=false,card}){
+ const initial=ownerView(root,uid,groupId);
  if(initial.code)return initial;
  const event=eventOf(root),reg=event.registration,id=initial.result.group.id,g=reg.groups[id];
  if(locked(root)&&action!=="revoke")return fail("membership_locked");
@@ -34,13 +34,16 @@ export function manageGroup(root,{uid,action,value,targetUid,digest,verifiedSecr
    group.inviteDigest=digest;
  }else if(action==="revoke"){delete group.inviteDigest;delete group.inviteCard;}
  else if(action==="remove"){
-   if(typeof targetUid!=="string"||targetUid===uid||!Object.hasOwn(g.members,targetUid)||reg.membership?.[targetUid]!==id)return fail("invalid_member");
+   if(typeof targetUid!=="string"||targetUid===uid||!Object.hasOwn(g.members,targetUid)||!membershipIds(reg,targetUid).includes(id))return fail("invalid_member");
    const members={...g.members};delete members[targetUid];group.members=members;
-   membership={...membership};delete membership[targetUid];
-   players={...players};delete players[targetUid];
+   const remaining=membershipIds(reg,targetUid).filter(g=>g!==id);
+   membership=membershipIndex(reg,targetUid,remaining);
+   players={...players};
+   if(!remaining.length)delete players[targetUid];
+   else if(players[targetUid]?.groupId===id)players[targetUid]={...players[targetUid],groupId:remaining[0]};
  }else return fail("invalid_action");
  const next=replace(root,{...event,players,registration:{...reg,membership,groups:{...reg.groups,[id]:group}}});
- return {state:next,result:ownerView(next,uid).result};
+ return {state:next,result:ownerView(next,uid,id).result};
 }
 export function invitationView(root,digest){
  if(!/^[a-f0-9]{64}$/.test(digest||"")||locked(root))return fail("unavailable");
@@ -48,18 +51,18 @@ export function invitationView(root,digest){
  if(!entry)return fail("unavailable");
  return {result:{group:{id:entry[0],name:entry[1].name}}};
 }
-export function acceptInvitation(root,{uid,digest,pseudo,now}){
+export function acceptInvitation(root,{uid,digest,pseudo,now,additional=false}){
  const event=eventOf(root),reg=event.registration;
  if(isExcluded(reg,uid))return fail("player_removed");
  const existing=membershipView(reg,uid);
- if(existing)return {state:root,result:{group:existing,alreadyRegistered:true}};
+ if(existing&&!additional)return {state:root,result:{group:existing,alreadyRegistered:true}};
  const view=invitationView(root,digest);
  if(view.code)return view;
  const id=view.result.group.id;
- const joined=joinGroup(reg,{uid,id,pseudo,verifiedSecret:reg.groups[id].secret,now});
+ const joined=joinGroup(reg,{uid,id,pseudo,verifiedSecret:reg.groups[id].secret,now,additional});
  if(joined.code)return joined;
  const next=replace(root,{...event,registration:joined.state});
- return {state:next,result:{group:membershipView(joined.state,uid)}};
+ return {state:next,result:{group:membershipView(joined.state,uid,id),alreadyRegistered:joined.result.alreadyRegistered===true}};
 }
 
 const safeUid=v=>typeof v==="string"&&/^[a-zA-Z0-9_-]{1,128}$/.test(v)&&!["__proto__","constructor","prototype"].includes(v);
@@ -71,9 +74,11 @@ export function removePlayer(root,{targetUid,groupId,gameId,confirmed,now}){
  if(!room?.gameId||String(room.gameId)!==gameId)return fail("game_changed");
  if(room.finaleStarted===true||event.results)return fail("game_finished");
  if(!safeUid(targetUid)||!safeUid(groupId))return fail("invalid_member");
- const view=membershipView(reg,targetUid);
- if(!view||view.id!==groupId)return fail("invalid_member");
- const original=reg.groups[groupId],members=omitKey(original.members,targetUid);
+ const view=membershipView(reg,targetUid,groupId);
+ if(!view)return fail("invalid_member");
+ const updated={...reg.groups};
+ for(const id of membershipIds(reg,targetUid)){
+ const original=reg.groups[id],members=omitKey(original.members,targetUid);
  const group={...original,members};
  // Keep the group and chat. If its creator is removed, the oldest remaining
  // member becomes organizer. An empty private group has no owner until joined.
@@ -82,7 +87,9 @@ export function removePlayer(root,{targetUid,groupId,gameId,confirmed,now}){
    if(next)group.ownerUid=next[0];else delete group.ownerUid;
    delete group.inviteDigest;delete group.inviteCard;
  }
- const registration={...reg,groups:{...reg.groups,[groupId]:group},membership:omitKey(reg.membership,targetUid),excluded:{...reg.excluded,[targetUid]:{pseudo:normalizePseudo(view.pseudo),at:now}}};
+ updated[id]=group;
+ }
+ const registration={...reg,groups:updated,membership:omitKey(reg.membership,targetUid),excluded:{...reg.excluded,[targetUid]:{pseudo:normalizePseudo(view.pseudo),at:now}}};
  const next=replace(root,{...event,registration,players:omitKey(event.players,targetUid),votes:omitKey(event.votes,targetUid),chatModeration:omitKey(event.chatModeration,targetUid)});
- return {state:next,result:{accepted:true,removedUid:targetUid,groupId,remaining:Object.keys(members).length}};
+ return {state:next,result:{accepted:true,removedUid:targetUid,groupId,remaining:Object.keys(updated[groupId].members).length}};
 }

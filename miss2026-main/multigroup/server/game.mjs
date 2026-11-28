@@ -1,6 +1,6 @@
 import {adminChatSummary} from "./chat.mjs";
 import {buildFinalResults} from "../finalResults.js";
-import {membershipView,isExcluded} from "./registration.mjs";
+import {membershipView,membershipViews,membershipIds,isExcluded} from "./registration.mjs";
 import {CANDIDATES} from "../../src/data/candidates.js";
 const ids=CANDIDATES.map(c=>c.id);
 const fail=code=>({code});
@@ -8,7 +8,8 @@ const list=v=>Array.isArray(v)?v:Object.values(v||{});
 function context(root,uid){
  const room=root?.rooms?.miss2027,event=root?.events?.miss2027||{};
  const group=membershipView(event.registration,uid);
- return {room,event,group,entered:!!group&&event.players?.[uid]?.groupId===group.id};
+ const groups=membershipViews(event.registration,uid);
+ return {room,event,group,groups,entered:groups.some(g=>g.id===event.players?.[uid]?.groupId)};
 }
 function stateWith(root,event){return {...root,events:{...root.events,miss2027:event}};}
 export function enterGame(root,{uid,now}){
@@ -22,7 +23,7 @@ export function enterGame(root,{uid,now}){
  return {state:stateWith(root,next),result:{group,gameId:String(room.gameId)}};
 }
 export function gameView(root,uid){
- const {room,event,group,entered}=context(root,uid);
+ const {room,event,group,groups,entered}=context(root,uid);
  if(isExcluded(event.registration,uid))return fail("player_removed");
  if(!group)return fail("not_registered");
  if(!room?.gameId)return fail("game_unavailable");
@@ -31,7 +32,9 @@ export function gameView(root,uid){
  const tour=Number(room.tour||1), own=event.votes?.[uid]||{};
  const key="tour"+tour;
  const published=room.finaleStarted===true&&event.results?.gameId===String(room.gameId)?event.results:null;
- const final=published?{local:list(published.local?.[group.id]),personal:published.perPlayer?.[uid]||null,nationalTop:list(published.nationalTop),nationalTotal:published.nationalTotal,version:published.gameId}:null;
+ const finalFor=g=>({local:list(published.local?.[g.id]),personal:published.perPlayer?.[uid]||null,nationalTop:list(published.nationalTop),nationalTotal:published.nationalTotal,version:published.gameId});
+ const final=published?finalFor(group):null;
+ const finals=published?groups.map(g=>({group:g,...finalFor(g)})):null;
  const ownVote={};
  for(const k of ["tour1","tour2","tour3","favorite"])if(own[k]!==undefined)ownVote[k]=own[k];
  const official={tour1:tour>=2?list(room.adminSelections?.tour1):[],tour2:tour>=3?list(room.adminSelections?.tour2):[],tour3:[]};
@@ -47,7 +50,7 @@ export function gameView(root,uid){
      vote.forEach((id,index)=>{if(ids.includes(id))counts[id]=(counts[id]||0)+(tour===3?5-index:1);});
    }
  }
- return {result:{group,gameId:String(room.gameId),tour,votesOpen:room.votesOpen===true&&room.finaleStarted!==true,finaleStarted:room.finaleStarted===true,adminSelections:official,ownVote,final,trend:{counts,validated,total:Object.keys(members).length}}};
+ return {result:{group,groups,finals,gameId:String(room.gameId),tour,votesOpen:room.votesOpen===true&&room.finaleStarted!==true,finaleStarted:room.finaleStarted===true,adminSelections:official,ownVote,final,trend:{counts,validated,total:Object.keys(members).length}}};
 }
 export function castVote(root,{uid,gameId,tour,selection,favorite,now}){
  const {room,event,group,entered}=context(root,uid);
@@ -77,7 +80,7 @@ export function adminGameView(root){
    const group=membershipView(event.registration,uid);
    if(!group)continue;
    const own=event.votes?.[uid]||{};
-   const record={uid,chatBlocked:event.chatModeration?.[uid]===true,pseudo:group.pseudo,groupName:group.name,groupId:group.id,entered:event.players?.[uid]?.groupId===group.id};
+   const record={uid,chatBlocked:event.chatModeration?.[uid]===true,pseudo:group.pseudo,groupName:group.name,groupId:group.id,groupIds:membershipIds(event.registration,uid),entered:membershipIds(event.registration,uid).includes(event.players?.[uid]?.groupId)};
    for(const key of ["tour1","tour2","tour3","favorite"])if(own[key]!==undefined)record[key]=own[key];
    players[uid]=record;
  }
@@ -104,15 +107,15 @@ export function publishFinal(root,{gameId}){
    groups[id]={type:g.type==="public"?"public":"private"};
    membershipsByGroup[id]={};
    for(const uid of Object.keys(g.members||{})){
-     const group=membershipView(event.registration,uid);
-     if(group?.id!==id||event.players?.[uid]?.groupId!==id)continue;
+     const group=membershipView(event.registration,uid,id);
+     if(!group||!membershipIds(event.registration,uid).includes(event.players?.[uid]?.groupId))continue;
      players[uid]={pseudo:group.pseudo};membershipsByGroup[id][uid]=true;
      const vote=event.votes?.[uid]||{};
      if(["tour1","tour2","tour3"].some(k=>list(vote[k]).length>0))eligibleUids.push(uid);
    }
  }
  let calculated;
- try{calculated=buildFinalResults({players,groups,membershipsByGroup,eligibleUids,votesByUid:event.votes||{},adminSelections:room.adminSelections||{}});}
+ try{calculated=buildFinalResults({players,groups,membershipsByGroup,eligibleUids,votesByUid:event.votes||{},adminSelections:room.adminSelections||{},maxGroups:3});}
  catch{return fail("invalid_final_results");}
  // No national raw ballots or national full ranking are returned to players.
  const results={gameId,local:calculated.local,perPlayer:calculated.perPlayer,nationalTop:calculated.national.filter(p=>p.rank<=3).map(({pseudo,points,rank})=>({pseudo,points,rank})),nationalTotal:calculated.national.length};

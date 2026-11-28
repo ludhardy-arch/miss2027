@@ -20,6 +20,25 @@ export function searchGroups(state, query) {
 }
 const fail=code=>({code});
 export const PRIVATE_CAPACITY=30;
+export const MAX_GROUPS=3;
+// Legacy single-group records stay strings. Multiple memberships are ordered arrays.
+export function membershipIds(state,uid){
+ const raw=state?.membership?.[uid];
+ return [...new Set(typeof raw==="string"?[raw]:Array.isArray(raw)?raw:raw&&typeof raw==="object"?Object.values(raw):[])].filter(id=>typeof id==="string"&&Object.hasOwn(state?.groups||{},id)&&Object.hasOwn(state.groups[id].members||{},uid));
+}
+export function membershipViews(state,uid){return membershipIds(state,uid).map(id=>membershipView(state,uid,id));}
+export function membershipIndex(state,uid,ids){
+ const next={...state?.membership};
+ if(!ids.length)delete next[uid];else next[uid]=ids.length===1?ids[0]:ids;
+ return next;
+}
+function additionalCheck(s,uid,additional){
+ const ids=membershipIds(s,uid);
+ if(ids.length&&!additional)return fail("already_member");
+ if(ids.length>=MAX_GROUPS)return fail("group_limit");
+ if(s.membership?.[uid]&&!ids.length)return fail("conflict");
+ return null;
+}
 // One display name throughout the contest; compare case, accents and repeated spaces.
 export const normalizePseudo=value=>typeof value==="string"?normalizeName(value.normalize("NFKC")):"";
 export const isExcluded=(state,uid)=>!!uid&&Object.hasOwn(state?.excluded||{},uid);
@@ -45,35 +64,38 @@ export function groupNameAvailable(state,name){
   if(/^salle publique [0-9]+$/.test(key))return false;
   return !Object.values(state?.groups||{}).some(group=>normalizePseudo(group?.name)===key);
 }
-export function createGroup(state,{uid,id,name,pseudo,secret,now,inviteCard}) {
+export function createGroup(state,{uid,id,name,pseudo,secret,now,inviteCard,additional=false}) {
   const s=state||{};
   if(isExcluded(s,uid))return fail("player_removed");
-  if(s.membership?.[uid])return fail("already_member");
+  const conflict=additionalCheck(s,uid,additional);if(conflict)return conflict;
+  pseudo=membershipView(s,uid)?.pseudo||pseudo;
   if(s.groups?.[id])return fail("conflict");
   if(!normalizePseudo(name)||typeof name!=="string"||name.length>80)return fail("invalid_fields");
   if(!groupNameAvailable(s,name))return fail("group_name_taken");
   const invalid=checkPseudo(s,pseudo,uid);if(invalid)return invalid;
   const group={type:"private",name,ownerUid:uid,capacity:PRIVATE_CAPACITY,registrationsOpen:true,secret,...(inviteCard?{inviteCard}:{}),createdAt:now,members:{[uid]:{pseudo,joinedAt:now}}};
-  return {state:{...s,groups:{...s.groups,[id]:group},membership:{...s.membership,[uid]:id}},result:{id,name}};
+  return {state:{...s,groups:{...s.groups,[id]:group},membership:membershipIndex(s,uid,[...membershipIds(s,uid),id])},result:{id,name}};
 }
-export function joinGroup(state,{uid,id,pseudo,verifiedSecret,now}) {
+export function joinGroup(state,{uid,id,pseudo,verifiedSecret,now,additional=false}) {
   const s=state||{};
   if(isExcluded(s,uid))return fail("player_removed");
   const g=s.groups?.[id];
-  const existing=membershipView(s,uid);
-  if(existing?.id===id)return {state:s,result:{id,name:g.name,group:existing,alreadyRegistered:true}};
-  if(s.membership?.[uid])return fail("already_member");
+  const existing=membershipView(s,uid,id);
+  if(existing)return {state:s,result:{id,name:g.name,group:existing,alreadyRegistered:true}};
+  const conflict=additionalCheck(s,uid,additional);if(conflict)return conflict;
+  pseudo=membershipView(s,uid)?.pseudo||pseudo;
   if(!g||g.type==="public")return fail("unavailable");
   if(g.secret!==verifiedSecret)return fail("invalid_password");
   if(Object.keys(g.members||{}).length>=PRIVATE_CAPACITY)return fail("group_full");
   const invalid=checkPseudo(s,pseudo,uid);if(invalid)return invalid;
   const group={...g,...(!g.ownerUid&&!Object.keys(g.members||{}).length?{ownerUid:uid}:{}),members:{...g.members,[uid]:{pseudo,joinedAt:now}}};
-  return {state:{...s,groups:{...s.groups,[id]:group},membership:{...s.membership,[uid]:id}},result:{id,name:g.name}};
+  return {state:{...s,groups:{...s.groups,[id]:group},membership:membershipIndex(s,uid,[...membershipIds(s,uid),id])},result:{id,name:g.name}};
 }
 
 export const PUBLIC_CAPACITY=30;
-export function membershipView(state,uid){
-  const id=state?.membership?.[uid];
+export function membershipView(state,uid,requestedId){
+  const ids=membershipIds(state,uid);
+  const id=requestedId===undefined||requestedId===null?ids[0]:ids.includes(requestedId)?requestedId:null;
   const group=id&&state.groups?.[id];
   const member=group?.members?.[uid];
   if(!group||!member)return null;
